@@ -1,6 +1,6 @@
-# [Project name]
+# HUDDLE
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A minimalist social sports prediction platform for Gen Z university students — blending Twitter-style banter, gamified binary predictions, and private group leagues.
 
 ## Run & Operate
 
@@ -14,32 +14,59 @@ _Replace the heading above with the project's name, and this line with one sente
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
+- Mobile: Expo (React Native) with Expo Router
 - API: Express 5
-- DB: PostgreSQL + Drizzle ORM
+- DB: PostgreSQL + Drizzle ORM (backend ready, mobile uses AsyncStorage for MVP)
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
 - Build: esbuild (CJS bundle)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/mobile/` — Expo mobile app
+  - `app/` — screens (Expo Router file-based routing)
+  - `app/(auth)/` — login, register, complete-profile
+  - `app/(tabs)/` — home timeline, leagues, leaderboard, profile
+  - `app/league/[id].tsx` — private league chat room
+  - `components/` — PostCard, ChatBubble, LeaderboardRow, Avatar, HuddleButton
+  - `context/AuthContext.tsx` — auth state + AsyncStorage persistence
+  - `context/DataContext.tsx` — posts, leagues, messages, leaderboard state
+  - `constants/colors.ts` — strict light mode monochrome design tokens
+- `artifacts/api-server/` — Express backend
+- `lib/api-spec/openapi.yaml` — OpenAPI contract
+- `lib/db/src/schema/` — Drizzle DB schema
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Mobile-first MVP uses AsyncStorage for all persistence (no backend calls yet) — backend is wired and ready for integration.
+- Strict light mode only — pure white bg, black text, 1px grey borders, pill buttons. No gradients, no colored blocks.
+- Design system: avatar initials with per-user colors provide the only color on screen (editorial monochrome aesthetic).
+- Inverted FlatList for chat (league rooms) — handles auto-scroll and keyboard correctly.
+- DataContext seeds mock posts/leagues/messages on first load from AsyncStorage.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Auth & onboarding: email/password login, custom @username, DOB, avatar color picker
+- Home social timeline: Twitter-style posts with embedded binary prediction polls (grey pill buttons → votes reveal %)
+- Private Leagues: create/join groups with invite codes; each league has a real-time-style chat room
+- Leaderboard: global rankings + per-league rankings toggled by tab
+- Profile: win rate % + points display, account settings, sign out
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Strict monochrome light mode — pure white background only
+- Clinical, editorial, modern aesthetic (not a sportsbook)
+- No emoji in UI, no heavy colored blocks
+- Pill-shaped buttons: solid black/white or light grey/black
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Use AsyncStorage, not uuid package — uuid requires crypto.getRandomValues() which crashes on iOS/Android
+- Do NOT add react-native-maps to plugins in app.json (crashes)
+- Mobile workflow: restart only when dependencies change, not for code edits (HMR handles it)
+- `userInterfaceStyle: "light"` enforced in app.json (strict light mode)
 
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- See the `expo` skill for mobile patterns, routing, and keyboard handling

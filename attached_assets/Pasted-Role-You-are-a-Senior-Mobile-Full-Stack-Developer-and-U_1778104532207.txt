@@ -1,0 +1,56 @@
+Role: You are a Senior Mobile Full Stack Developer and UI/UX Expert. Your task is to build a sleek, production ready web and mobile MVP using Flutter (or React Native/Next.js if it suits the Replit environment better for speed), with Supabase for the backend database and authentication.
+
+App Concept: The app is called "HUDDLE". It is a minimalist, social sports prediction platform designed for a Gen Z university demographic. The core focus is social retention through private friend groups and messaging, gamified with sports predictions. It is NOT a betting app. It must look like a high end Silicon Valley social platform (similar to Twitter or Instagram), not a sportsbook.
+
+Design System & Aesthetic Rules:
+
+Theme: Strict light mode only. Pure white background.
+
+Typography: Sleek, modern, clean sans serif fonts. Use pure black for primary text and soft light grey for secondary text and handles.
+
+Containers & Buttons: Do not use heavy colored blocks. Use 1 pixel ultra light grey borders for cards. Buttons should be pill shaped (either solid black with white text, or light grey with black text).
+
+Overall Vibe: Clinical, editorial, modern, clean. Let the user avatars and country/team flags provide the only pops of color on the screen.
+
+Core MVP Features to Build:
+
+1. Authentication & Onboarding:
+
+Clean email and password login page.
+
+A "Complete Profile" step capturing a custom @username, date of birth, and a profile picture upload.
+
+2. User Profiles (Gamification):
+
+A clean profile screen showing the user's avatar and username.
+
+The primary gamification metric displayed here is a simple, bold "Win Rate %" counter alongside their total accumulated prediction points.
+
+3. Home Social Timeline (The Core Hub):
+
+A unified vertical scrolling feed blending text banter and interactive sports predictions.
+
+Posts should look like embedded Twitter quote tweets.
+
+Predictions must be framed as simple binary questions (e.g., "Will Team A beat Team B?").
+
+Prediction inputs should look like Twitter polls using sleek light grey pill buttons, not flashy casino buttons.
+
+Posts need minimalist icons for Comment, Heart, and Share.
+
+4. The Social Engine (Private Leagues & Messaging):
+
+This is the primary retention feature. Users must be able to create and join "Private Leagues".
+
+Each Private League has its own dedicated chat room for group messaging. Chat bubbles should be minimalist (solid black for the user, light grey for friends).
+
+5. Leaderboards:
+
+A Global Leaderboard ranking all app users by total points.
+
+A toggle to view Private League Leaderboards so friends can see exactly how they rank against each other.
+
+The UI must be a clean list separated by thin light grey lines.
+
+Instructions for Output:
+Set up the project structure, configure the basic database schema for Supabase (Users, Posts, Predictions, Leagues, Messages), and generate the code for the primary 'Home Social Timeline' and 'Private League Messaging' screens first. Ensure the styling strictly matches the minimalist monochrome design system outlined above.

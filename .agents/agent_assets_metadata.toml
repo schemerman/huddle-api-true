@@ -1,0 +1,14 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "spBwFPp8EOI5BrCYWphUd"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "huddle app icon"
+
+[[generated]]
+id = "sjnI5S-B7qXavnnj4vZ39"
+uri = "file://artifacts/mobile/assets/images/splash.png"
+type = "image"
+title = "huddle splash screen"
