@@ -57,7 +57,7 @@ export default function LoginScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.wordmark}>HUDDLE</Text>
-          <Text style={styles.tagline}>Your social sports prediction league.</Text>
+          <Text style={styles.tagline}>Bring your team together.</Text>
         </View>
 
         <View style={styles.form}>
