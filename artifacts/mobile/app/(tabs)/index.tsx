@@ -38,6 +38,7 @@ export default function HomeScreen() {
             onLike={() => likePost(item.id)}
             onVote={(choice) => voteOnPrediction(item.id, choice)}
             currentUserId={user?.id}
+            hidePrediction
           />
         )}
         showsVerticalScrollIndicator={false}

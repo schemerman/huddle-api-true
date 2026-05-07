@@ -16,13 +16,13 @@ function NativeTabLayout() {
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>Home</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="leagues">
-        <Icon sf={{ default: "person.3", selected: "person.3.fill" }} />
-        <Label>Leagues</Label>
+      <NativeTabs.Trigger name="predict">
+        <Icon sf={{ default: "questionmark.circle", selected: "questionmark.circle.fill" }} />
+        <Label>Predict</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="leaderboard">
-        <Icon sf={{ default: "trophy", selected: "trophy.fill" }} />
-        <Label>Rankings</Label>
+      <NativeTabs.Trigger name="huddles">
+        <Icon sf={{ default: "person.3", selected: "person.3.fill" }} />
+        <Label>Huddles</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: "person", selected: "person.fill" }} />
@@ -86,26 +86,26 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="leagues"
+        name="predict"
         options={{
-          title: "Leagues",
+          title: "Predict",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="questionmark.circle" tintColor={color} size={22} />
+            ) : (
+              <Feather name="help-circle" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="huddles"
+        options={{
+          title: "Huddles",
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="person.3" tintColor={color} size={22} />
             ) : (
               <Feather name="users" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="leaderboard"
-        options={{
-          title: "Rankings",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="trophy" tintColor={color} size={22} />
-            ) : (
-              <Feather name="award" size={22} color={color} />
             ),
         }}
       />
@@ -120,6 +120,14 @@ function ClassicTabLayout() {
               <Feather name="user" size={22} color={color} />
             ),
         }}
+      />
+      <Tabs.Screen
+        name="leagues"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="leaderboard"
+        options={{ href: null }}
       />
     </Tabs>
   );

@@ -11,11 +11,12 @@ interface PostCardProps {
   onLike: () => void;
   onVote: (choice: "A" | "B") => void;
   currentUserId?: string;
+  hidePrediction?: boolean;
 }
 
-export function PostCard({ post, onLike, onVote, currentUserId }: PostCardProps) {
+export function PostCard({ post, onLike, onVote, currentUserId, hidePrediction = false }: PostCardProps) {
   const colors = useColors();
-  const pred = post.prediction;
+  const pred = hidePrediction ? undefined : post.prediction;
 
   const totalVotes = pred ? pred.votesA + pred.votesB : 0;
   const pctA = totalVotes > 0 ? Math.round((pred!.votesA / totalVotes) * 100) : 50;
@@ -53,9 +54,7 @@ export function PostCard({ post, onLike, onVote, currentUserId }: PostCardProps)
                 styles.pollOption,
                 {
                   backgroundColor:
-                    pred.userVote === "A"
-                      ? colors.primary
-                      : colors.secondary,
+                    pred.userVote === "A" ? colors.primary : colors.secondary,
                   borderColor: colors.border,
                   opacity: pressed && !pred.userVote ? 0.7 : 1,
                   flex: 1,
@@ -66,9 +65,7 @@ export function PostCard({ post, onLike, onVote, currentUserId }: PostCardProps)
               <Text
                 style={[
                   styles.pollOptionText,
-                  {
-                    color: pred.userVote === "A" ? colors.primaryForeground : colors.foreground,
-                  },
+                  { color: pred.userVote === "A" ? colors.primaryForeground : colors.foreground },
                 ]}
                 numberOfLines={1}
               >
@@ -91,9 +88,7 @@ export function PostCard({ post, onLike, onVote, currentUserId }: PostCardProps)
                 styles.pollOption,
                 {
                   backgroundColor:
-                    pred.userVote === "B"
-                      ? colors.primary
-                      : colors.secondary,
+                    pred.userVote === "B" ? colors.primary : colors.secondary,
                   borderColor: colors.border,
                   opacity: pressed && !pred.userVote ? 0.7 : 1,
                   flex: 1,
@@ -104,9 +99,7 @@ export function PostCard({ post, onLike, onVote, currentUserId }: PostCardProps)
               <Text
                 style={[
                   styles.pollOptionText,
-                  {
-                    color: pred.userVote === "B" ? colors.primaryForeground : colors.foreground,
-                  },
+                  { color: pred.userVote === "B" ? colors.primaryForeground : colors.foreground },
                 ]}
                 numberOfLines={1}
               >
