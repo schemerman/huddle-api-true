@@ -19,6 +19,7 @@ import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
 import { ChatBubble } from "@/components/ChatBubble";
 import { Avatar } from "@/components/Avatar";
+import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import type { Message } from "@/context/DataContext";
 
 const MOCK_USERS: Record<string, { username: string; displayName: string; avatarColor: string }> = {
@@ -35,10 +36,11 @@ export default function LeagueChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { leagues, messages, sendMessage } = useData();
+  const { leagues, messages, sendMessage, getUserStats } = useData();
   const { user } = useAuth();
   const [text, setText] = useState("");
   const [showMembers, setShowMembers] = useState(false);
+  const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
   const flatListRef = useRef<FlatList<Message>>(null);
 
   const league = leagues.find((l) => l.id === id);
@@ -50,6 +52,18 @@ export default function LeagueChatScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     sendMessage(id ?? "", text.trim());
     setText("");
+  };
+
+  const openProfile = (userId: string, username: string, displayName: string, avatarColor: string) => {
+    const stats = getUserStats(userId);
+    setProfileUser({
+      userId,
+      username,
+      displayName,
+      avatarColor,
+      points: stats?.points ?? 0,
+      winRate: stats?.winRate ?? 0,
+    });
   };
 
   if (!league) {
@@ -114,6 +128,10 @@ export default function LeagueChatScreen() {
           const isOwn = item.userId === user?.id || item.userId === "me";
           const nextItem = reversed[index + 1];
           const showAvatar = !nextItem || nextItem.userId !== item.userId;
+          const handleChatAvatarPress = () => {
+            if (isOwn) return;
+            openProfile(item.userId, item.username, item.username, item.avatarColor);
+          };
           return (
             <View style={{ marginBottom: showAvatar ? 12 : 2, marginTop: 2 }}>
               <ChatBubble
@@ -123,6 +141,7 @@ export default function LeagueChatScreen() {
                 isOwn={isOwn}
                 time={item.createdAt}
                 showAvatar={showAvatar && !isOwn}
+                onAvatarPress={!isOwn ? handleChatAvatarPress : undefined}
               />
             </View>
           );
@@ -163,12 +182,21 @@ export default function LeagueChatScreen() {
             },
           ]}
         >
-          <Feather name="send" size={16} color={text.trim() ? colors.primaryForeground : colors.mutedForeground} />
+          <Feather
+            name="send"
+            size={16}
+            color={text.trim() ? colors.primaryForeground : colors.mutedForeground}
+          />
         </Pressable>
       </View>
 
       {/* Members Modal */}
-      <Modal visible={showMembers} transparent animationType="slide" onRequestClose={() => setShowMembers(false)}>
+      <Modal
+        visible={showMembers}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowMembers(false)}
+      >
         <Pressable style={styles.modalOverlay} onPress={() => setShowMembers(false)}>
           <Pressable style={[styles.modalSheet, { backgroundColor: colors.background }]} onPress={() => {}}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
@@ -185,12 +213,27 @@ export default function LeagueChatScreen() {
                   i === members.length - 1 && { borderBottomWidth: 0 },
                 ]}
               >
-                <Avatar color={m.avatarColor} username={m.username} size={40} />
+                <Avatar
+                  color={m.avatarColor}
+                  username={m.username}
+                  size={40}
+                  onPress={
+                    !m.isYou
+                      ? () => {
+                          setShowMembers(false);
+                          setTimeout(() => openProfile(m.id, m.username, m.displayName, m.avatarColor), 300);
+                        }
+                      : undefined
+                  }
+                />
                 <View style={styles.memberInfo}>
                   <Text style={[styles.memberName, { color: colors.foreground }]}>
-                    {m.displayName}{m.isYou ? " (you)" : ""}
+                    {m.displayName}
+                    {m.isYou ? " (you)" : ""}
                   </Text>
-                  <Text style={[styles.memberHandle, { color: colors.mutedForeground }]}>@{m.username}</Text>
+                  <Text style={[styles.memberHandle, { color: colors.mutedForeground }]}>
+                    @{m.username}
+                  </Text>
                 </View>
                 {m.id === league.ownerId && (
                   <View style={[styles.ownerBadge, { backgroundColor: colors.secondary }]}>
@@ -208,6 +251,8 @@ export default function LeagueChatScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <PublicProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
     </KeyboardAvoidingView>
   );
 }

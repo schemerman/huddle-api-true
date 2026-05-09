@@ -1,4 +1,5 @@
 import { AntDesign, Feather } from "@expo/vector-icons";
+// Note: AntDesign "heart" = filled red, Feather "heart" = outline grey
 import * as Haptics from "expo-haptics";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -11,11 +12,20 @@ interface PostCardProps {
   onLike: () => void;
   onVote: (choice: "A" | "B") => void;
   onPress?: () => void;
+  onAvatarPress?: () => void;
   currentUserId?: string;
   hidePrediction?: boolean;
 }
 
-export function PostCard({ post, onLike, onVote, onPress, currentUserId, hidePrediction = false }: PostCardProps) {
+export function PostCard({
+  post,
+  onLike,
+  onVote,
+  onPress,
+  onAvatarPress,
+  currentUserId,
+  hidePrediction = false,
+}: PostCardProps) {
   const colors = useColors();
   const pred = hidePrediction ? undefined : post.prediction;
 
@@ -43,10 +53,17 @@ export function PostCard({ post, onLike, onVote, onPress, currentUserId, hidePre
       ]}
     >
       <View style={styles.header}>
-        <Avatar color={post.avatarColor} username={post.username} size={40} />
+        <Avatar
+          color={post.avatarColor}
+          username={post.username}
+          size={40}
+          onPress={onAvatarPress}
+        />
         <View style={styles.headerText}>
           <Text style={[styles.displayName, { color: colors.foreground }]}>{post.displayName}</Text>
-          <Text style={[styles.handle, { color: colors.handle }]}>@{post.username} · {post.createdAt}</Text>
+          <Text style={[styles.handle, { color: colors.handle }]}>
+            @{post.username} · {post.createdAt}
+          </Text>
         </View>
       </View>
 
@@ -135,7 +152,7 @@ export function PostCard({ post, onLike, onVote, onPress, currentUserId, hidePre
           {post.liked ? (
             <AntDesign name="heart" size={18} color="#E8533A" />
           ) : (
-            <AntDesign name="hearto" size={18} color={colors.mutedForeground} />
+            <Feather name="heart" size={18} color={colors.mutedForeground} />
           )}
           <Text style={[styles.actionCount, { color: post.liked ? "#E8533A" : colors.mutedForeground }]}>
             {post.likes}

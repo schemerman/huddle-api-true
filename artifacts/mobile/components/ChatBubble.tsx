@@ -9,9 +9,18 @@ interface ChatBubbleProps {
   isOwn: boolean;
   time: string;
   showAvatar?: boolean;
+  onAvatarPress?: () => void;
 }
 
-export function ChatBubble({ text, username, avatarColor, isOwn, time, showAvatar = true }: ChatBubbleProps) {
+export function ChatBubble({
+  text,
+  username,
+  avatarColor,
+  isOwn,
+  time,
+  showAvatar = true,
+  onAvatarPress,
+}: ChatBubbleProps) {
   if (isOwn) {
     return (
       <View style={[styles.row, styles.ownRow]}>
@@ -26,14 +35,12 @@ export function ChatBubble({ text, username, avatarColor, isOwn, time, showAvata
   return (
     <View style={styles.row}>
       {showAvatar ? (
-        <Avatar color={avatarColor} username={username} size={30} />
+        <Avatar color={avatarColor} username={username} size={30} onPress={onAvatarPress} />
       ) : (
         <View style={{ width: 30 }} />
       )}
       <View style={styles.otherContent}>
-        {showAvatar && (
-          <Text style={styles.senderName}>@{username}</Text>
-        )}
+        {showAvatar && <Text style={styles.senderName}>@{username}</Text>}
         <View style={[styles.bubble, styles.otherBubble]}>
           <Text style={styles.otherText}>{text}</Text>
         </View>

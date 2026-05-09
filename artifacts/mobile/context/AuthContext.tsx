@@ -19,6 +19,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   completeProfile: (username: string, dob: string, avatarColor: string) => Promise<void>;
+  updatePoints: (delta: number) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -66,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dob: "",
       avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
       winRate: 0,
-      points: 0,
+      points: 1000,
       profileComplete: false,
     };
     await persist(newUser);
@@ -81,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dob: "",
       avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
       winRate: 0,
-      points: 0,
+      points: 1000,
       profileComplete: false,
     };
     await persist(newUser);
@@ -96,9 +97,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dob,
       avatarColor,
       winRate: 62,
-      points: 1240,
+      points: user.points > 0 ? user.points : 1000,
       profileComplete: true,
     };
+    await persist(updated);
+  };
+
+  const updatePoints = async (delta: number) => {
+    if (!user) return;
+    const updated: HuddleUser = { ...user, points: Math.max(0, user.points + delta) };
     await persist(updated);
   };
 
@@ -108,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, completeProfile, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, completeProfile, updatePoints, logout }}>
       {children}
     </AuthContext.Provider>
   );

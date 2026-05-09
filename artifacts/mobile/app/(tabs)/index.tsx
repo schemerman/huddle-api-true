@@ -1,9 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import { FlatList, Platform, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PostCard } from "@/components/PostCard";
+import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
@@ -13,8 +14,22 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { posts, likePost, voteOnPrediction } = useData();
+  const { posts, likePost, voteOnPrediction, getUserStats } = useData();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
+
+  const handleAvatarPress = (post: Post) => {
+    const stats = getUserStats(post.userId);
+    setProfileUser({
+      userId: post.userId,
+      username: post.username,
+      displayName: post.displayName,
+      avatarColor: post.avatarColor,
+      points: stats?.points ?? 0,
+      winRate: stats?.winRate ?? 0,
+    });
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -32,6 +47,7 @@ export default function HomeScreen() {
             onLike={() => likePost(item.id)}
             onVote={(choice) => voteOnPrediction(item.id, choice)}
             onPress={() => router.push(`/post/${item.id}`)}
+            onAvatarPress={() => handleAvatarPress(item)}
             currentUserId={user?.id}
             hidePrediction
           />
@@ -40,6 +56,11 @@ export default function HomeScreen() {
         contentContainerStyle={{
           paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80),
         }}
+      />
+
+      <PublicProfileModal
+        user={profileUser}
+        onClose={() => setProfileUser(null)}
       />
     </View>
   );

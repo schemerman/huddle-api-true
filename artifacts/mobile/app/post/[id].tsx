@@ -1,4 +1,5 @@
 import { AntDesign, Feather } from "@expo/vector-icons";
+// AntDesign "heart" = filled red, Feather "heart" = outline grey
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React from "react";
@@ -142,7 +143,7 @@ export default function PostDetailScreen() {
                   {post.liked ? (
                     <AntDesign name="heart" size={22} color="#E8533A" />
                   ) : (
-                    <AntDesign name="hearto" size={22} color={colors.mutedForeground} />
+                    <Feather name="heart" size={22} color={colors.mutedForeground} />
                   )}
                 </Pressable>
                 <Pressable style={styles.actionBtn}>

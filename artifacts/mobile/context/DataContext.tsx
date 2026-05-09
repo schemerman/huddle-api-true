@@ -231,6 +231,7 @@ interface DataContextType {
   createLeague: (name: string) => League;
   joinLeague: (code: string) => boolean;
   getLeagueLeaderboard: (league: League) => LeaderboardEntry[];
+  getUserStats: (userId: string) => { points: number; winRate: number } | null;
 }
 
 const DataContext = createContext<DataContextType | null>(null);
@@ -345,8 +346,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       .map((e, i) => ({ ...e, rank: i + 1 }));
   };
 
+  const getUserStats = (userId: string): { points: number; winRate: number } | null => {
+    const entry = leaderboard.find((e) => e.userId === userId);
+    if (!entry) return null;
+    return { points: entry.points, winRate: entry.winRate };
+  };
+
   return (
-    <DataContext.Provider value={{ posts, leagues, messages, leaderboard, likePost, voteOnPrediction, sendMessage, createLeague, joinLeague, getLeagueLeaderboard }}>
+    <DataContext.Provider value={{ posts, leagues, messages, leaderboard, likePost, voteOnPrediction, sendMessage, createLeague, joinLeague, getLeagueLeaderboard, getUserStats }}>
       {children}
     </DataContext.Provider>
   );

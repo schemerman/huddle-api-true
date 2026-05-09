@@ -1,16 +1,18 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 interface AvatarProps {
   color: string;
   username: string;
   size?: number;
+  onPress?: () => void;
 }
 
-export function Avatar({ color, username, size = 40 }: AvatarProps) {
+export function Avatar({ color, username, size = 40, onPress }: AvatarProps) {
   const initials = username ? username.substring(0, 2).toUpperCase() : "??";
   const fontSize = size * 0.38;
-  return (
+
+  const circle = (
     <View
       style={[
         styles.avatar,
@@ -20,6 +22,20 @@ export function Avatar({ color, username, size = 40 }: AvatarProps) {
       <Text style={[styles.initials, { fontSize }]}>{initials}</Text>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+        hitSlop={6}
+      >
+        {circle}
+      </Pressable>
+    );
+  }
+
+  return circle;
 }
 
 const styles = StyleSheet.create({
