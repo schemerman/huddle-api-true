@@ -28,6 +28,10 @@ export default function RegisterScreen() {
       setError("Please fill in all fields.");
       return;
     }
+    if (!email.trim().toLowerCase().endsWith("@kent.ac.uk")) {
+      setError("An exclusive @kent.ac.uk email is required to join Huddle.");
+      return;
+    }
     if (password !== confirm) {
       setError("Passwords don't match.");
       return;

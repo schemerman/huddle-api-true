@@ -19,6 +19,32 @@ const AVATAR_COLORS = [
   "#9B3AE8", "#E83A8C", "#3AE8D4",
 ];
 
+function validateDob(dob: string): string | null {
+  if (!dob.trim()) return "Date of birth is required.";
+  const parts = dob.trim().split("/");
+  if (parts.length !== 3) return "Please enter a valid date (DD/MM/YYYY).";
+  const day = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return "Please enter a valid date (DD/MM/YYYY).";
+  if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900) return "Please enter a valid date (DD/MM/YYYY).";
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return "Please enter a valid date (DD/MM/YYYY).";
+  }
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  const monthDiff = today.getMonth() - (month - 1);
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < day)) age--;
+  if (age < 13) return "You must be 13 or older to use Huddle.";
+  if (age > 100) return "Please enter a valid date of birth.";
+  return null;
+}
+
 export default function CompleteProfileScreen() {
   const insets = useSafeAreaInsets();
   const { completeProfile } = useAuth();
@@ -39,6 +65,11 @@ export default function CompleteProfileScreen() {
     }
     if (username.length < 3) {
       setError("Username must be at least 3 characters.");
+      return;
+    }
+    const dobError = validateDob(dob);
+    if (dobError) {
+      setError(dobError);
       return;
     }
     setLoading(true);
@@ -122,6 +153,7 @@ export default function CompleteProfileScreen() {
               onChangeText={setDob}
               keyboardType="numeric"
             />
+            <Text style={styles.dobHint}>Must be 13 or older to join.</Text>
           </View>
           {!!error && <Text style={styles.error}>{error}</Text>}
           <HuddleButton label="Let's Go" onPress={handleComplete} loading={loading} fullWidth />
@@ -138,9 +170,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 36,
   },
-  header: {
-    gap: 6,
-  },
+  header: { gap: 6 },
   title: {
     fontFamily: "Inter_700Bold",
     fontSize: 28,
@@ -152,10 +182,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#8A8A8A",
   },
-  avatarSection: {
-    alignItems: "center",
-    gap: 12,
-  },
+  avatarSection: { alignItems: "center", gap: 12 },
   avatarPreview: {
     width: 80,
     height: 80,
@@ -179,26 +206,20 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "center",
   },
-  colorDot: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-  },
-  colorDotSelected: {
-    borderWidth: 3,
-    borderColor: "#000000",
-  },
-  form: {
-    gap: 16,
-  },
-  inputGroup: {
-    gap: 6,
-  },
+  colorDot: { width: 36, height: 36, borderRadius: 18 },
+  colorDotSelected: { borderWidth: 3, borderColor: "#000000" },
+  form: { gap: 16 },
+  inputGroup: { gap: 6 },
   label: {
     fontFamily: "Inter_500Medium",
     fontSize: 13,
     color: "#000000",
     letterSpacing: 0.1,
+  },
+  dobHint: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    color: "#ABABAB",
   },
   usernameRow: {
     flexDirection: "row",

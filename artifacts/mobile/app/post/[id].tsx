@@ -38,35 +38,36 @@ interface Comment {
   text: string;
   createdAt: string;
   likes: number;
+  liked: boolean;
 }
 
 const MOCK_COMMENTS: Record<string, Comment[]> = {
   p1: [
-    { id: "c1", userId: "u2", username: "sarahchidi", displayName: "Sarah Chidi", avatarColor: "#3A7DE8", text: "City are genuinely unstoppable this season tbh", createdAt: "1h", likes: 14 },
-    { id: "c2", userId: "u3", username: "tomaszwiecek", displayName: "Tomasz Wiecek", avatarColor: "#9B3AE8", text: "Arsenal have been shaky away from home all season. City by 2", createdAt: "1h", likes: 9 },
-    { id: "c3", userId: "u5", username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A", text: "Never count out Arsenal. Classic 1-0 Arteta grind", createdAt: "45m", likes: 6 },
+    { id: "c1", userId: "u2", username: "sarahchidi", displayName: "Sarah Chidi", avatarColor: "#3A7DE8", text: "City are genuinely unstoppable this season tbh", createdAt: "1h", likes: 14, liked: false },
+    { id: "c2", userId: "u3", username: "tomaszwiecek", displayName: "Tomasz Wiecek", avatarColor: "#9B3AE8", text: "Arsenal have been shaky away from home all season. City by 2", createdAt: "1h", likes: 9, liked: false },
+    { id: "c3", userId: "u5", username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A", text: "Never count out Arsenal. Classic 1-0 Arteta grind", createdAt: "45m", likes: 6, liked: false },
   ],
   p2: [
-    { id: "c4", userId: "u1", username: "kingsleyobi", displayName: "Kingsley Obi", avatarColor: "#E8533A", text: "Curry has scored 35+ in 6 of the last 8 vs Lakers. It's basically guaranteed lol", createdAt: "3h", likes: 21 },
-    { id: "c5", userId: "u4", username: "ameliavoss", displayName: "Amelia Voss", avatarColor: "#3AE86A", text: "LeBron always shows up in these games though let's not sleep", createdAt: "3h", likes: 7 },
-    { id: "c6", userId: "u3", username: "tomaszwiecek", displayName: "Tomasz Wiecek", avatarColor: "#9B3AE8", text: "Warriors at home? Easy money on Curry", createdAt: "2h", likes: 12 },
-    { id: "c7", userId: "u5", username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A", text: "Both teams are actually mid rn, unpopular opinion", createdAt: "2h", likes: 3 },
+    { id: "c4", userId: "u1", username: "kingsleyobi", displayName: "Kingsley Obi", avatarColor: "#E8533A", text: "Curry has scored 35+ in 6 of the last 8 vs Lakers. It's basically guaranteed lol", createdAt: "3h", likes: 21, liked: false },
+    { id: "c5", userId: "u4", username: "ameliavoss", displayName: "Amelia Voss", avatarColor: "#3AE86A", text: "LeBron always shows up in these games though let's not sleep", createdAt: "3h", likes: 7, liked: false },
+    { id: "c6", userId: "u3", username: "tomaszwiecek", displayName: "Tomasz Wiecek", avatarColor: "#9B3AE8", text: "Warriors at home? Easy money on Curry", createdAt: "2h", likes: 12, liked: false },
+    { id: "c7", userId: "u5", username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A", text: "Both teams are actually mid rn, unpopular opinion", createdAt: "2h", likes: 3, liked: false },
   ],
   p3: [
-    { id: "c8", userId: "u2", username: "sarahchidi", displayName: "Sarah Chidi", avatarColor: "#3A7DE8", text: "Mbappé is playing more as a team player at Real. The numbers will come", createdAt: "5h", likes: 18 },
-    { id: "c9", userId: "u1", username: "kingsleyobi", displayName: "Kingsley Obi", avatarColor: "#E8533A", text: "Atletico's defence will absolutely shut him down, it's their thing", createdAt: "5h", likes: 11 },
+    { id: "c8", userId: "u2", username: "sarahchidi", displayName: "Sarah Chidi", avatarColor: "#3A7DE8", text: "Mbappé is playing more as a team player at Real. The numbers will come", createdAt: "5h", likes: 18, liked: false },
+    { id: "c9", userId: "u1", username: "kingsleyobi", displayName: "Kingsley Obi", avatarColor: "#E8533A", text: "Atletico's defence will absolutely shut him down, it's their thing", createdAt: "5h", likes: 11, liked: false },
   ],
   p4: [
-    { id: "c10", userId: "u3", username: "tomaszwiecek", displayName: "Tomasz Wiecek", avatarColor: "#9B3AE8", text: "England away? I can't see it happening, Australia are too good at home", createdAt: "7h", likes: 8 },
-    { id: "c11", userId: "u4", username: "ameliavoss", displayName: "Amelia Voss", avatarColor: "#3AE86A", text: "England need to start performing in these big games", createdAt: "7h", likes: 5 },
-    { id: "c12", userId: "u5", username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A", text: "Always England moment", createdAt: "6h", likes: 22 },
+    { id: "c10", userId: "u3", username: "tomaszwiecek", displayName: "Tomasz Wiecek", avatarColor: "#9B3AE8", text: "England away? I can't see it happening, Australia are too good at home", createdAt: "7h", likes: 8, liked: false },
+    { id: "c11", userId: "u4", username: "ameliavoss", displayName: "Amelia Voss", avatarColor: "#3AE86A", text: "England need to start performing in these big games", createdAt: "7h", likes: 5, liked: false },
+    { id: "c12", userId: "u5", username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A", text: "Always England moment", createdAt: "6h", likes: 22, liked: false },
   ],
 };
 
 const FALLBACK_COMMENTS: Comment[] = [
-  { id: "fb1", userId: "u2", username: "sarahchidi", displayName: "Sarah Chidi", avatarColor: "#3A7DE8", text: "This is the take of the week honestly", createdAt: "30m", likes: 8 },
-  { id: "fb2", userId: "u1", username: "kingsleyobi", displayName: "Kingsley Obi", avatarColor: "#E8533A", text: "Hard disagree but respect the conviction", createdAt: "25m", likes: 4 },
-  { id: "fb3", userId: "u5", username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A", text: "Someone had to say it", createdAt: "20m", likes: 12 },
+  { id: "fb1", userId: "u2", username: "sarahchidi", displayName: "Sarah Chidi", avatarColor: "#3A7DE8", text: "This is the take of the week honestly", createdAt: "30m", likes: 8, liked: false },
+  { id: "fb2", userId: "u1", username: "kingsleyobi", displayName: "Kingsley Obi", avatarColor: "#E8533A", text: "Hard disagree but respect the conviction", createdAt: "25m", likes: 4, liked: false },
+  { id: "fb3", userId: "u5", username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A", text: "Someone had to say it", createdAt: "20m", likes: 12, liked: false },
 ];
 
 function generateId(): string {
@@ -76,11 +77,17 @@ function generateId(): string {
 interface CommentRowProps {
   comment: Comment;
   onProfilePress: (userId: string, username: string, displayName: string, avatarColor: string) => void;
+  onLike: (commentId: string) => void;
 }
 
-function CommentRow({ comment, onProfilePress }: CommentRowProps) {
+function CommentRow({ comment, onProfilePress, onLike }: CommentRowProps) {
   const colors = useColors();
   const openProfile = () => onProfilePress(comment.userId, comment.username, comment.displayName, comment.avatarColor);
+
+  const handleLike = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onLike(comment.id);
+  };
 
   return (
     <View style={[styles.commentRow, { borderBottomColor: colors.border }]}>
@@ -100,10 +107,21 @@ function CommentRow({ comment, onProfilePress }: CommentRowProps) {
           </Text>
         </View>
         <Text style={[styles.commentText, { color: colors.foreground }]}>{comment.text}</Text>
-        <View style={styles.commentActions}>
-          <Feather name="heart" size={14} color={colors.mutedForeground} />
-          <Text style={[styles.commentLikes, { color: colors.mutedForeground }]}>{comment.likes}</Text>
-        </View>
+        <Pressable style={styles.commentLikeRow} onPress={handleLike}>
+          {comment.liked ? (
+            <AntDesign name="heart" size={14} color="#E8533A" />
+          ) : (
+            <Feather name="heart" size={14} color={colors.mutedForeground} />
+          )}
+          <Text
+            style={[
+              styles.commentLikes,
+              { color: comment.liked ? "#E8533A" : colors.mutedForeground },
+            ]}
+          >
+            {comment.likes}
+          </Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -128,13 +146,25 @@ export default function PostDetailScreen() {
 
   const openProfile = (userId: string, username: string, displayName: string, avatarColor: string) => {
     if (userId === user?.id) return;
-    const stats = getUserStats(userId) ?? getUserStats(USERNAME_TO_USERID[username] ?? "") ?? { points: 0, winRate: 0 };
+    const stats =
+      getUserStats(userId) ??
+      getUserStats(USERNAME_TO_USERID[username] ?? "") ?? { points: 0, winRate: 0 };
     setProfileUser({ userId, username, displayName, avatarColor, points: stats.points, winRate: stats.winRate });
   };
 
   const openPostProfile = () => {
     if (!post) return;
     openProfile(post.userId, post.username, post.displayName, post.avatarColor);
+  };
+
+  const toggleCommentLike = (commentId: string) => {
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === commentId
+          ? { ...c, liked: !c.liked, likes: c.liked ? c.likes - 1 : c.likes + 1 }
+          : c
+      )
+    );
   };
 
   const handleSend = () => {
@@ -150,6 +180,7 @@ export default function PostDetailScreen() {
       text,
       createdAt: "now",
       likes: 0,
+      liked: false,
     };
     setComments((prev) => [...prev, newComment]);
     setInputText("");
@@ -246,14 +277,17 @@ export default function PostDetailScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <CommentRow comment={item} onProfilePress={openProfile} />
+          <CommentRow
+            comment={item}
+            onProfilePress={openProfile}
+            onLike={toggleCommentLike}
+          />
         )}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 8 }}
         keyboardShouldPersistTaps="handled"
       />
 
-      {/* Fixed comment input bar */}
       <View
         style={[
           styles.inputBar,
@@ -365,7 +399,12 @@ const styles = StyleSheet.create({
   commentName: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
   commentHandle: { fontFamily: "Inter_400Regular", fontSize: 12 },
   commentText: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 20, marginBottom: 6 },
-  commentActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  commentLikeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+  },
   commentLikes: { fontFamily: "Inter_400Regular", fontSize: 12 },
   inputBar: {
     flexDirection: "row",
@@ -384,9 +423,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     borderWidth: 1,
   },
-  sendBtn: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 15,
-    paddingHorizontal: 4,
-  },
+  sendBtn: { fontFamily: "Inter_600SemiBold", fontSize: 15, paddingHorizontal: 4 },
 });
