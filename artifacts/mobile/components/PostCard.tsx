@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { AntDesign, Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -10,11 +10,12 @@ interface PostCardProps {
   post: Post;
   onLike: () => void;
   onVote: (choice: "A" | "B") => void;
+  onPress?: () => void;
   currentUserId?: string;
   hidePrediction?: boolean;
 }
 
-export function PostCard({ post, onLike, onVote, currentUserId, hidePrediction = false }: PostCardProps) {
+export function PostCard({ post, onLike, onVote, onPress, currentUserId, hidePrediction = false }: PostCardProps) {
   const colors = useColors();
   const pred = hidePrediction ? undefined : post.prediction;
 
@@ -34,7 +35,13 @@ export function PostCard({ post, onLike, onVote, currentUserId, hidePrediction =
   };
 
   return (
-    <View style={[styles.card, { borderBottomColor: colors.border }]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.card,
+        { borderBottomColor: colors.border, opacity: onPress && pressed ? 0.92 : 1 },
+      ]}
+    >
       <View style={styles.header}>
         <Avatar color={post.avatarColor} username={post.username} size={40} />
         <View style={styles.headerText}>
@@ -53,8 +60,7 @@ export function PostCard({ post, onLike, onVote, currentUserId, hidePrediction =
               style={({ pressed }) => [
                 styles.pollOption,
                 {
-                  backgroundColor:
-                    pred.userVote === "A" ? colors.primary : colors.secondary,
+                  backgroundColor: pred.userVote === "A" ? colors.primary : colors.secondary,
                   borderColor: colors.border,
                   opacity: pressed && !pred.userVote ? 0.7 : 1,
                   flex: 1,
@@ -87,8 +93,7 @@ export function PostCard({ post, onLike, onVote, currentUserId, hidePrediction =
               style={({ pressed }) => [
                 styles.pollOption,
                 {
-                  backgroundColor:
-                    pred.userVote === "B" ? colors.primary : colors.secondary,
+                  backgroundColor: pred.userVote === "B" ? colors.primary : colors.secondary,
                   borderColor: colors.border,
                   opacity: pressed && !pred.userVote ? 0.7 : 1,
                   flex: 1,
@@ -127,14 +132,16 @@ export function PostCard({ post, onLike, onVote, currentUserId, hidePrediction =
 
       <View style={styles.actions}>
         <Pressable style={styles.actionBtn} onPress={handleLike}>
-          <Feather
-            name="heart"
-            size={18}
-            color={post.liked ? "#E8533A" : colors.mutedForeground}
-          />
-          <Text style={[styles.actionCount, { color: colors.mutedForeground }]}>{post.likes}</Text>
+          {post.liked ? (
+            <AntDesign name="heart" size={18} color="#E8533A" />
+          ) : (
+            <AntDesign name="hearto" size={18} color={colors.mutedForeground} />
+          )}
+          <Text style={[styles.actionCount, { color: post.liked ? "#E8533A" : colors.mutedForeground }]}>
+            {post.likes}
+          </Text>
         </Pressable>
-        <Pressable style={styles.actionBtn}>
+        <Pressable style={styles.actionBtn} onPress={onPress}>
           <Feather name="message-circle" size={18} color={colors.mutedForeground} />
           <Text style={[styles.actionCount, { color: colors.mutedForeground }]}>{post.comments}</Text>
         </Pressable>
@@ -142,7 +149,7 @@ export function PostCard({ post, onLike, onVote, currentUserId, hidePrediction =
           <Feather name="share" size={18} color={colors.mutedForeground} />
         </Pressable>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -160,9 +167,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 10,
   },
-  headerText: {
-    flex: 1,
-  },
+  headerText: { flex: 1 },
   displayName: {
     fontFamily: "Inter_600SemiBold",
     fontSize: 14,

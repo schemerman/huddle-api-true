@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import {
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -119,7 +120,11 @@ export default function HuddlesScreen() {
       />
 
       <Modal visible={modal === "create"} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <Pressable style={styles.modalDismiss} onPress={() => { setModal(null); setHuddleName(""); }} />
           <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>New Huddle</Text>
             <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>
@@ -132,17 +137,23 @@ export default function HuddlesScreen() {
               value={huddleName}
               onChangeText={setHuddleName}
               autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleCreate}
             />
             <HuddleButton label="Huddle up" onPress={handleCreate} fullWidth />
             <Pressable onPress={() => { setModal(null); setHuddleName(""); }} style={styles.cancelBtn}>
               <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancel</Text>
             </Pressable>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={modal === "join"} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <Pressable style={styles.modalDismiss} onPress={() => { setModal(null); setJoinCode(""); }} />
           <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Join a Huddle</Text>
             <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>
@@ -156,13 +167,15 @@ export default function HuddlesScreen() {
               onChangeText={setJoinCode}
               autoCapitalize="characters"
               autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleJoin}
             />
             <HuddleButton label="Join Huddle" onPress={handleJoin} fullWidth />
             <Pressable onPress={() => { setModal(null); setJoinCode(""); }} style={styles.cancelBtn}>
               <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancel</Text>
             </Pressable>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -249,6 +262,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
+  },
+  modalDismiss: {
+    flex: 1,
   },
   modalSheet: {
     borderTopLeftRadius: 20,

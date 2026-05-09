@@ -1,12 +1,7 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
-import {
-  FlatList,
-  Platform,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { FlatList, Platform, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PostCard } from "@/components/PostCard";
 import { useAuth } from "@/context/AuthContext";
@@ -19,7 +14,6 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { posts, likePost, voteOnPrediction } = useData();
-
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   return (
@@ -37,6 +31,7 @@ export default function HomeScreen() {
             post={item}
             onLike={() => likePost(item.id)}
             onVote={(choice) => voteOnPrediction(item.id, choice)}
+            onPress={() => router.push(`/post/${item.id}`)}
             currentUserId={user?.id}
             hidePrediction
           />
@@ -51,9 +46,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   topBar: {
     flexDirection: "row",
     alignItems: "flex-end",

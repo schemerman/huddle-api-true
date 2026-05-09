@@ -28,6 +28,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="league/[id]" />
+      <Stack.Screen name="post/[id]" />
     </Stack>
   );
 }
