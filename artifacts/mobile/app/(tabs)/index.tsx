@@ -19,7 +19,8 @@ export default function HomeScreen() {
 
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
 
-  const handleAvatarPress = (post: Post) => {
+  const openProfile = (post: Post) => {
+    if (post.userId === user?.id) return;
     const stats = getUserStats(post.userId);
     setProfileUser({
       userId: post.userId,
@@ -47,7 +48,8 @@ export default function HomeScreen() {
             onLike={() => likePost(item.id)}
             onVote={(choice) => voteOnPrediction(item.id, choice)}
             onPress={() => router.push(`/post/${item.id}`)}
-            onAvatarPress={() => handleAvatarPress(item)}
+            onAvatarPress={() => openProfile(item)}
+            onUsernamePress={() => openProfile(item)}
             currentUserId={user?.id}
             hidePrediction
           />
@@ -76,9 +78,5 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
-  wordmark: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 22,
-    letterSpacing: -0.5,
-  },
+  wordmark: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: -0.5 },
 });

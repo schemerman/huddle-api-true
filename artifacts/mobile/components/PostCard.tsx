@@ -13,6 +13,7 @@ interface PostCardProps {
   onVote: (choice: "A" | "B") => void;
   onPress?: () => void;
   onAvatarPress?: () => void;
+  onUsernamePress?: () => void;
   currentUserId?: string;
   hidePrediction?: boolean;
 }
@@ -23,6 +24,7 @@ export function PostCard({
   onVote,
   onPress,
   onAvatarPress,
+  onUsernamePress,
   currentUserId,
   hidePrediction = false,
 }: PostCardProps) {
@@ -44,6 +46,8 @@ export function PostCard({
     onVote(choice);
   };
 
+  const profileHandler = onAvatarPress ?? onUsernamePress;
+
   return (
     <Pressable
       onPress={onPress}
@@ -59,12 +63,16 @@ export function PostCard({
           size={40}
           onPress={onAvatarPress}
         />
-        <View style={styles.headerText}>
+        <Pressable
+          style={styles.headerText}
+          onPress={onUsernamePress ?? onAvatarPress}
+          disabled={!profileHandler}
+        >
           <Text style={[styles.displayName, { color: colors.foreground }]}>{post.displayName}</Text>
           <Text style={[styles.handle, { color: colors.handle }]}>
             @{post.username} · {post.createdAt}
           </Text>
-        </View>
+        </Pressable>
       </View>
 
       <Text style={[styles.text, { color: colors.foreground }]}>{post.text}</Text>
@@ -185,37 +193,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   headerText: { flex: 1 },
-  displayName: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-  },
-  handle: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    marginTop: 1,
-  },
-  text: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  predictionBox: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    gap: 10,
-  },
-  predQuestion: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  pollRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
+  displayName: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  handle: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 1 },
+  text: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, marginBottom: 12 },
+  predictionBox: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, gap: 10 },
+  predQuestion: { fontFamily: "Inter_600SemiBold", fontSize: 14, lineHeight: 20 },
+  pollRow: { flexDirection: "row", gap: 8 },
   pollOption: {
     borderRadius: 999,
     paddingVertical: 10,
@@ -226,31 +209,10 @@ const styles = StyleSheet.create({
     gap: 6,
     borderWidth: 1,
   },
-  pollOptionText: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
-    flexShrink: 1,
-  },
-  pollPct: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 12,
-  },
-  votesMeta: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-  },
-  actions: {
-    flexDirection: "row",
-    gap: 20,
-    paddingVertical: 10,
-  },
-  actionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  actionCount: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-  },
+  pollOptionText: { fontFamily: "Inter_500Medium", fontSize: 13, flexShrink: 1 },
+  pollPct: { fontFamily: "Inter_700Bold", fontSize: 12 },
+  votesMeta: { fontFamily: "Inter_400Regular", fontSize: 12 },
+  actions: { flexDirection: "row", gap: 20, paddingVertical: 10 },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
+  actionCount: { fontFamily: "Inter_400Regular", fontSize: 13 },
 });

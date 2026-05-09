@@ -19,6 +19,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
 
+type Choice = "A" | "D" | "B";
+
 interface Fixture {
   id: string;
   competition: string;
@@ -27,29 +29,31 @@ interface Fixture {
   teamA: string;
   teamB: string;
   oddsA: number;
+  oddsD: number;
   oddsB: number;
   votesA: number;
+  votesD: number;
   votesB: number;
-  userVote?: "A" | "B";
+  userVote?: Choice;
   userWager?: number;
 }
 
 const SEED_FIXTURES: Fixture[] = [
-  { id: "fx1", competition: "Premier League", kickoff: "Sat · 3:00 PM", question: "Who will win: Arsenal or Man City?", teamA: "Arsenal", teamB: "Man City", oddsA: 2.2, oddsB: 1.7, votesA: 142, votesB: 381 },
-  { id: "fx2", competition: "Premier League", kickoff: "Sat · 12:30 PM", question: "Who will win: Liverpool or Chelsea?", teamA: "Liverpool", teamB: "Chelsea", oddsA: 1.5, oddsB: 2.8, votesA: 334, votesB: 198 },
-  { id: "fx3", competition: "Premier League", kickoff: "Sun · 2:00 PM", question: "Who will win: Man United or Tottenham?", teamA: "Man United", teamB: "Tottenham", oddsA: 2.6, oddsB: 1.5, votesA: 201, votesB: 287 },
-  { id: "fx4", competition: "Premier League", kickoff: "Sun · 4:30 PM", question: "Who will win: Newcastle or Aston Villa?", teamA: "Newcastle", teamB: "Aston Villa", oddsA: 1.9, oddsB: 2.0, votesA: 312, votesB: 256 },
-  { id: "fx5", competition: "World Cup", kickoff: "Mon · 3:00 PM", question: "Who will win: Brazil or Germany?", teamA: "Brazil", teamB: "Germany", oddsA: 1.6, oddsB: 2.4, votesA: 489, votesB: 374 },
-  { id: "fx6", competition: "World Cup", kickoff: "Mon · 6:00 PM", question: "Who will win: France or Argentina?", teamA: "France", teamB: "Argentina", oddsA: 1.8, oddsB: 2.1, votesA: 412, votesB: 501 },
-  { id: "fx7", competition: "World Cup", kickoff: "Tue · 3:00 PM", question: "Who will win: Spain or Portugal?", teamA: "Spain", teamB: "Portugal", oddsA: 1.9, oddsB: 2.0, votesA: 398, votesB: 367 },
-  { id: "fx8", competition: "World Cup", kickoff: "Tue · 6:00 PM", question: "Who will win: England or Netherlands?", teamA: "England", teamB: "Netherlands", oddsA: 2.3, oddsB: 1.6, votesA: 445, votesB: 321 },
+  { id: "fx1", competition: "Premier League", kickoff: "Sat · 3:00 PM", question: "Who will win: Arsenal or Man City?", teamA: "Arsenal", teamB: "Man City", oddsA: 2.2, oddsD: 3.5, oddsB: 1.7, votesA: 142, votesD: 89, votesB: 381 },
+  { id: "fx2", competition: "Premier League", kickoff: "Sat · 12:30 PM", question: "Who will win: Liverpool or Chelsea?", teamA: "Liverpool", teamB: "Chelsea", oddsA: 1.5, oddsD: 3.8, oddsB: 2.8, votesA: 334, votesD: 112, votesB: 198 },
+  { id: "fx3", competition: "Premier League", kickoff: "Sun · 2:00 PM", question: "Who will win: Man United or Tottenham?", teamA: "Man United", teamB: "Tottenham", oddsA: 2.6, oddsD: 3.2, oddsB: 1.5, votesA: 201, votesD: 78, votesB: 287 },
+  { id: "fx4", competition: "Premier League", kickoff: "Sun · 4:30 PM", question: "Who will win: Newcastle or Aston Villa?", teamA: "Newcastle", teamB: "Aston Villa", oddsA: 1.9, oddsD: 3.4, oddsB: 2.0, votesA: 312, votesD: 134, votesB: 256 },
+  { id: "fx5", competition: "World Cup", kickoff: "Mon · 3:00 PM", question: "Who will win: Brazil or Germany?", teamA: "Brazil", teamB: "Germany", oddsA: 1.6, oddsD: 3.6, oddsB: 2.4, votesA: 489, votesD: 201, votesB: 374 },
+  { id: "fx6", competition: "World Cup", kickoff: "Mon · 6:00 PM", question: "Who will win: France or Argentina?", teamA: "France", teamB: "Argentina", oddsA: 1.8, oddsD: 3.3, oddsB: 2.1, votesA: 412, votesD: 178, votesB: 501 },
+  { id: "fx7", competition: "World Cup", kickoff: "Tue · 3:00 PM", question: "Who will win: Spain or Portugal?", teamA: "Spain", teamB: "Portugal", oddsA: 1.9, oddsD: 3.4, oddsB: 2.0, votesA: 398, votesD: 155, votesB: 367 },
+  { id: "fx8", competition: "World Cup", kickoff: "Tue · 6:00 PM", question: "Who will win: England or Netherlands?", teamA: "England", teamB: "Netherlands", oddsA: 2.3, oddsD: 3.1, oddsB: 1.6, votesA: 445, votesD: 190, votesB: 321 },
 ];
 
-const STORAGE_KEY = "huddle_fixtures_v4";
+const STORAGE_KEY = "huddle_fixtures_v5";
 
 interface WagerTarget {
   fixture: Fixture;
-  choice: "A" | "B";
+  choice: Choice;
 }
 
 function FixtureCard({
@@ -57,13 +61,20 @@ function FixtureCard({
   onOpenWager,
 }: {
   fixture: Fixture;
-  onOpenWager: (fixture: Fixture, choice: "A" | "B") => void;
+  onOpenWager: (fixture: Fixture, choice: Choice) => void;
 }) {
   const colors = useColors();
-  const total = fixture.votesA + fixture.votesB;
-  const pctA = total > 0 ? Math.round((fixture.votesA / total) * 100) : 50;
-  const pctB = 100 - pctA;
+  const total = fixture.votesA + fixture.votesD + fixture.votesB;
+  const pctA = total > 0 ? Math.round((fixture.votesA / total) * 100) : 33;
+  const pctD = total > 0 ? Math.round((fixture.votesD / total) * 100) : 34;
+  const pctB = 100 - pctA - pctD;
   const voted = !!fixture.userVote;
+
+  const options: { choice: Choice; label: string; odds: number; pct: number }[] = [
+    { choice: "A", label: fixture.teamA, odds: fixture.oddsA, pct: pctA },
+    { choice: "D", label: "Draw", odds: fixture.oddsD, pct: pctD },
+    { choice: "B", label: fixture.teamB, odds: fixture.oddsB, pct: pctB },
+  ];
 
   return (
     <View style={[styles.card, { borderBottomColor: colors.border }]}>
@@ -74,58 +85,42 @@ function FixtureCard({
 
       <Text style={[styles.question, { color: colors.foreground }]}>{fixture.question}</Text>
 
-      <View style={styles.pollRow}>
-        <Pressable
-          onPress={() => !voted && onOpenWager(fixture, "A")}
-          style={({ pressed }) => [
-            styles.pollBtn,
-            {
-              backgroundColor: fixture.userVote === "A" ? colors.primary : colors.secondary,
-              borderColor: colors.border,
-              opacity: pressed && !voted ? 0.7 : 1,
-            },
-          ]}
-        >
-          <View style={styles.pollBtnInner}>
-            <Text
-              style={[styles.pollBtnText, { color: fixture.userVote === "A" ? colors.primaryForeground : colors.foreground }]}
-              numberOfLines={1}
+      <View style={styles.optionsCol}>
+        {options.map(({ choice, label, odds, pct }) => {
+          const isSelected = fixture.userVote === choice;
+          return (
+            <Pressable
+              key={choice}
+              onPress={() => !voted && onOpenWager(fixture, choice)}
+              style={({ pressed }) => [
+                styles.optionBtn,
+                {
+                  backgroundColor: isSelected ? colors.primary : colors.secondary,
+                  borderColor: colors.border,
+                  opacity: pressed && !voted ? 0.7 : 1,
+                },
+              ]}
             >
-              {fixture.teamA}
-            </Text>
-            <Text style={[styles.odds, { color: fixture.userVote === "A" ? colors.primaryForeground : colors.mutedForeground }]}>
-              {voted ? `${pctA}%` : `${fixture.oddsA}x`}
-            </Text>
-          </View>
-        </Pressable>
-
-        <View style={styles.vsDivider}>
-          <Text style={[styles.vsText, { color: colors.mutedForeground }]}>vs</Text>
-        </View>
-
-        <Pressable
-          onPress={() => !voted && onOpenWager(fixture, "B")}
-          style={({ pressed }) => [
-            styles.pollBtn,
-            {
-              backgroundColor: fixture.userVote === "B" ? colors.primary : colors.secondary,
-              borderColor: colors.border,
-              opacity: pressed && !voted ? 0.7 : 1,
-            },
-          ]}
-        >
-          <View style={styles.pollBtnInner}>
-            <Text
-              style={[styles.pollBtnText, { color: fixture.userVote === "B" ? colors.primaryForeground : colors.foreground }]}
-              numberOfLines={1}
-            >
-              {fixture.teamB}
-            </Text>
-            <Text style={[styles.odds, { color: fixture.userVote === "B" ? colors.primaryForeground : colors.mutedForeground }]}>
-              {voted ? `${pctB}%` : `${fixture.oddsB}x`}
-            </Text>
-          </View>
-        </Pressable>
+              <Text
+                style={[
+                  styles.optionLabel,
+                  { color: isSelected ? colors.primaryForeground : colors.foreground },
+                ]}
+                numberOfLines={1}
+              >
+                {label}
+              </Text>
+              <Text
+                style={[
+                  styles.optionOdds,
+                  { color: isSelected ? colors.primaryForeground : colors.mutedForeground },
+                ]}
+              >
+                {voted ? `${pct}%` : `${odds}x`}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {voted && (
@@ -155,40 +150,23 @@ export default function PredictScreen() {
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gs) => gs.dy > 2,
-      onPanResponderGrant: () => {
-        Keyboard.dismiss();
-      },
-      onPanResponderMove: (_, gs) => {
-        if (gs.dy > 0) translateY.setValue(gs.dy);
-      },
+      onPanResponderGrant: () => { Keyboard.dismiss(); },
+      onPanResponderMove: (_, gs) => { if (gs.dy > 0) translateY.setValue(gs.dy); },
       onPanResponderRelease: (_, gs) => {
         if (gs.dy > 80 || gs.vy > 0.8) {
-          Animated.timing(translateY, {
-            toValue: 600,
-            duration: 220,
-            useNativeDriver: true,
-          }).start(() => {
+          Animated.timing(translateY, { toValue: 600, duration: 220, useNativeDriver: true }).start(() => {
             setWagerTarget(null);
             translateY.setValue(0);
           });
         } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            tension: 100,
-            friction: 10,
-          }).start();
+          Animated.spring(translateY, { toValue: 0, useNativeDriver: true, tension: 100, friction: 10 }).start();
         }
       },
     })
   ).current;
 
   const closeModal = () => {
-    Animated.timing(translateY, {
-      toValue: 600,
-      duration: 220,
-      useNativeDriver: true,
-    }).start(() => {
+    Animated.timing(translateY, { toValue: 600, duration: 220, useNativeDriver: true }).start(() => {
       setWagerTarget(null);
       translateY.setValue(0);
     });
@@ -200,16 +178,14 @@ export default function PredictScreen() {
     });
   }, []);
 
-  useEffect(() => {
-    if (!wagerTarget) translateY.setValue(0);
-  }, [wagerTarget]);
+  useEffect(() => { if (!wagerTarget) translateY.setValue(0); }, [wagerTarget]);
 
   const saveFixtures = (next: Fixture[]) => {
     setFixtures(next);
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
-  const handleOpenWager = (fixture: Fixture, choice: "A" | "B") => {
+  const handleOpenWager = (fixture: Fixture, choice: Choice) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setWagerAmount("10");
     setWagerTarget({ fixture, choice });
@@ -221,7 +197,6 @@ export default function PredictScreen() {
     const amount = parseInt(wagerAmount, 10);
     if (isNaN(amount) || amount <= 0) return;
     const capped = Math.min(amount, user?.points ?? 0);
-
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const { fixture, choice } = wagerTarget;
@@ -232,39 +207,38 @@ export default function PredictScreen() {
         userVote: choice,
         userWager: capped,
         votesA: choice === "A" ? f.votesA + 1 : f.votesA,
+        votesD: choice === "D" ? f.votesD + 1 : f.votesD,
         votesB: choice === "B" ? f.votesB + 1 : f.votesB,
       };
     });
     saveFixtures(next);
     updatePoints(-capped);
 
-    Animated.timing(translateY, {
-      toValue: 600,
-      duration: 220,
-      useNativeDriver: true,
-    }).start(() => {
+    Animated.timing(translateY, { toValue: 600, duration: 220, useNativeDriver: true }).start(() => {
       setWagerTarget(null);
       translateY.setValue(0);
     });
   };
 
-  const parsedAmount = parseInt(wagerAmount, 10);
-  const chosenOdds =
-    wagerTarget?.choice === "A"
+  const chosenOdds = wagerTarget
+    ? wagerTarget.choice === "A"
       ? wagerTarget.fixture.oddsA
-      : wagerTarget?.fixture.oddsB ?? 1;
-  const chosenTeam =
-    wagerTarget?.choice === "A"
-      ? wagerTarget?.fixture.teamA
-      : wagerTarget?.fixture.teamB;
+      : wagerTarget.choice === "D"
+      ? wagerTarget.fixture.oddsD
+      : wagerTarget.fixture.oddsB
+    : 1;
 
-  const canConfirm =
-    !isNaN(parsedAmount) &&
-    parsedAmount > 0 &&
-    parsedAmount <= (user?.points ?? 0);
+  const chosenLabel = wagerTarget
+    ? wagerTarget.choice === "A"
+      ? wagerTarget.fixture.teamA
+      : wagerTarget.choice === "D"
+      ? "Draw"
+      : wagerTarget.fixture.teamB
+    : "";
 
-  const potentialPayout =
-    canConfirm ? Math.floor(parsedAmount * chosenOdds) : null;
+  const parsedAmount = parseInt(wagerAmount, 10);
+  const canConfirm = !isNaN(parsedAmount) && parsedAmount > 0 && parsedAmount <= (user?.points ?? 0);
+  const potentialPayout = canConfirm ? Math.floor(parsedAmount * chosenOdds) : null;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -284,13 +258,9 @@ export default function PredictScreen() {
       <FlatList<Fixture>
         data={fixtures}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <FixtureCard fixture={item} onOpenWager={handleOpenWager} />
-        )}
+        renderItem={({ item }) => <FixtureCard fixture={item} onOpenWager={handleOpenWager} />}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80),
-        }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}
       />
 
       <Modal
@@ -307,7 +277,6 @@ export default function PredictScreen() {
               { backgroundColor: colors.background, transform: [{ translateY }] },
             ]}
           >
-            {/* Drag handle — pan gesture target */}
             <View style={styles.handleWrap} {...panResponder.panHandlers}>
               <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             </View>
@@ -320,7 +289,7 @@ export default function PredictScreen() {
             <View style={styles.teamOddsRow}>
               <View style={[styles.chosenTeamBadge, { backgroundColor: colors.primary }]}>
                 <Text style={[styles.chosenTeamText, { color: colors.primaryForeground }]}>
-                  {chosenTeam}
+                  {chosenLabel}
                 </Text>
               </View>
               <Text style={[styles.oddsTag, { color: colors.mutedForeground }]}>
@@ -401,103 +370,36 @@ const styles = StyleSheet.create({
   },
   title: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: -0.5 },
   subtitle: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 1 },
-  balancePill: {
-    alignItems: "flex-end",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  balanceLabel: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 10,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 1,
-  },
+  balancePill: { alignItems: "flex-end", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  balanceLabel: { fontFamily: "Inter_400Regular", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 1 },
   balanceValue: { fontFamily: "Inter_700Bold", fontSize: 15, letterSpacing: -0.3 },
-  card: {
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    borderBottomWidth: 1,
-    gap: 10,
-  },
-  cardMeta: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  competition: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
+  card: { paddingHorizontal: 16, paddingVertical: 18, borderBottomWidth: 1, gap: 10 },
+  cardMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  competition: { fontFamily: "Inter_500Medium", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8 },
   kickoff: { fontFamily: "Inter_400Regular", fontSize: 12 },
   question: { fontFamily: "Inter_600SemiBold", fontSize: 16, lineHeight: 22 },
-  pollRow: { flexDirection: "row", alignItems: "center" },
-  pollBtn: {
-    flex: 1,
+  optionsCol: { gap: 7 },
+  optionBtn: {
     borderRadius: 999,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
     borderWidth: 1,
-  },
-  pollBtnInner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 4,
   },
-  pollBtnText: { fontFamily: "Inter_500Medium", fontSize: 14, flexShrink: 1 },
-  odds: { fontFamily: "Inter_700Bold", fontSize: 12 },
-  vsDivider: { paddingHorizontal: 10, alignItems: "center" },
-  vsText: { fontFamily: "Inter_400Regular", fontSize: 12 },
+  optionLabel: { fontFamily: "Inter_500Medium", fontSize: 14, flexShrink: 1 },
+  optionOdds: { fontFamily: "Inter_700Bold", fontSize: 13, marginLeft: 8 },
   votesMeta: { fontFamily: "Inter_400Regular", fontSize: 12 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "flex-end",
-  },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   modalDismiss: { flex: 1 },
-  modalSheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingBottom: 36,
-  },
-  handleWrap: {
-    alignItems: "center",
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  modalHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-  },
-  modalTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 20,
-    letterSpacing: -0.3,
-    marginBottom: 6,
-  },
-  modalPick: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  teamOddsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 20,
-  },
-  chosenTeamBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 999,
-  },
+  modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: 36 },
+  handleWrap: { alignItems: "center", paddingTop: 12, paddingBottom: 16 },
+  modalHandle: { width: 36, height: 4, borderRadius: 2 },
+  modalTitle: { fontFamily: "Inter_700Bold", fontSize: 20, letterSpacing: -0.3, marginBottom: 6 },
+  modalPick: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  teamOddsRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20 },
+  chosenTeamBadge: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999 },
   chosenTeamText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
   oddsTag: { fontFamily: "Inter_400Regular", fontSize: 13 },
   wagerLabel: { fontFamily: "Inter_500Medium", fontSize: 15, marginBottom: 10 },
