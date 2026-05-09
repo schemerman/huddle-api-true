@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { Avatar } from "./Avatar";
 import type { LeaderboardEntry } from "@/context/DataContext";
@@ -7,23 +7,40 @@ import type { LeaderboardEntry } from "@/context/DataContext";
 interface LeaderboardRowProps {
   entry: LeaderboardEntry;
   isCurrentUser?: boolean;
+  onAvatarPress?: () => void;
+  onPress?: () => void;
 }
 
-export function LeaderboardRow({ entry, isCurrentUser }: LeaderboardRowProps) {
+export function LeaderboardRow({ entry, isCurrentUser, onAvatarPress, onPress }: LeaderboardRowProps) {
   const colors = useColors();
 
+  const rankLabel =
+    entry.rank <= 3 ? ["1st", "2nd", "3rd"][entry.rank - 1] : `${entry.rank}th`;
+
   return (
-    <View
-      style={[
+    <Pressable
+      onPress={onPress ?? onAvatarPress}
+      style={({ pressed }) => [
         styles.row,
         { borderBottomColor: colors.border },
         isCurrentUser && { backgroundColor: colors.muted },
+        pressed && onPress ? { opacity: 0.85 } : {},
       ]}
     >
-      <Text style={[styles.rank, { color: entry.rank <= 3 ? colors.foreground : colors.mutedForeground }]}>
-        {entry.rank <= 3 ? ["1st", "2nd", "3rd"][entry.rank - 1] : `${entry.rank}th`}
+      <Text
+        style={[
+          styles.rank,
+          { color: entry.rank <= 3 ? colors.foreground : colors.mutedForeground },
+        ]}
+      >
+        {rankLabel}
       </Text>
-      <Avatar color={entry.avatarColor} username={entry.username} size={36} />
+      <Avatar
+        color={entry.avatarColor}
+        username={entry.username}
+        size={36}
+        onPress={onAvatarPress}
+      />
       <View style={styles.info}>
         <Text style={[styles.displayName, { color: colors.foreground }]}>
           {entry.displayName}
@@ -32,10 +49,12 @@ export function LeaderboardRow({ entry, isCurrentUser }: LeaderboardRowProps) {
         <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{entry.username}</Text>
       </View>
       <View style={styles.stats}>
-        <Text style={[styles.points, { color: colors.foreground }]}>{entry.points.toLocaleString()}</Text>
+        <Text style={[styles.points, { color: colors.foreground }]}>
+          {entry.points.toLocaleString()}
+        </Text>
         <Text style={[styles.winRate, { color: colors.mutedForeground }]}>{entry.winRate}% win</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -54,28 +73,10 @@ const styles = StyleSheet.create({
     width: 32,
     textAlign: "center",
   },
-  info: {
-    flex: 1,
-  },
-  displayName: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-  },
-  handle: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    marginTop: 1,
-  },
-  stats: {
-    alignItems: "flex-end",
-  },
-  points: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
-  },
-  winRate: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    marginTop: 1,
-  },
+  info: { flex: 1 },
+  displayName: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  handle: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 1 },
+  stats: { alignItems: "flex-end" },
+  points: { fontFamily: "Inter_700Bold", fontSize: 15 },
+  winRate: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 1 },
 });

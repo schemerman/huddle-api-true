@@ -12,7 +12,8 @@ import { useColors } from "@/hooks/useColors";
 import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
 import { LeaderboardRow } from "@/components/LeaderboardRow";
-import type { LeaderboardEntry, League } from "@/context/DataContext";
+import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
+import type { LeaderboardEntry } from "@/context/DataContext";
 
 export default function LeaderboardScreen() {
   const colors = useColors();
@@ -20,6 +21,7 @@ export default function LeaderboardScreen() {
   const { leaderboard, leagues, getLeagueLeaderboard } = useData();
   const { user } = useAuth();
   const [tab, setTab] = useState<"global" | string>("global");
+  const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const activeLeague = leagues.find((l) => l.id === tab) ?? null;
@@ -30,9 +32,17 @@ export default function LeaderboardScreen() {
       ? getLeagueLeaderboard(activeLeague)
       : [];
 
-  const userEntry = user
-    ? displayData.find((e) => e.userId === user.id || (tab !== "global" && e.rank === 1))
-    : null;
+  const openProfile = (entry: LeaderboardEntry) => {
+    if (entry.userId === user?.id) return;
+    setProfileUser({
+      userId: entry.userId,
+      username: entry.username,
+      displayName: entry.displayName,
+      avatarColor: entry.avatarColor,
+      points: entry.points,
+      winRate: entry.winRate,
+    });
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -43,9 +53,17 @@ export default function LeaderboardScreen() {
       <View style={[styles.tabRow, { borderBottomColor: colors.border }]}>
         <Pressable
           onPress={() => setTab("global")}
-          style={[styles.tabBtn, tab === "global" && { borderBottomColor: colors.foreground, borderBottomWidth: 2 }]}
+          style={[
+            styles.tabBtn,
+            tab === "global" && { borderBottomColor: colors.foreground, borderBottomWidth: 2 },
+          ]}
         >
-          <Text style={[styles.tabLabel, { color: tab === "global" ? colors.foreground : colors.mutedForeground }]}>
+          <Text
+            style={[
+              styles.tabLabel,
+              { color: tab === "global" ? colors.foreground : colors.mutedForeground },
+            ]}
+          >
             Global
           </Text>
         </Pressable>
@@ -53,10 +71,16 @@ export default function LeaderboardScreen() {
           <Pressable
             key={league.id}
             onPress={() => setTab(league.id)}
-            style={[styles.tabBtn, tab === league.id && { borderBottomColor: colors.foreground, borderBottomWidth: 2 }]}
+            style={[
+              styles.tabBtn,
+              tab === league.id && { borderBottomColor: colors.foreground, borderBottomWidth: 2 },
+            ]}
           >
             <Text
-              style={[styles.tabLabel, { color: tab === league.id ? colors.foreground : colors.mutedForeground }]}
+              style={[
+                styles.tabLabel,
+                { color: tab === league.id ? colors.foreground : colors.mutedForeground },
+              ]}
               numberOfLines={1}
             >
               {league.name}
@@ -72,6 +96,8 @@ export default function LeaderboardScreen() {
           <LeaderboardRow
             entry={item}
             isCurrentUser={item.userId === user?.id}
+            onAvatarPress={() => openProfile(item)}
+            onPress={() => openProfile(item)}
           />
         )}
         ListEmptyComponent={
@@ -86,6 +112,8 @@ export default function LeaderboardScreen() {
         }}
         showsVerticalScrollIndicator={false}
       />
+
+      <PublicProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
     </View>
   );
 }
@@ -99,11 +127,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
-  title: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 22,
-    letterSpacing: -0.5,
-  },
+  title: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: -0.5 },
   tabRow: {
     flexDirection: "row",
     borderBottomWidth: 1,
@@ -115,16 +139,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
-  tabLabel: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 14,
-  },
-  empty: {
-    alignItems: "center",
-    paddingTop: 80,
-  },
-  emptyText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-  },
+  tabLabel: { fontFamily: "Inter_500Medium", fontSize: 14 },
+  empty: { alignItems: "center", paddingTop: 80 },
+  emptyText: { fontFamily: "Inter_400Regular", fontSize: 14 },
 });
