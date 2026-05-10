@@ -150,7 +150,16 @@ export default function CompleteProfileScreen() {
               placeholder="DD/MM/YYYY"
               placeholderTextColor="#ABABAB"
               value={dob}
-              onChangeText={setDob}
+              onChangeText={(raw) => {
+                const digits = raw.replace(/\D/g, "").substring(0, 8);
+                let masked = digits;
+                if (digits.length > 4) {
+                  masked = digits.substring(0, 2) + "/" + digits.substring(2, 4) + "/" + digits.substring(4);
+                } else if (digits.length > 2) {
+                  masked = digits.substring(0, 2) + "/" + digits.substring(2);
+                }
+                setDob(masked);
+              }}
               keyboardType="numeric"
             />
             <Text style={styles.dobHint}>Must be 13 or older to join.</Text>
