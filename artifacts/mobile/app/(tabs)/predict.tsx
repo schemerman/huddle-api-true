@@ -136,7 +136,7 @@ function FixtureCard({
 export default function PredictScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, updatePoints } = useAuth();
+  const { user, recordWager } = useAuth();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
@@ -212,7 +212,7 @@ export default function PredictScreen() {
       };
     });
     saveFixtures(next);
-    updatePoints(-capped);
+    recordWager(capped);
 
     Animated.timing(translateY, { toValue: 600, duration: 220, useNativeDriver: true }).start(() => {
       setWagerTarget(null);
@@ -248,7 +248,9 @@ export default function PredictScreen() {
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Upcoming fixtures</Text>
         </View>
         <View style={[styles.balancePill, { backgroundColor: colors.secondary }]}>
-          <Text style={[styles.balanceLabel, { color: colors.mutedForeground }]}>Available</Text>
+          <Text style={[styles.balanceLabel, { color: colors.mutedForeground }]}>
+            {user?.isBankrupt ? "Bankrupt" : "Available"}
+          </Text>
           <Text style={[styles.balanceValue, { color: colors.foreground }]}>
             {(user?.points ?? 0).toLocaleString()} pts
           </Text>

@@ -1,0 +1,33 @@
+Please update the Huddle mobile app codebase with the following feature additions, UI modifications, and economic logic updates. Ensure all new features align with our minimalist, deep dark slate, and electric lime green aesthetic.
+
+---
+
+### 1. Home Page: Create Post Feature
+* Add a functional "Create Post" input field or button at the top of the Home feed.
+* When clicked, open a text input modal or clean expandable input field where users can type a new text-only post.
+* Submitting a post adds it instantly to the local/database social timeline feed with the user's username, a timestamp, and a default circular blank avatar placeholder.
+* Ensure text posts cannot be deleted once posted to preserve the "high stakes/keep receipts" design choice.
+
+### 2. Profile Page Modifications
+* Locate the Profile tab/view.
+* Entirely remove the "Help and Support" tab/row button.
+* Update the "Privacy Policy" tab so that clicking it displays a clean modal or sub-view containing a basic, standard user platform agreement (covering user-generated content, risk acknowledgement of free points with no real-world monetary value, and expected code of conduct).
+* Fix the "Sign Out" button located at the top of the app interface: ensure its click handler clears the session state and successfully redirects the user entirely back to the initial Sign Up / Login screen.
+
+### 3. Sign Up: Invite/Access Codes
+* Make the registration code input field functional.
+* Implement a validation check so that when a user enters a valid code during sign-up, it accepts it, grants access, and initializes their account properly. For now, hardcode a few test codes (e.g., "HUDDLE2026", "CAMPUSBIZ") if a backend database validation layer is not yet fully set up.
+
+### 4. Point Economy System (The War Chest & Bankruptcy)
+Implement the following custom point management logic in the state/backend:
+
+* **Starting Bankroll:** Initialize every newly registered user with a starting balance of 10,000 points for the leaderboard cycle. 
+* **The Daily Drip:** Implement a daily login bonus logic. When a user opens the app for the first time each calendar day, automatically add 100 points to their total balance. Display a subtle notification to let them know they received their daily drip.
+* **The Bankruptcy Penalty:** * If a user's point total hits exactly 0, lock them from placing normal large wagers. 
+    * Provide a prominent "Claim Daily Bailout" button that grants them a minimum baseline of 100 points to keep playing.
+    * As long as a user is surviving on the bailout and their total points remain below 500 points after hitting zero, append a highly visible, crimson red "BANKRUPT" status text or badge right onto their minimalist stats profile next to their win rate. 
+    * Automatically clear the "BANKRUPT" badge once their point total climbs back above 500 points.
+
+---
+
+Review the existing code files carefully, preserve the state handling across our navigation tabs, and implement these changes seamlessly without disrupting the current styling rules.

@@ -225,6 +225,7 @@ interface DataContextType {
   leagues: League[];
   messages: Record<string, Message[]>;
   leaderboard: LeaderboardEntry[];
+  addPost: (text: string) => void;
   likePost: (postId: string) => void;
   voteOnPrediction: (postId: string, choice: "A" | "B") => void;
   sendMessage: (leagueId: string, text: string) => void;
@@ -237,7 +238,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | null>(null);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, joinGroup } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [leagues, setLeagues] = useState<League[]>([]);
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
@@ -267,6 +268,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const saveMessages = (next: Record<string, Message[]>) => {
     setMessages(next);
     AsyncStorage.setItem("huddle_messages", JSON.stringify(next));
+  };
+
+  const addPost = (text: string) => {
+    if (!user || !text.trim()) return;
+    const post: Post = {
+      id: generateId(),
+      userId: user.id,
+      username: user.username || "me",
+      displayName: user.displayName || "You",
+      avatarColor: user.avatarColor,
+      text: text.trim(),
+      likes: 0,
+      liked: false,
+      comments: 0,
+      createdAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+    savePosts([post, ...posts]);
   };
 
   const likePost = (postId: string) => {
@@ -323,6 +341,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       createdAt: new Date().toISOString(),
     };
     saveLeagues([...leagues, league]);
+    joinGroup(league.id);
     return league;
   };
 
@@ -331,6 +350,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const idx = leagues.findIndex((l) => l.code === code);
     if (idx === -1) return false;
     const league = leagues[idx];
+    joinGroup(league.id);
     if (league.memberIds.includes(user.id)) return true;
     const updated = { ...league, memberIds: [...league.memberIds, user.id] };
     const next = [...leagues];
@@ -340,9 +360,33 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getLeagueLeaderboard = (league: League): LeaderboardEntry[] => {
-    return leaderboard
-      .filter((e) => league.memberIds.includes(e.userId) || league.memberIds.includes("me"))
-      .slice(0, league.memberIds.length)
+    const seen = new Set<string>();
+    const entries: LeaderboardEntry[] = [];
+    league.memberIds.forEach((mid) => {
+      const isMe = user && (mid === user.id || mid === "me");
+      if (isMe && user) {
+        if (seen.has(user.id)) return;
+        seen.add(user.id);
+        entries.push({
+          userId: user.id,
+          username: user.username || "me",
+          displayName: user.displayName || "You",
+          avatarColor: user.avatarColor,
+          points: user.points,
+          winRate: user.winRate,
+          rank: 0,
+        });
+      } else {
+        if (seen.has(mid)) return;
+        const seed = leaderboard.find((e) => e.userId === mid);
+        if (seed) {
+          seen.add(mid);
+          entries.push({ ...seed });
+        }
+      }
+    });
+    return entries
+      .sort((a, b) => b.points - a.points)
       .map((e, i) => ({ ...e, rank: i + 1 }));
   };
 
@@ -353,7 +397,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <DataContext.Provider value={{ posts, leagues, messages, leaderboard, likePost, voteOnPrediction, sendMessage, createLeague, joinLeague, getLeagueLeaderboard, getUserStats }}>
+    <DataContext.Provider value={{ posts, leagues, messages, leaderboard, addPost, likePost, voteOnPrediction, sendMessage, createLeague, joinLeague, getLeagueLeaderboard, getUserStats }}>
       {children}
     </DataContext.Provider>
   );

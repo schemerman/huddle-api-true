@@ -1,8 +1,10 @@
-import { Feather, AntDesign } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -32,12 +34,15 @@ const MY_WAGERS: WagerEntry[] = [
   { id: "mw6", team: "Spain", fixture: "Spain vs Portugal", amount: 90, status: "Won" },
 ];
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, logout } = useAuth();
+  const { user, logout, claimDailyBonus, claimBailout } = useAuth();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [tab, setTab] = useState<"stats" | "wagers">("stats");
+  const [agreementOpen, setAgreementOpen] = useState(false);
 
   const handleLogout = () => {
     Alert.alert("Sign out", "Are you sure you want to sign out?", [
@@ -48,6 +53,7 @@ export default function ProfileScreen() {
         onPress: async () => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           await logout();
+          router.replace("/(auth)/register");
         },
       },
     ]);
@@ -55,9 +61,32 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
+  const bonusReady = Date.now() - (user.lastDailyClaim || 0) >= DAY_MS;
+  const hoursLeft = Math.max(
+    1,
+    Math.ceil((DAY_MS - (Date.now() - (user.lastDailyClaim || 0))) / (60 * 60 * 1000))
+  );
+
+  const handleDailyBonus = async () => {
+    const ok = await claimDailyBonus();
+    if (ok) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Daily bonus claimed", "+100 points added to your bankroll.");
+    }
+  };
+
+  const handleBailout = async () => {
+    const ok = await claimBailout();
+    if (ok) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Bailout claimed", "+100 emergency points. Spend them wisely.");
+    }
+  };
+
   const statsData = [
     { label: "Win Rate", value: `${user.winRate}%` },
     { label: "Points", value: user.points.toLocaleString() },
+    { label: "Wagers", value: user.previousWagers.toLocaleString() },
   ];
 
   return (
@@ -93,6 +122,16 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Bankrupt badge */}
+        {user.isBankrupt && (
+          <View style={[styles.bankruptBanner, { borderColor: colors.foreground }]}>
+            <Text style={[styles.bankruptTag, { color: colors.foreground }]}>BANKRUPT</Text>
+            <Text style={[styles.bankruptSub, { color: colors.mutedForeground }]}>
+              Rebuild past 500 pts to clear this status.
+            </Text>
+          </View>
+        )}
+
         {/* Stats bar */}
         <View style={[styles.statsRow, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
           {statsData.map((stat, i) => (
@@ -107,6 +146,51 @@ export default function ProfileScreen() {
               <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{stat.label}</Text>
             </View>
           ))}
+        </View>
+
+        {/* Economy actions */}
+        <View style={styles.economyRow}>
+          <Pressable
+            onPress={handleDailyBonus}
+            disabled={!bonusReady}
+            style={({ pressed }) => [
+              styles.economyBtn,
+              {
+                borderColor: colors.border,
+                backgroundColor: bonusReady ? colors.background : colors.secondary,
+                opacity: pressed && bonusReady ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Feather
+              name="gift"
+              size={16}
+              color={bonusReady ? colors.foreground : colors.mutedForeground}
+            />
+            <Text
+              style={[
+                styles.economyBtnText,
+                { color: bonusReady ? colors.foreground : colors.mutedForeground },
+              ]}
+            >
+              {bonusReady ? "Claim Daily Bonus" : `Bonus in ${hoursLeft}h`}
+            </Text>
+          </Pressable>
+
+          {user.points <= 0 && (
+            <Pressable
+              onPress={handleBailout}
+              style={({ pressed }) => [
+                styles.economyBtnSolid,
+                { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              <Feather name="life-buoy" size={16} color={colors.primaryForeground} />
+              <Text style={[styles.economyBtnText, { color: colors.primaryForeground }]}>
+                Claim Daily Bailout
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Tab toggle */}
@@ -158,12 +242,7 @@ export default function ProfileScreen() {
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>APP</Text>
               <View style={[styles.settingsGroup, { borderColor: colors.border }]}>
-                <Pressable style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
-                  <Feather name="help-circle" size={18} color={colors.foreground} />
-                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>Help & Support</Text>
-                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-                </Pressable>
-                <Pressable style={styles.settingsRow}>
+                <Pressable onPress={() => setAgreementOpen(true)} style={styles.settingsRow}>
                   <Feather name="file-text" size={18} color={colors.foreground} />
                   <Text style={[styles.settingsLabel, { color: colors.foreground }]}>Privacy Policy</Text>
                   <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
@@ -223,6 +302,60 @@ export default function ProfileScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* User Agreement modal */}
+      <Modal visible={agreementOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalDismiss} onPress={() => setAgreementOpen(false)} />
+          <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
+            <View style={styles.modalHead}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>User Agreement</Text>
+              <Pressable onPress={() => setAgreementOpen(false)}>
+                <Feather name="x" size={22} color={colors.foreground} />
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.agreementScroll}>
+              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
+                1. User-Generated Content
+              </Text>
+              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
+                You are solely responsible for the posts, predictions, and messages you share on
+                Huddle. Content must not be unlawful, abusive, or harassing. Posts form a permanent
+                record and cannot be deleted once published. We may remove content that violates
+                these terms.
+              </Text>
+
+              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
+                2. Assumption of Prediction Risk
+              </Text>
+              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
+                Huddle is a social prediction game played with virtual points that hold no monetary
+                value and cannot be exchanged for cash or prizes. All predictions are made for
+                entertainment. You accept that points may be won or lost based on real-world outcomes
+                beyond our control.
+              </Text>
+
+              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
+                3. Privacy Protections
+              </Text>
+              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
+                We collect only the information needed to operate your account, including your
+                university email, username, and activity within the app. Your data is stored securely
+                on your device and is never sold to third parties. You may request deletion of your
+                account at any time.
+              </Text>
+
+              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
+                4. Fair Play
+              </Text>
+              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
+                Manipulating the points economy, exploiting bugs, or creating multiple accounts to
+                gain an unfair advantage is prohibited and may result in suspension.
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -249,19 +382,60 @@ const styles = StyleSheet.create({
   displayName: { fontFamily: "Inter_700Bold", fontSize: 20, letterSpacing: -0.3 },
   handle: { fontFamily: "Inter_400Regular", fontSize: 14, marginTop: 2 },
   dob: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 4 },
+  bankruptBanner: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  bankruptTag: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 15,
+    letterSpacing: 2,
+  },
+  bankruptSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 3 },
   statsRow: { flexDirection: "row", borderTopWidth: 1, borderBottomWidth: 1 },
   statItem: { flex: 1, alignItems: "center", paddingVertical: 18, gap: 4 },
-  statValue: { fontFamily: "Inter_700Bold", fontSize: 26, letterSpacing: -1 },
+  statValue: { fontFamily: "Inter_700Bold", fontSize: 24, letterSpacing: -1 },
   statLabel: {
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
+  economyRow: {
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  economyBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderRadius: 999,
+  },
+  economyBtnSolid: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 999,
+  },
+  economyBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
   tabRow: {
     flexDirection: "row",
     borderBottomWidth: 1,
     paddingHorizontal: 4,
+    marginTop: 20,
   },
   tabBtn: {
     paddingHorizontal: 20,
@@ -313,4 +487,32 @@ const styles = StyleSheet.create({
   wagerFixture: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
   wagerBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, marginLeft: 12 },
   wagerStatus: { fontFamily: "Inter_600SemiBold", fontSize: 11 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  modalDismiss: { flex: 1 },
+  modalSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+    maxHeight: "80%",
+  },
+  modalHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  modalTitle: { fontFamily: "Inter_700Bold", fontSize: 20, letterSpacing: -0.3 },
+  agreementScroll: { flexGrow: 0 },
+  agreementHeading: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
+    marginBottom: 6,
+    marginTop: 14,
+  },
+  agreementText: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 21 },
 });
