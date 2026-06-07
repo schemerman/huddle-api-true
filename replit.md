@@ -38,7 +38,9 @@ A minimalist social sports prediction platform for Gen Z university students —
 
 ## Architecture decisions
 
-- Mobile-first MVP uses AsyncStorage for all persistence (no backend calls yet) — backend is wired and ready for integration.
+- Point economy is server-authoritative: balances, wagers, daily bonus, and bailout run through transactional API endpoints (`/api/users/*`) with `SELECT ... FOR UPDATE` row locks and a `users_points_non_negative` DB CHECK constraint. The mobile app no longer mutates points locally — it adopts the server-returned user state.
+- Social/UI state (leagues, joinedGroups, fixtures, chat) still uses AsyncStorage as a local-first cache.
+- Economy routes are currently UNAUTHENTICATED and authorize by path `:id` only (the app has no auth system — login ignores the password). This is a known IDOR limitation; adding real auth is a recommended follow-up before production.
 - Strict light mode only — pure white bg, black text, 1px grey borders, pill buttons. No gradients, no colored blocks.
 - Design system: avatar initials with per-user colors provide the only color on screen (editorial monochrome aesthetic).
 - Inverted FlatList for chat (league rooms) — handles auto-scroll and keyboard correctly.

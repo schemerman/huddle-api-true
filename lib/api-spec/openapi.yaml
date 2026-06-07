@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: users
+    description: User economy operations
+  - name: wagers
+    description: Wager operations
 paths:
   /healthz:
     get:
@@ -24,7 +28,174 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /users/sync:
+    post:
+      operationId: syncUser
+      tags: [users]
+      summary: Create or update a user
+      description: Upserts a user. New users start with the default bankroll.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserSyncInput"
+      responses:
+        "200":
+          description: Synced user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a user
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /users/{id}/wagers:
+    post:
+      operationId: placeWager
+      tags: [wagers]
+      summary: Place a wager
+      description: >-
+        Atomically verifies the user has enough points at the moment of the
+        transaction, deducts the stake, and records the wager.
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WagerInput"
+      responses:
+        "200":
+          description: Wager placed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WagerResult"
+        "400":
+          description: Invalid input or insufficient points
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /users/{id}/wagers/{wagerId}/settle:
+    post:
+      operationId: settleWager
+      tags: [wagers]
+      summary: Settle a wager
+      description: >-
+        Atomically resolves a pending wager. On a win the payout is credited to
+        the user's balance.
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - name: wagerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WagerSettleInput"
+      responses:
+        "200":
+          description: Wager settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WagerResult"
+        "400":
+          description: Invalid input or wager already settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: User or wager not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /users/{id}/daily:
+    post:
+      operationId: claimDaily
+      tags: [users]
+      summary: Claim the daily bonus
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Daily claim result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClaimResult"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /users/{id}/bailout:
+    post:
+      operationId: claimBailout
+      tags: [users]
+      summary: Claim a bankruptcy bailout
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Bailout claim result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClaimResult"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +204,119 @@ components:
           type: string
       required:
         - status
-
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        username: { type: string }
+        displayName: { type: string }
+        dob: { type: string }
+        avatarColor: { type: string }
+        winRate: { type: number }
+        currentStreak: { type: integer }
+        points: { type: integer }
+        isBankrupt: { type: boolean }
+        previousWagers: { type: integer }
+        lastDailyClaim: { type: ["string", "null"], format: date-time }
+        profileComplete: { type: boolean }
+      required:
+        - id
+        - email
+        - username
+        - displayName
+        - dob
+        - avatarColor
+        - winRate
+        - currentStreak
+        - points
+        - isBankrupt
+        - previousWagers
+        - lastDailyClaim
+        - profileComplete
+    Wager:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        fixtureId: { type: string }
+        choice: { type: string }
+        question: { type: string }
+        prediction: { type: string }
+        amount: { type: integer }
+        odds: { type: number }
+        potentialPayout: { type: integer }
+        status: { type: string }
+        payout: { type: integer }
+        createdAt: { type: string, format: date-time }
+        settledAt: { type: ["string", "null"], format: date-time }
+      required:
+        - id
+        - userId
+        - fixtureId
+        - choice
+        - question
+        - prediction
+        - amount
+        - odds
+        - potentialPayout
+        - status
+        - payout
+        - createdAt
+        - settledAt
+    UserSyncInput:
+      type: object
+      properties:
+        id: { type: string, minLength: 1 }
+        email: { type: string, minLength: 1 }
+        username: { type: string }
+        displayName: { type: string }
+        dob: { type: string }
+        avatarColor: { type: string }
+        profileComplete: { type: boolean }
+      required:
+        - id
+        - email
+    WagerInput:
+      type: object
+      properties:
+        fixtureId: { type: string, minLength: 1 }
+        choice: { type: string, minLength: 1 }
+        question: { type: string }
+        prediction: { type: string }
+        amount: { type: integer, minimum: 1 }
+        odds: { type: number, minimum: 1 }
+      required:
+        - fixtureId
+        - choice
+        - amount
+        - odds
+    WagerSettleInput:
+      type: object
+      properties:
+        won: { type: boolean }
+      required:
+        - won
+    WagerResult:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        wager: { $ref: "#/components/schemas/Wager" }
+      required:
+        - user
+        - wager
+    ClaimResult:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        claimed: { type: boolean }
+      required:
+        - user
+        - claimed

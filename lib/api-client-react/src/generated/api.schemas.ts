@@ -8,3 +8,80 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface Error {
+  error: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string;
+  dob: string;
+  avatarColor: string;
+  winRate: number;
+  currentStreak: number;
+  points: number;
+  isBankrupt: boolean;
+  previousWagers: number;
+  /** @nullable */
+  lastDailyClaim: string | null;
+  profileComplete: boolean;
+}
+
+export interface Wager {
+  id: string;
+  userId: string;
+  fixtureId: string;
+  choice: string;
+  question: string;
+  prediction: string;
+  amount: number;
+  odds: number;
+  potentialPayout: number;
+  status: string;
+  payout: number;
+  createdAt: string;
+  /** @nullable */
+  settledAt: string | null;
+}
+
+export interface UserSyncInput {
+  /** @minLength 1 */
+  id: string;
+  /** @minLength 1 */
+  email: string;
+  username?: string;
+  displayName?: string;
+  dob?: string;
+  avatarColor?: string;
+  profileComplete?: boolean;
+}
+
+export interface WagerInput {
+  /** @minLength 1 */
+  fixtureId: string;
+  /** @minLength 1 */
+  choice: string;
+  question?: string;
+  prediction?: string;
+  /** @minimum 1 */
+  amount: number;
+  /** @minimum 1 */
+  odds: number;
+}
+
+export interface WagerSettleInput {
+  won: boolean;
+}
+
+export interface WagerResult {
+  user: User;
+  wager: Wager;
+}
+
+export interface ClaimResult {
+  user: User;
+  claimed: boolean;
+}

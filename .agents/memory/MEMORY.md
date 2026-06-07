@@ -1,1 +1,1 @@
-- [HUDDLE callouts & economy](huddle-callouts-economy.md) — callout target identity uses a "me" sentinel; single-user-per-device assumption; streak/title are mock-seeded (no resolution flow).
+- [HUDDLE point economy](huddle-point-economy.md) — points are server-authoritative via transactional /api/users/* routes; never reintroduce client-side point math.

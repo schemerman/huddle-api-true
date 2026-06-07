@@ -5,18 +5,30 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  ClaimResult,
+  Error,
+  HealthStatus,
+  User,
+  UserSyncInput,
+  WagerInput,
+  WagerResult,
+  WagerSettleInput,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +111,512 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Upserts a user. New users start with the default bankroll.
+ * @summary Create or update a user
+ */
+export const getSyncUserUrl = () => {
+  return `/api/users/sync`;
+};
+
+export const syncUser = async (
+  userSyncInput: UserSyncInput,
+  options?: RequestInit,
+): Promise<User> => {
+  return customFetch<User>(getSyncUserUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(userSyncInput),
+  });
+};
+
+export const getSyncUserMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncUser>>,
+    TError,
+    { data: BodyType<UserSyncInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof syncUser>>,
+  TError,
+  { data: BodyType<UserSyncInput> },
+  TContext
+> => {
+  const mutationKey = ["syncUser"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof syncUser>>,
+    { data: BodyType<UserSyncInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return syncUser(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SyncUserMutationResult = NonNullable<
+  Awaited<ReturnType<typeof syncUser>>
+>;
+export type SyncUserMutationBody = BodyType<UserSyncInput>;
+export type SyncUserMutationError = ErrorType<Error>;
+
+/**
+ * @summary Create or update a user
+ */
+export const useSyncUser = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncUser>>,
+    TError,
+    { data: BodyType<UserSyncInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof syncUser>>,
+  TError,
+  { data: BodyType<UserSyncInput> },
+  TContext
+> => {
+  return useMutation(getSyncUserMutationOptions(options));
+};
+
+/**
+ * @summary Get a user
+ */
+export const getGetUserUrl = (id: string) => {
+  return `/api/users/${id}`;
+};
+
+export const getUser = async (
+  id: string,
+  options?: RequestInit,
+): Promise<User> => {
+  return customFetch<User>(getGetUserUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetUserQueryKey = (id: string) => {
+  return [`/api/users/${id}`] as const;
+};
+
+export const getGetUserQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUser>>,
+  TError = ErrorType<Error>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getUser>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetUserQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getUser>>> = ({
+    signal,
+  }) => getUser(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getUser>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetUserQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUser>>
+>;
+export type GetUserQueryError = ErrorType<Error>;
+
+/**
+ * @summary Get a user
+ */
+
+export function useGetUser<
+  TData = Awaited<ReturnType<typeof getUser>>,
+  TError = ErrorType<Error>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getUser>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUserQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Atomically verifies the user has enough points at the moment of the transaction, deducts the stake, and records the wager.
+ * @summary Place a wager
+ */
+export const getPlaceWagerUrl = (id: string) => {
+  return `/api/users/${id}/wagers`;
+};
+
+export const placeWager = async (
+  id: string,
+  wagerInput: WagerInput,
+  options?: RequestInit,
+): Promise<WagerResult> => {
+  return customFetch<WagerResult>(getPlaceWagerUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(wagerInput),
+  });
+};
+
+export const getPlaceWagerMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof placeWager>>,
+    TError,
+    { id: string; data: BodyType<WagerInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof placeWager>>,
+  TError,
+  { id: string; data: BodyType<WagerInput> },
+  TContext
+> => {
+  const mutationKey = ["placeWager"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof placeWager>>,
+    { id: string; data: BodyType<WagerInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return placeWager(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PlaceWagerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof placeWager>>
+>;
+export type PlaceWagerMutationBody = BodyType<WagerInput>;
+export type PlaceWagerMutationError = ErrorType<Error>;
+
+/**
+ * @summary Place a wager
+ */
+export const usePlaceWager = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof placeWager>>,
+    TError,
+    { id: string; data: BodyType<WagerInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof placeWager>>,
+  TError,
+  { id: string; data: BodyType<WagerInput> },
+  TContext
+> => {
+  return useMutation(getPlaceWagerMutationOptions(options));
+};
+
+/**
+ * Atomically resolves a pending wager. On a win the payout is credited to the user's balance.
+ * @summary Settle a wager
+ */
+export const getSettleWagerUrl = (id: string, wagerId: string) => {
+  return `/api/users/${id}/wagers/${wagerId}/settle`;
+};
+
+export const settleWager = async (
+  id: string,
+  wagerId: string,
+  wagerSettleInput: WagerSettleInput,
+  options?: RequestInit,
+): Promise<WagerResult> => {
+  return customFetch<WagerResult>(getSettleWagerUrl(id, wagerId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(wagerSettleInput),
+  });
+};
+
+export const getSettleWagerMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof settleWager>>,
+    TError,
+    { id: string; wagerId: string; data: BodyType<WagerSettleInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof settleWager>>,
+  TError,
+  { id: string; wagerId: string; data: BodyType<WagerSettleInput> },
+  TContext
+> => {
+  const mutationKey = ["settleWager"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof settleWager>>,
+    { id: string; wagerId: string; data: BodyType<WagerSettleInput> }
+  > = (props) => {
+    const { id, wagerId, data } = props ?? {};
+
+    return settleWager(id, wagerId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SettleWagerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof settleWager>>
+>;
+export type SettleWagerMutationBody = BodyType<WagerSettleInput>;
+export type SettleWagerMutationError = ErrorType<Error>;
+
+/**
+ * @summary Settle a wager
+ */
+export const useSettleWager = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof settleWager>>,
+    TError,
+    { id: string; wagerId: string; data: BodyType<WagerSettleInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof settleWager>>,
+  TError,
+  { id: string; wagerId: string; data: BodyType<WagerSettleInput> },
+  TContext
+> => {
+  return useMutation(getSettleWagerMutationOptions(options));
+};
+
+/**
+ * @summary Claim the daily bonus
+ */
+export const getClaimDailyUrl = (id: string) => {
+  return `/api/users/${id}/daily`;
+};
+
+export const claimDaily = async (
+  id: string,
+  options?: RequestInit,
+): Promise<ClaimResult> => {
+  return customFetch<ClaimResult>(getClaimDailyUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getClaimDailyMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimDaily>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof claimDaily>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["claimDaily"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof claimDaily>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return claimDaily(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClaimDailyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof claimDaily>>
+>;
+
+export type ClaimDailyMutationError = ErrorType<Error>;
+
+/**
+ * @summary Claim the daily bonus
+ */
+export const useClaimDaily = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimDaily>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof claimDaily>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getClaimDailyMutationOptions(options));
+};
+
+/**
+ * @summary Claim a bankruptcy bailout
+ */
+export const getClaimBailoutUrl = (id: string) => {
+  return `/api/users/${id}/bailout`;
+};
+
+export const claimBailout = async (
+  id: string,
+  options?: RequestInit,
+): Promise<ClaimResult> => {
+  return customFetch<ClaimResult>(getClaimBailoutUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getClaimBailoutMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimBailout>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof claimBailout>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["claimBailout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof claimBailout>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return claimBailout(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClaimBailoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof claimBailout>>
+>;
+
+export type ClaimBailoutMutationError = ErrorType<Error>;
+
+/**
+ * @summary Claim a bankruptcy bailout
+ */
+export const useClaimBailout = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimBailout>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof claimBailout>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getClaimBailoutMutationOptions(options));
+};

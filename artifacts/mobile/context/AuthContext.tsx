@@ -1,4 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  syncUser,
+  placeWager as apiPlaceWager,
+  claimDaily as apiClaimDaily,
+  claimBailout as apiClaimBailout,
+  type User as ApiUser,
+} from "@workspace/api-client-react";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 export interface HuddleUser {
@@ -18,14 +25,22 @@ export interface HuddleUser {
   profileComplete: boolean;
 }
 
+export interface WagerDetails {
+  fixtureId: string;
+  choice: string;
+  question: string;
+  prediction: string;
+  amount: number;
+  odds: number;
+}
+
 interface AuthContextType {
   user: HuddleUser | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   completeProfile: (username: string, dob: string, avatarColor: string) => Promise<void>;
-  updatePoints: (delta: number) => Promise<void>;
-  recordWager: (cost: number) => Promise<void>;
+  placeWager: (details: WagerDetails) => Promise<void>;
   claimDailyBonus: () => Promise<boolean>;
   claimBailout: () => Promise<boolean>;
   joinGroup: (groupId: string) => Promise<void>;
@@ -37,24 +52,12 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const AVATAR_COLORS = ["#E8533A", "#3A7DE8", "#3AE86A", "#E8C83A", "#9B3AE8", "#E83A8C", "#3AE8D4"];
 
 const STARTING_BANKROLL = 10000;
-const SOLVENT_THRESHOLD = 500;
-const DAILY_AMOUNT = 100;
-const BAILOUT_AMOUNT = 100;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substring(2, 9);
 }
 
 const STORAGE_KEY = "huddle_user";
-
-const ECONOMY_DEFAULTS = {
-  isBankrupt: false,
-  previousWagers: 0,
-  joinedGroups: [] as string[],
-  lastDailyClaim: 0,
-  currentStreak: 0,
-};
 
 function withDefaults(raw: Partial<HuddleUser>): HuddleUser {
   const points = raw.points ?? STARTING_BANKROLL;
@@ -76,12 +79,28 @@ function withDefaults(raw: Partial<HuddleUser>): HuddleUser {
   };
 }
 
-function applyBankruptcy(u: HuddleUser, newPoints: number): HuddleUser {
-  const points = Math.max(0, newPoints);
-  let isBankrupt = u.isBankrupt;
-  if (points <= 0) isBankrupt = true;
-  else if (points > SOLVENT_THRESHOLD) isBankrupt = false;
-  return { ...u, points, isBankrupt };
+/**
+ * Merge a server-authoritative user record into the local shape. Economy fields
+ * (points, bankruptcy, wager count, daily claim) always come from the server;
+ * social-only fields (joinedGroups) are preserved from local state.
+ */
+function mergeServerUser(server: ApiUser, local: HuddleUser | null): HuddleUser {
+  return {
+    id: server.id,
+    email: server.email,
+    username: server.username,
+    displayName: server.displayName,
+    dob: server.dob,
+    avatarColor: server.avatarColor,
+    winRate: server.winRate,
+    currentStreak: server.currentStreak,
+    points: server.points,
+    isBankrupt: server.isBankrupt,
+    previousWagers: server.previousWagers,
+    joinedGroups: local?.joinedGroups ?? [],
+    lastDailyClaim: server.lastDailyClaim ? new Date(server.lastDailyClaim).getTime() : 0,
+    profileComplete: server.profileComplete,
+  };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -104,34 +123,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(u);
   };
 
+  /** Push identity to the server and adopt the authoritative economy fields. */
+  const syncToServer = async (local: HuddleUser): Promise<HuddleUser> => {
+    try {
+      const server = await syncUser({
+        id: local.id,
+        email: local.email,
+        username: local.username,
+        displayName: local.displayName,
+        dob: local.dob,
+        avatarColor: local.avatarColor,
+        profileComplete: local.profileComplete,
+      });
+      return mergeServerUser(server, local);
+    } catch {
+      return local;
+    }
+  };
+
   const login = async (email: string, _password: string) => {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      setUser(withDefaults(JSON.parse(raw)));
-      return;
-    }
-    await persist(
-      withDefaults({
-        email,
-        avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
-        points: STARTING_BANKROLL,
-      })
-    );
+    const local = raw
+      ? withDefaults(JSON.parse(raw))
+      : withDefaults({
+          email,
+          avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
+          points: STARTING_BANKROLL,
+        });
+    if (!raw) local.email = email;
+    await persist(await syncToServer(local));
   };
 
   const register = async (email: string, _password: string) => {
-    await persist(
-      withDefaults({
-        email,
-        avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
-        points: STARTING_BANKROLL,
-      })
-    );
+    const local = withDefaults({
+      email,
+      avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
+      points: STARTING_BANKROLL,
+    });
+    await persist(await syncToServer(local));
   };
 
   const completeProfile = async (username: string, dob: string, avatarColor: string) => {
     if (!user) return;
-    await persist({
+    const local: HuddleUser = {
       ...user,
       username,
       displayName: username,
@@ -139,38 +173,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       avatarColor,
       winRate: 62,
       currentStreak: 3,
-      points: user.points > 0 ? user.points : STARTING_BANKROLL,
       profileComplete: true,
+    };
+    await persist(await syncToServer(local));
+  };
+
+  const placeWager = async (details: WagerDetails) => {
+    if (!user) throw new Error("Not signed in");
+    const result = await apiPlaceWager(user.id, {
+      fixtureId: details.fixtureId,
+      choice: details.choice,
+      question: details.question,
+      prediction: details.prediction,
+      amount: details.amount,
+      odds: details.odds,
     });
-  };
-
-  const updatePoints = async (delta: number) => {
-    if (!user) return;
-    await persist(applyBankruptcy(user, user.points + delta));
-  };
-
-  const recordWager = async (cost: number) => {
-    if (!user) return;
-    const updated = applyBankruptcy(user, user.points - cost);
-    updated.previousWagers = user.previousWagers + 1;
-    await persist(updated);
+    await persist(mergeServerUser(result.user, user));
   };
 
   const claimDailyBonus = async (): Promise<boolean> => {
     if (!user) return false;
-    const now = Date.now();
-    if (now - user.lastDailyClaim < DAY_MS) return false;
-    const updated = applyBankruptcy(user, user.points + DAILY_AMOUNT);
-    updated.lastDailyClaim = now;
-    await persist(updated);
-    return true;
+    const result = await apiClaimDaily(user.id);
+    await persist(mergeServerUser(result.user, user));
+    return result.claimed;
   };
 
   const claimBailout = async (): Promise<boolean> => {
     if (!user) return false;
-    if (user.points > 0) return false;
-    await persist(applyBankruptcy(user, user.points + BAILOUT_AMOUNT));
-    return true;
+    const result = await apiClaimBailout(user.id);
+    await persist(mergeServerUser(result.user, user));
+    return result.claimed;
   };
 
   const joinGroup = async (groupId: string) => {
@@ -192,8 +224,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         register,
         completeProfile,
-        updatePoints,
-        recordWager,
+        placeWager,
         claimDailyBonus,
         claimBailout,
         joinGroup,

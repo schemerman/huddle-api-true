@@ -6,4 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./claimResult";
+export * from "./error";
 export * from "./healthStatus";
+export * from "./user";
+export * from "./userSyncInput";
+export * from "./wager";
+export * from "./wagerInput";
+export * from "./wagerResult";
+export * from "./wagerSettleInput";

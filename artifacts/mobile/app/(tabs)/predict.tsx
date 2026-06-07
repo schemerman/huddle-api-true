@@ -134,7 +134,7 @@ function FixtureCard({
 export default function PredictScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, recordWager } = useAuth();
+  const { user, placeWager } = useAuth();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
@@ -202,6 +202,25 @@ export default function PredictScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const { fixture, choice } = wagerTarget;
+    const prediction =
+      choice === "A" ? fixture.teamA : choice === "D" ? "Draw" : fixture.teamB;
+    const odds =
+      choice === "A" ? fixture.oddsA : choice === "D" ? fixture.oddsD : fixture.oddsB;
+
+    try {
+      await placeWager({
+        fixtureId: fixture.id,
+        choice,
+        question: fixture.question,
+        prediction,
+        amount: capped,
+        odds,
+      });
+    } catch {
+      setSubmitting(false);
+      return;
+    }
+
     const next = fixtures.map((f) => {
       if (f.id !== fixture.id || f.userVote) return f;
       return {
@@ -213,15 +232,8 @@ export default function PredictScreen() {
         votesB: choice === "B" ? f.votesB + 1 : f.votesB,
       };
     });
-
-    try {
-      setFixtures(next);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      await recordWager(capped);
-    } catch {
-      setSubmitting(false);
-      return;
-    }
+    setFixtures(next);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
 
     Animated.timing(translateY, { toValue: 600, duration: 220, useNativeDriver: true }).start(() => {
       setWagerTarget(null);

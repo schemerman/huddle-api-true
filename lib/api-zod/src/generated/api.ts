@@ -14,3 +14,205 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Upserts a user. New users start with the default bankroll.
+ * @summary Create or update a user
+ */
+
+export const SyncUserBody = zod.object({
+  id: zod.string().min(1),
+  email: zod.string().min(1),
+  username: zod.string().optional(),
+  displayName: zod.string().optional(),
+  dob: zod.string().optional(),
+  avatarColor: zod.string().optional(),
+  profileComplete: zod.boolean().optional(),
+});
+
+export const SyncUserResponse = zod.object({
+  id: zod.string(),
+  email: zod.string(),
+  username: zod.string(),
+  displayName: zod.string(),
+  dob: zod.string(),
+  avatarColor: zod.string(),
+  winRate: zod.number(),
+  currentStreak: zod.number(),
+  points: zod.number(),
+  isBankrupt: zod.boolean(),
+  previousWagers: zod.number(),
+  lastDailyClaim: zod.coerce.date().nullable(),
+  profileComplete: zod.boolean(),
+});
+
+/**
+ * @summary Get a user
+ */
+export const GetUserParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetUserResponse = zod.object({
+  id: zod.string(),
+  email: zod.string(),
+  username: zod.string(),
+  displayName: zod.string(),
+  dob: zod.string(),
+  avatarColor: zod.string(),
+  winRate: zod.number(),
+  currentStreak: zod.number(),
+  points: zod.number(),
+  isBankrupt: zod.boolean(),
+  previousWagers: zod.number(),
+  lastDailyClaim: zod.coerce.date().nullable(),
+  profileComplete: zod.boolean(),
+});
+
+/**
+ * Atomically verifies the user has enough points at the moment of the transaction, deducts the stake, and records the wager.
+ * @summary Place a wager
+ */
+export const PlaceWagerParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const PlaceWagerBody = zod.object({
+  fixtureId: zod.string().min(1),
+  choice: zod.string().min(1),
+  question: zod.string().optional(),
+  prediction: zod.string().optional(),
+  amount: zod.number().min(1),
+  odds: zod.number().min(1),
+});
+
+export const PlaceWagerResponse = zod.object({
+  user: zod.object({
+    id: zod.string(),
+    email: zod.string(),
+    username: zod.string(),
+    displayName: zod.string(),
+    dob: zod.string(),
+    avatarColor: zod.string(),
+    winRate: zod.number(),
+    currentStreak: zod.number(),
+    points: zod.number(),
+    isBankrupt: zod.boolean(),
+    previousWagers: zod.number(),
+    lastDailyClaim: zod.coerce.date().nullable(),
+    profileComplete: zod.boolean(),
+  }),
+  wager: zod.object({
+    id: zod.string(),
+    userId: zod.string(),
+    fixtureId: zod.string(),
+    choice: zod.string(),
+    question: zod.string(),
+    prediction: zod.string(),
+    amount: zod.number(),
+    odds: zod.number(),
+    potentialPayout: zod.number(),
+    status: zod.string(),
+    payout: zod.number(),
+    createdAt: zod.coerce.date(),
+    settledAt: zod.coerce.date().nullable(),
+  }),
+});
+
+/**
+ * Atomically resolves a pending wager. On a win the payout is credited to the user's balance.
+ * @summary Settle a wager
+ */
+export const SettleWagerParams = zod.object({
+  id: zod.coerce.string(),
+  wagerId: zod.coerce.string(),
+});
+
+export const SettleWagerBody = zod.object({
+  won: zod.boolean(),
+});
+
+export const SettleWagerResponse = zod.object({
+  user: zod.object({
+    id: zod.string(),
+    email: zod.string(),
+    username: zod.string(),
+    displayName: zod.string(),
+    dob: zod.string(),
+    avatarColor: zod.string(),
+    winRate: zod.number(),
+    currentStreak: zod.number(),
+    points: zod.number(),
+    isBankrupt: zod.boolean(),
+    previousWagers: zod.number(),
+    lastDailyClaim: zod.coerce.date().nullable(),
+    profileComplete: zod.boolean(),
+  }),
+  wager: zod.object({
+    id: zod.string(),
+    userId: zod.string(),
+    fixtureId: zod.string(),
+    choice: zod.string(),
+    question: zod.string(),
+    prediction: zod.string(),
+    amount: zod.number(),
+    odds: zod.number(),
+    potentialPayout: zod.number(),
+    status: zod.string(),
+    payout: zod.number(),
+    createdAt: zod.coerce.date(),
+    settledAt: zod.coerce.date().nullable(),
+  }),
+});
+
+/**
+ * @summary Claim the daily bonus
+ */
+export const ClaimDailyParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const ClaimDailyResponse = zod.object({
+  user: zod.object({
+    id: zod.string(),
+    email: zod.string(),
+    username: zod.string(),
+    displayName: zod.string(),
+    dob: zod.string(),
+    avatarColor: zod.string(),
+    winRate: zod.number(),
+    currentStreak: zod.number(),
+    points: zod.number(),
+    isBankrupt: zod.boolean(),
+    previousWagers: zod.number(),
+    lastDailyClaim: zod.coerce.date().nullable(),
+    profileComplete: zod.boolean(),
+  }),
+  claimed: zod.boolean(),
+});
+
+/**
+ * @summary Claim a bankruptcy bailout
+ */
+export const ClaimBailoutParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const ClaimBailoutResponse = zod.object({
+  user: zod.object({
+    id: zod.string(),
+    email: zod.string(),
+    username: zod.string(),
+    displayName: zod.string(),
+    dob: zod.string(),
+    avatarColor: zod.string(),
+    winRate: zod.number(),
+    currentStreak: zod.number(),
+    points: zod.number(),
+    isBankrupt: zod.boolean(),
+    previousWagers: zod.number(),
+    lastDailyClaim: zod.coerce.date().nullable(),
+    profileComplete: zod.boolean(),
+  }),
+  claimed: zod.boolean(),
+});
