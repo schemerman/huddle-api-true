@@ -9,6 +9,7 @@ interface ReceiptModalProps {
   question: string;
   finalResult: string;
   prediction: string;
+  points: number;
   won: boolean;
 }
 
@@ -18,6 +19,7 @@ export function ReceiptModal({
   question,
   finalResult,
   prediction,
+  points,
   won,
 }: ReceiptModalProps) {
   const colors = useColors();
@@ -42,6 +44,10 @@ export function ReceiptModal({
             </Text>
             <Text style={[styles.receiptBlockValue, { color: colors.foreground }]}>{prediction}</Text>
           </View>
+
+          <Text style={[styles.receiptPoints, { color: colors.foreground }]}>
+            {won ? "+" : "-"} {points} PTS
+          </Text>
 
           <View
             style={[
@@ -104,6 +110,7 @@ const styles = StyleSheet.create({
   receiptBlock: { alignItems: "center", marginBottom: 16 },
   receiptBlockLabel: { fontFamily: "Inter_500Medium", fontSize: 11, letterSpacing: 0.8, marginBottom: 4 },
   receiptBlockValue: { fontFamily: "Inter_700Bold", fontSize: 16, textAlign: "center" },
+  receiptPoints: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: 1, marginTop: 2, marginBottom: 12 },
   receiptStamp: {
     borderWidth: 2,
     borderRadius: 999,

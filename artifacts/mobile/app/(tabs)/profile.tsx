@@ -27,16 +27,17 @@ interface WagerEntry {
   question: string;
   result: string;
   amount: number;
+  points: number;
   status: "Won" | "Lost" | "Pending";
 }
 
 const MY_WAGERS: WagerEntry[] = [
-  { id: "mw1", team: "Arsenal", fixture: "Arsenal vs Man City", question: "Who will win: Arsenal or Man City?", result: "TBD", amount: 120, status: "Pending" },
-  { id: "mw2", team: "Liverpool", fixture: "Liverpool vs Chelsea", question: "Who will win: Liverpool or Chelsea?", result: "Liverpool", amount: 200, status: "Won" },
-  { id: "mw3", team: "Brazil", fixture: "Brazil vs Germany", question: "Who will win: Brazil or Germany?", result: "Brazil", amount: 80, status: "Won" },
-  { id: "mw4", team: "Draw", fixture: "Man United vs Tottenham", question: "Who will win: Man United or Tottenham?", result: "Tottenham", amount: 50, status: "Lost" },
-  { id: "mw5", team: "France", fixture: "France vs Argentina", question: "Who will win: France or Argentina?", result: "TBD", amount: 150, status: "Pending" },
-  { id: "mw6", team: "Spain", fixture: "Spain vs Portugal", question: "Who will win: Spain or Portugal?", result: "Spain", amount: 90, status: "Won" },
+  { id: "mw1", team: "Arsenal", fixture: "Arsenal vs Man City", question: "Who will win: Arsenal or Man City?", result: "TBD", amount: 120, points: 0, status: "Pending" },
+  { id: "mw2", team: "Liverpool", fixture: "Liverpool vs Chelsea", question: "Who will win: Liverpool or Chelsea?", result: "Liverpool", amount: 200, points: 260, status: "Won" },
+  { id: "mw3", team: "Brazil", fixture: "Brazil vs Germany", question: "Who will win: Brazil or Germany?", result: "Brazil", amount: 80, points: 96, status: "Won" },
+  { id: "mw4", team: "Draw", fixture: "Man United vs Tottenham", question: "Who will win: Man United or Tottenham?", result: "Tottenham", amount: 50, points: 50, status: "Lost" },
+  { id: "mw5", team: "France", fixture: "France vs Argentina", question: "Who will win: France or Argentina?", result: "TBD", amount: 150, points: 0, status: "Pending" },
+  { id: "mw6", team: "Spain", fixture: "Spain vs Portugal", question: "Who will win: Spain or Portugal?", result: "Spain", amount: 90, points: 108, status: "Won" },
 ];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -392,6 +393,7 @@ export default function ProfileScreen() {
         question={receiptWager?.question ?? ""}
         finalResult={receiptWager?.result ?? ""}
         prediction={receiptWager?.team ?? ""}
+        points={receiptWager?.points ?? 0}
         won={receiptWager?.status === "Won"}
       />
     </View>
