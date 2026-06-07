@@ -14,14 +14,6 @@ export interface Prediction {
   result?: "A" | "B";
 }
 
-export interface Callout {
-  targetUserId: string;
-  targetUsername: string;
-  amount: number;
-  status: "pending" | "accepted" | "declined";
-  pot?: number;
-}
-
 export interface Post {
   id: string;
   userId: string;
@@ -30,7 +22,6 @@ export interface Post {
   avatarColor: string;
   text: string;
   prediction?: Prediction;
-  callout?: Callout;
   likes: number;
   liked: boolean;
   comments: number;
@@ -71,24 +62,6 @@ function generateId(): string {
 }
 
 const SEED_POSTS: Post[] = [
-  {
-    id: "p0",
-    userId: "u3",
-    username: "tomaszwiecek",
-    displayName: "Tomasz Wiecek",
-    avatarColor: "#9B3AE8",
-    text: "Bet you haven't got the bottle. 750 points says City keep a clean sheet this weekend.",
-    callout: {
-      targetUserId: "me",
-      targetUsername: "me",
-      amount: 750,
-      status: "pending",
-    },
-    likes: 12,
-    liked: false,
-    comments: 5,
-    createdAt: "1h",
-  },
   {
     id: "p1",
     userId: "u1",
@@ -259,7 +232,6 @@ interface DataContextType {
   messages: Record<string, Message[]>;
   leaderboard: LeaderboardEntry[];
   addPost: (text: string) => void;
-  respondToCallout: (postId: string, accept: boolean) => void;
   likePost: (postId: string) => void;
   voteOnPrediction: (postId: string, choice: "A" | "B") => void;
   sendMessage: (leagueId: string, text: string) => void;
@@ -272,14 +244,14 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | null>(null);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const { user, joinGroup, updatePoints } = useAuth();
+  const { user, joinGroup } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [leagues, setLeagues] = useState<League[]>([]);
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
   useEffect(() => {
-    AsyncStorage.getItem("huddle_posts_v3").then((raw) => {
+    AsyncStorage.getItem("huddle_posts_v4").then((raw) => {
       setPosts(raw ? JSON.parse(raw) : SEED_POSTS);
     });
     AsyncStorage.getItem("huddle_leagues").then((raw) => {
@@ -293,7 +265,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const savePosts = (next: Post[]) => {
     setPosts(next);
-    AsyncStorage.setItem("huddle_posts_v3", JSON.stringify(next));
+    AsyncStorage.setItem("huddle_posts_v4", JSON.stringify(next));
   };
   const saveLeagues = (next: League[]) => {
     setLeagues(next);
@@ -302,24 +274,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const saveMessages = (next: Record<string, Message[]>) => {
     setMessages(next);
     AsyncStorage.setItem("huddle_messages", JSON.stringify(next));
-  };
-
-  const parseCallout = (text: string): Callout | undefined => {
-    const mention = text.match(/@(\w+)/);
-    const num = text.match(/\b(\d+)\b/);
-    if (!mention || !num) return undefined;
-    const amount = parseInt(num[1], 10);
-    if (!amount || amount <= 0) return undefined;
-    const targetUsername = mention[1];
-    const target = SEED_LEADERBOARD.find(
-      (e) => e.username.toLowerCase() === targetUsername.toLowerCase()
-    );
-    return {
-      targetUserId: target?.userId ?? "",
-      targetUsername,
-      amount,
-      status: "pending",
-    };
   };
 
   const addPost = (text: string) => {
@@ -331,42 +285,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       displayName: user.displayName || "You",
       avatarColor: user.avatarColor,
       text: text.trim(),
-      callout: parseCallout(text),
       likes: 0,
       liked: false,
       comments: 0,
       createdAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
     savePosts([post, ...posts]);
-  };
-
-  const respondToCallout = (postId: string, accept: boolean) => {
-    const post = posts.find((p) => p.id === postId);
-    if (!post || !post.callout || post.callout.status !== "pending") return;
-    const callout = post.callout;
-    const isTarget =
-      !!user && (callout.targetUserId === user.id || callout.targetUserId === "me");
-    if (!isTarget) return;
-
-    if (accept) {
-      if ((user?.points ?? 0) < callout.amount) return;
-      updatePoints(-callout.amount);
-      savePosts(
-        posts.map((p) =>
-          p.id === postId && p.callout && p.callout.status === "pending"
-            ? { ...p, callout: { ...p.callout, status: "accepted", pot: callout.amount * 2 } }
-            : p
-        )
-      );
-    } else {
-      savePosts(
-        posts.map((p) =>
-          p.id === postId && p.callout && p.callout.status === "pending"
-            ? { ...p, callout: { ...p.callout, status: "declined" } }
-            : p
-        )
-      );
-    }
   };
 
   const likePost = (postId: string) => {
@@ -479,7 +403,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <DataContext.Provider value={{ posts, leagues, messages, leaderboard, addPost, respondToCallout, likePost, voteOnPrediction, sendMessage, createLeague, joinLeague, getLeagueLeaderboard, getUserStats }}>
+    <DataContext.Provider value={{ posts, leagues, messages, leaderboard, addPost, likePost, voteOnPrediction, sendMessage, createLeague, joinLeague, getLeagueLeaderboard, getUserStats }}>
       {children}
     </DataContext.Provider>
   );

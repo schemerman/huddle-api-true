@@ -236,21 +236,14 @@ export default function ProfileScreen() {
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>ACCOUNT</Text>
               <View style={[styles.settingsGroup, { borderColor: colors.border }]}>
-                <Pressable style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
+                <View style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
                   <Feather name="mail" size={18} color={colors.foreground} />
                   <Text style={[styles.settingsLabel, { color: colors.foreground }]}>{user.email}</Text>
-                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-                </Pressable>
-                <Pressable style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
+                </View>
+                <View style={styles.settingsRow}>
                   <Feather name="at-sign" size={18} color={colors.foreground} />
                   <Text style={[styles.settingsLabel, { color: colors.foreground }]}>@{user.username || "—"}</Text>
-                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-                </Pressable>
-                <Pressable style={styles.settingsRow}>
-                  <Feather name="bell" size={18} color={colors.foreground} />
-                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>Notifications</Text>
-                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-                </Pressable>
+                </View>
               </View>
             </View>
 

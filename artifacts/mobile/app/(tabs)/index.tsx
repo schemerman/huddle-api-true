@@ -1,4 +1,3 @@
-import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -27,7 +26,7 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { posts, addPost, respondToCallout, likePost, voteOnPrediction, getUserStats } = useData();
+  const { posts, addPost, likePost, voteOnPrediction, getUserStats } = useData();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
@@ -65,7 +64,6 @@ export default function HomeScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.topBar, { paddingTop: topPad, borderBottomColor: colors.border }]}>
         <Text style={[styles.wordmark, { color: colors.foreground }]}>HUDDLE</Text>
-        <Feather name="bell" size={22} color={colors.foreground} />
       </View>
 
       <FlatList<Post>
@@ -98,12 +96,6 @@ export default function HomeScreen() {
             onPress={() => router.push(`/post/${item.id}`)}
             onAvatarPress={() => openProfile(item)}
             onUsernamePress={() => openProfile(item)}
-            onAcceptCallout={() => respondToCallout(item.id, true)}
-            onDeclineCallout={() => respondToCallout(item.id, false)}
-            currentUserId={user?.id}
-            acceptDisabled={
-              !!item.callout && (user?.points ?? 0) < item.callout.amount
-            }
             highlight={item.userId === user?.id && (user?.currentStreak ?? 0) >= 3}
             hidePrediction
           />
