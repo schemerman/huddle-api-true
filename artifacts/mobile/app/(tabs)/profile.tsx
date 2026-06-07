@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import palette from "@/constants/colors";
-import { performanceTitle } from "@/utils/performance";
+import { PerformanceTitleBadge } from "@/components/PerformanceTitleBadge";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
 
@@ -121,10 +121,14 @@ export default function ProfileScreen() {
             <Text style={[styles.handle, { color: colors.mutedForeground }]}>
               @{user.username || "—"}
             </Text>
-            <Text style={[styles.perfTitle, { color: colors.mutedForeground }]}>
-              {performanceTitle(user.winRate)}
-              {(user.currentStreak ?? 0) >= 3 ? ` · ${user.currentStreak}-streak heater` : ""}
-            </Text>
+            <View style={styles.perfRow}>
+              <PerformanceTitleBadge winRate={user.winRate} />
+              {(user.currentStreak ?? 0) >= 3 && (
+                <Text style={[styles.streakText, { color: colors.mutedForeground }]}>
+                  {user.currentStreak}-streak heater
+                </Text>
+              )}
+            </View>
             {!!user.dob && (
               <Text style={[styles.dob, { color: colors.mutedForeground }]}>
                 Born {user.dob}
@@ -392,7 +396,8 @@ const styles = StyleSheet.create({
   heroText: { flex: 1 },
   displayName: { fontFamily: "Inter_700Bold", fontSize: 20, letterSpacing: -0.3 },
   handle: { fontFamily: "Inter_400Regular", fontSize: 14, marginTop: 2 },
-  perfTitle: { fontFamily: "Inter_500Medium", fontSize: 13, marginTop: 4 },
+  perfRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" },
+  streakText: { fontFamily: "Inter_500Medium", fontSize: 13 },
   dob: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 4 },
   bankruptBanner: {
     marginHorizontal: 16,

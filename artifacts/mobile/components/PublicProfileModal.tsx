@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { useColors } from "@/hooks/useColors";
-import { performanceTitle } from "@/utils/performance";
+import { PerformanceTitleBadge } from "./PerformanceTitleBadge";
 import { Avatar } from "./Avatar";
 
 export interface PublicProfileUser {
@@ -169,9 +169,7 @@ export function PublicProfileModal({ user, onClose }: Props) {
               @{user?.username}
             </Text>
             {!!user && (
-              <Text style={[styles.perfTitle, { color: colors.mutedForeground }]}>
-                {performanceTitle(user.winRate)}
-              </Text>
+              <PerformanceTitleBadge winRate={user.winRate} style={styles.perfBadge} />
             )}
 
             <View
@@ -304,9 +302,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 6,
   },
-  perfTitle: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
+  perfBadge: {
+    alignSelf: "center",
     marginBottom: 24,
   },
   statsRow: {

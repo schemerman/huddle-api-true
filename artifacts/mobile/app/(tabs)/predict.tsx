@@ -85,6 +85,23 @@ function FixtureCard({
 
       <Text style={[styles.question, { color: colors.foreground }]}>{fixture.question}</Text>
 
+      <View style={styles.sentimentWrap}>
+        <Text style={[styles.sentimentLabel, { color: colors.mutedForeground }]}>GROUP SENTIMENT</Text>
+        <View style={styles.sentimentBar}>
+          <View style={{ flex: Math.max(pctA, 1), backgroundColor: colors.foreground }} />
+          <View style={{ flex: Math.max(pctD, 1), backgroundColor: colors.mutedForeground }} />
+          <View style={{ flex: Math.max(pctB, 1), backgroundColor: "#CFCFCF" }} />
+        </View>
+        <View style={styles.sentimentLegend}>
+          <Text style={[styles.legendText, { color: colors.mutedForeground }]} numberOfLines={1}>
+            {fixture.teamA} {pctA}%
+          </Text>
+          <Text style={[styles.legendText, { color: colors.mutedForeground }]} numberOfLines={1}>
+            {pctB}% {fixture.teamB}
+          </Text>
+        </View>
+      </View>
+
       <View style={styles.optionsCol}>
         {options.map(({ choice, label, odds, pct }) => {
           const isSelected = fixture.userVote === choice;
@@ -236,9 +253,25 @@ export default function PredictScreen() {
       : wagerTarget.fixture.teamB
     : "";
 
+  const chosenVotes = wagerTarget
+    ? wagerTarget.choice === "A"
+      ? wagerTarget.fixture.votesA
+      : wagerTarget.choice === "D"
+      ? wagerTarget.fixture.votesD
+      : wagerTarget.fixture.votesB
+    : 0;
+  const totalChosenVotes = wagerTarget
+    ? wagerTarget.fixture.votesA + wagerTarget.fixture.votesD + wagerTarget.fixture.votesB
+    : 0;
+  const chosenSharePct = totalChosenVotes > 0 ? (chosenVotes / totalChosenVotes) * 100 : 100;
+  const isContrarian = totalChosenVotes > 0 && chosenSharePct < 30;
+  const contrarianMultiplier = isContrarian ? 2 : 1;
+
   const parsedAmount = parseInt(wagerAmount, 10);
   const canConfirm = !isNaN(parsedAmount) && parsedAmount > 0 && parsedAmount <= (user?.points ?? 0);
-  const potentialPayout = canConfirm ? Math.floor(parsedAmount * chosenOdds) : null;
+  const potentialPayout = canConfirm
+    ? Math.floor(parsedAmount * chosenOdds * contrarianMultiplier)
+    : null;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -298,6 +331,17 @@ export default function PredictScreen() {
                 {chosenOdds}x odds
               </Text>
             </View>
+
+            {isContrarian && (
+              <View style={[styles.contrarianTag, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
+                <Text style={[styles.contrarianTitle, { color: colors.foreground }]}>
+                  CONTRARIAN PICK · 2x BONUS
+                </Text>
+                <Text style={[styles.contrarianSub, { color: colors.mutedForeground }]}>
+                  Under 30% of players backed this. Win and your payout doubles.
+                </Text>
+              </View>
+            )}
 
             <Text style={[styles.wagerLabel, { color: colors.foreground }]}>
               How many points do you want to wager?
@@ -449,4 +493,12 @@ const styles = StyleSheet.create({
   payoutNum: { fontFamily: "Inter_700Bold", fontSize: 13 },
   confirmBtn: { paddingVertical: 15, borderRadius: 999, alignItems: "center" },
   confirmBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 16 },
+  sentimentWrap: { gap: 6 },
+  sentimentLabel: { fontFamily: "Inter_500Medium", fontSize: 10, letterSpacing: 0.8 },
+  sentimentBar: { flexDirection: "row", height: 6, borderRadius: 3, overflow: "hidden", gap: 2 },
+  sentimentLegend: { flexDirection: "row", justifyContent: "space-between" },
+  legendText: { fontFamily: "Inter_400Regular", fontSize: 11, flexShrink: 1 },
+  contrarianTag: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 20, gap: 3 },
+  contrarianTitle: { fontFamily: "Inter_700Bold", fontSize: 12, letterSpacing: 0.5 },
+  contrarianSub: { fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 17 },
 });

@@ -103,6 +103,9 @@ const SEED_POSTS: Post[] = [
       optionB: "No, City win",
       votesA: 142,
       votesB: 381,
+      userVote: "A",
+      resolved: true,
+      result: "B",
     },
     likes: 48,
     liked: false,
@@ -123,6 +126,9 @@ const SEED_POSTS: Post[] = [
       optionB: "No, under 35",
       votesA: 267,
       votesB: 189,
+      userVote: "A",
+      resolved: true,
+      result: "A",
     },
     likes: 91,
     liked: false,
@@ -273,7 +279,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
   useEffect(() => {
-    AsyncStorage.getItem("huddle_posts_v2").then((raw) => {
+    AsyncStorage.getItem("huddle_posts_v3").then((raw) => {
       setPosts(raw ? JSON.parse(raw) : SEED_POSTS);
     });
     AsyncStorage.getItem("huddle_leagues").then((raw) => {
@@ -287,7 +293,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const savePosts = (next: Post[]) => {
     setPosts(next);
-    AsyncStorage.setItem("huddle_posts_v2", JSON.stringify(next));
+    AsyncStorage.setItem("huddle_posts_v3", JSON.stringify(next));
   };
   const saveLeagues = (next: League[]) => {
     setLeagues(next);
