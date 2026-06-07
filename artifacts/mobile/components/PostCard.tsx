@@ -164,7 +164,7 @@ export function PostCard({
         </View>
       )}
 
-      {isResolved && pred && (
+      {isResolved && pred && !hidePrediction && (
         <View style={[styles.resolvedBox, { borderColor: colors.border }]}>
           <Text style={[styles.predQuestion, { color: colors.foreground }]}>{pred.question}</Text>
           <View style={[styles.resolvedRow, { borderTopColor: colors.border }]}>
