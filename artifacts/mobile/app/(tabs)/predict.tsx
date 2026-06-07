@@ -1,6 +1,7 @@
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   FlatList,
   Keyboard,
@@ -139,6 +140,7 @@ export default function PredictScreen() {
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [wagerTarget, setWagerTarget] = useState<WagerTarget | null>(null);
   const [wagerAmount, setWagerAmount] = useState("10");
+  const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
   const translateY = useRef(new Animated.Value(0)).current;
@@ -175,12 +177,12 @@ export default function PredictScreen() {
     });
   }, []);
 
-  useEffect(() => { if (!wagerTarget) translateY.setValue(0); }, [wagerTarget]);
-
-  const saveFixtures = (next: Fixture[]) => {
-    setFixtures(next);
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  };
+  useEffect(() => {
+    if (!wagerTarget) {
+      translateY.setValue(0);
+      setSubmitting(false);
+    }
+  }, [wagerTarget]);
 
   const handleOpenWager = (fixture: Fixture, choice: Choice) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -189,11 +191,14 @@ export default function PredictScreen() {
     setTimeout(() => inputRef.current?.focus(), 200);
   };
 
-  const handleConfirmWager = () => {
-    if (!wagerTarget) return;
+  const handleConfirmWager = async () => {
+    if (!wagerTarget || submitting) return;
     const amount = parseInt(wagerAmount, 10);
     if (isNaN(amount) || amount <= 0) return;
     const capped = Math.min(amount, user?.points ?? 0);
+    if (capped <= 0) return;
+
+    setSubmitting(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const { fixture, choice } = wagerTarget;
@@ -208,8 +213,15 @@ export default function PredictScreen() {
         votesB: choice === "B" ? f.votesB + 1 : f.votesB,
       };
     });
-    saveFixtures(next);
-    recordWager(capped);
+
+    try {
+      setFixtures(next);
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      await recordWager(capped);
+    } catch {
+      setSubmitting(false);
+      return;
+    }
 
     Animated.timing(translateY, { toValue: 600, duration: 220, useNativeDriver: true }).start(() => {
       setWagerTarget(null);
@@ -351,23 +363,27 @@ export default function PredictScreen() {
 
             <Pressable
               onPress={handleConfirmWager}
-              disabled={!canConfirm}
+              disabled={!canConfirm || submitting}
               style={({ pressed }) => [
                 styles.confirmBtn,
                 {
                   backgroundColor: canConfirm ? colors.primary : colors.secondary,
-                  opacity: pressed ? 0.8 : 1,
+                  opacity: pressed && !submitting ? 0.8 : 1,
                 },
               ]}
             >
-              <Text
-                style={[
-                  styles.confirmBtnText,
-                  { color: canConfirm ? colors.primaryForeground : colors.mutedForeground },
-                ]}
-              >
-                Confirm Wager
-              </Text>
+              {submitting ? (
+                <ActivityIndicator size="small" color={colors.primaryForeground} />
+              ) : (
+                <Text
+                  style={[
+                    styles.confirmBtnText,
+                    { color: canConfirm ? colors.primaryForeground : colors.mutedForeground },
+                  ]}
+                >
+                  Confirm Wager
+                </Text>
+              )}
             </Pressable>
           </Animated.View>
         </KeyboardAvoidingView>
