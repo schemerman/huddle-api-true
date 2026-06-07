@@ -1,10 +1,9 @@
 import { AntDesign, Feather } from "@expo/vector-icons";
 // Note: AntDesign "heart" = filled red, Feather "heart" = outline grey
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import React from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
-import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "./Avatar";
 import type { Post } from "@/context/DataContext";
 
@@ -30,18 +29,15 @@ export function PostCard({
   hidePrediction = false,
 }: PostCardProps) {
   const colors = useColors();
-  const { user: currentUser } = useAuth();
-  const [receiptOpen, setReceiptOpen] = useState(false);
 
   const pred = post.prediction;
   const isResolved =
     !!pred && (pred.resolved === true || pred.result === "A" || pred.result === "B");
   const showPoll = !!pred && !isResolved && !hidePrediction;
   const userPick = pred?.userVote;
-  const canShareReceipt = isResolved && !!userPick;
+  const showResultTag = isResolved && !!userPick;
   const userWon = isResolved && userPick === pred!.result;
   const winningLabel = pred ? (pred.result === "A" ? pred.optionA : pred.optionB) : "";
-  const userPickLabel = pred && userPick ? (userPick === "A" ? pred.optionA : pred.optionB) : "";
 
   const totalVotes = pred ? pred.votesA + pred.votesB : 0;
   const pctA = totalVotes > 0 ? Math.round((pred!.votesA / totalVotes) * 100) : 50;
@@ -178,28 +174,23 @@ export function PostCard({
                 {winningLabel}
               </Text>
             </View>
-            {canShareReceipt && (
-              <View style={styles.resolvedRight}>
-                <View
+            {showResultTag && (
+              <View
+                style={[
+                  styles.resultTag,
+                  userWon
+                    ? { backgroundColor: colors.primary }
+                    : { backgroundColor: colors.secondary, borderColor: colors.border, borderWidth: 1 },
+                ]}
+              >
+                <Text
                   style={[
-                    styles.resultTag,
-                    userWon
-                      ? { backgroundColor: colors.primary }
-                      : { backgroundColor: colors.secondary, borderColor: colors.border, borderWidth: 1 },
+                    styles.resultTagText,
+                    { color: userWon ? colors.primaryForeground : colors.mutedForeground },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.resultTagText,
-                      { color: userWon ? colors.primaryForeground : colors.mutedForeground },
-                    ]}
-                  >
-                    {userWon ? "YOU WON" : "YOU FAILED"}
-                  </Text>
-                </View>
-                <Pressable onPress={() => setReceiptOpen(true)} hitSlop={8} style={styles.shareReceiptBtn}>
-                  <Feather name="share" size={16} color={colors.foreground} />
-                </Pressable>
+                  {userWon ? "YOU WON" : "YOU FAILED"}
+                </Text>
               </View>
             )}
           </View>
@@ -221,71 +212,7 @@ export function PostCard({
           <Feather name="message-circle" size={18} color={colors.mutedForeground} />
           <Text style={[styles.actionCount, { color: colors.mutedForeground }]}>{post.comments}</Text>
         </Pressable>
-        <Pressable
-          style={styles.actionBtn}
-          onPress={canShareReceipt ? () => setReceiptOpen(true) : undefined}
-        >
-          <Feather
-            name="share"
-            size={18}
-            color={canShareReceipt ? colors.foreground : colors.mutedForeground}
-          />
-        </Pressable>
       </View>
-
-      <Modal
-        visible={receiptOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setReceiptOpen(false)}
-      >
-        <View style={styles.receiptOverlay}>
-          <View style={[styles.receiptCard, { backgroundColor: colors.background, borderColor: colors.foreground }]}>
-            <Text style={[styles.receiptBrand, { color: colors.foreground }]}>HUDDLE</Text>
-            <View style={[styles.receiptRule, { backgroundColor: colors.border }]} />
-            <Text style={[styles.receiptKicker, { color: colors.mutedForeground }]}>PREDICTION RECEIPT</Text>
-            <Text style={[styles.receiptQuestion, { color: colors.foreground }]}>{pred?.question}</Text>
-
-            <View style={styles.receiptBlock}>
-              <Text style={[styles.receiptBlockLabel, { color: colors.mutedForeground }]}>FINAL RESULT</Text>
-              <Text style={[styles.receiptBlockValue, { color: colors.foreground }]}>{winningLabel}</Text>
-            </View>
-            <View style={styles.receiptBlock}>
-              <Text style={[styles.receiptBlockLabel, { color: colors.mutedForeground }]}>
-                @{currentUser?.username || "you"} predicted
-              </Text>
-              <Text style={[styles.receiptBlockValue, { color: colors.foreground }]}>{userPickLabel}</Text>
-            </View>
-
-            <View
-              style={[
-                styles.receiptStamp,
-                userWon
-                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                  : { backgroundColor: colors.background, borderColor: colors.foreground },
-              ]}
-            >
-              <Text style={[styles.receiptStampText, { color: userWon ? colors.primaryForeground : colors.foreground }]}>
-                {userWon ? "WON" : "FAILED"}
-              </Text>
-            </View>
-
-            <Text style={[styles.receiptFooter, { color: colors.mutedForeground }]}>
-              Screenshot to share your call
-            </Text>
-
-            <Pressable
-              onPress={() => setReceiptOpen(false)}
-              style={({ pressed }) => [
-                styles.receiptClose,
-                { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-              ]}
-            >
-              <Text style={[styles.receiptCloseText, { color: colors.foreground }]}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </Pressable>
   );
 }
@@ -338,55 +265,6 @@ const styles = StyleSheet.create({
   resolvedLeft: { flex: 1 },
   finalLabel: { fontFamily: "Inter_700Bold", fontSize: 10, letterSpacing: 1 },
   finalResult: { fontFamily: "Inter_600SemiBold", fontSize: 14, marginTop: 2 },
-  resolvedRight: { flexDirection: "row", alignItems: "center", gap: 10 },
   resultTag: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   resultTagText: { fontFamily: "Inter_700Bold", fontSize: 10, letterSpacing: 0.5 },
-  shareReceiptBtn: { padding: 2 },
-  receiptOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  receiptCard: {
-    width: "100%",
-    maxWidth: 360,
-    borderWidth: 2,
-    borderRadius: 20,
-    padding: 28,
-    alignItems: "center",
-  },
-  receiptBrand: { fontFamily: "Inter_700Bold", fontSize: 26, letterSpacing: -0.5 },
-  receiptRule: { width: 40, height: 2, marginTop: 14, marginBottom: 18 },
-  receiptKicker: { fontFamily: "Inter_500Medium", fontSize: 11, letterSpacing: 1.5, marginBottom: 14 },
-  receiptQuestion: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 18,
-    lineHeight: 25,
-    textAlign: "center",
-    marginBottom: 22,
-  },
-  receiptBlock: { alignItems: "center", marginBottom: 16 },
-  receiptBlockLabel: { fontFamily: "Inter_500Medium", fontSize: 11, letterSpacing: 0.8, marginBottom: 4 },
-  receiptBlockValue: { fontFamily: "Inter_700Bold", fontSize: 16, textAlign: "center" },
-  receiptStamp: {
-    borderWidth: 2,
-    borderRadius: 999,
-    paddingHorizontal: 28,
-    paddingVertical: 10,
-    marginTop: 6,
-    marginBottom: 18,
-  },
-  receiptStampText: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: 3 },
-  receiptFooter: { fontFamily: "Inter_400Regular", fontSize: 12, marginBottom: 22 },
-  receiptClose: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 28,
-    paddingVertical: 11,
-    alignSelf: "stretch",
-    alignItems: "center",
-  },
-  receiptCloseText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
 });

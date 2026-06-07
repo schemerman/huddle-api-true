@@ -18,22 +18,25 @@ import palette from "@/constants/colors";
 import { PerformanceTitleBadge } from "@/components/PerformanceTitleBadge";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
+import { ReceiptModal } from "@/components/ReceiptModal";
 
 interface WagerEntry {
   id: string;
   team: string;
   fixture: string;
+  question: string;
+  result: string;
   amount: number;
   status: "Won" | "Lost" | "Pending";
 }
 
 const MY_WAGERS: WagerEntry[] = [
-  { id: "mw1", team: "Arsenal", fixture: "Arsenal vs Man City", amount: 120, status: "Pending" },
-  { id: "mw2", team: "Liverpool", fixture: "Liverpool vs Chelsea", amount: 200, status: "Won" },
-  { id: "mw3", team: "Brazil", fixture: "Brazil vs Germany", amount: 80, status: "Won" },
-  { id: "mw4", team: "Draw", fixture: "Man United vs Tottenham", amount: 50, status: "Lost" },
-  { id: "mw5", team: "France", fixture: "France vs Argentina", amount: 150, status: "Pending" },
-  { id: "mw6", team: "Spain", fixture: "Spain vs Portugal", amount: 90, status: "Won" },
+  { id: "mw1", team: "Arsenal", fixture: "Arsenal vs Man City", question: "Who will win: Arsenal or Man City?", result: "TBD", amount: 120, status: "Pending" },
+  { id: "mw2", team: "Liverpool", fixture: "Liverpool vs Chelsea", question: "Who will win: Liverpool or Chelsea?", result: "Liverpool", amount: 200, status: "Won" },
+  { id: "mw3", team: "Brazil", fixture: "Brazil vs Germany", question: "Who will win: Brazil or Germany?", result: "Brazil", amount: 80, status: "Won" },
+  { id: "mw4", team: "Draw", fixture: "Man United vs Tottenham", question: "Who will win: Man United or Tottenham?", result: "Tottenham", amount: 50, status: "Lost" },
+  { id: "mw5", team: "France", fixture: "France vs Argentina", question: "Who will win: France or Argentina?", result: "TBD", amount: 150, status: "Pending" },
+  { id: "mw6", team: "Spain", fixture: "Spain vs Portugal", question: "Who will win: Spain or Portugal?", result: "Spain", amount: 90, status: "Won" },
 ];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -45,6 +48,7 @@ export default function ProfileScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [tab, setTab] = useState<"stats" | "wagers">("stats");
   const [agreementOpen, setAgreementOpen] = useState(false);
+  const [receiptWager, setReceiptWager] = useState<WagerEntry | null>(null);
 
   const handleLogout = () => {
     Alert.alert("Sign out", "Are you sure you want to sign out?", [
@@ -266,47 +270,64 @@ export default function ProfileScreen() {
         ) : (
           <View style={styles.wagersSection}>
             <Text style={[styles.wagersHeading, { color: colors.foreground }]}>Recent Wagers</Text>
-            {MY_WAGERS.map((w, i) => (
-              <View
-                key={w.id}
-                style={[
-                  styles.wagerRow,
-                  { borderBottomColor: colors.border },
-                  i === MY_WAGERS.length - 1 && { borderBottomWidth: 0 },
-                ]}
-              >
-                <View style={styles.wagerLeft}>
-                  <Text style={[styles.wagerTeam, { color: colors.foreground }]}>
-                    {w.amount} pts on {w.team}
-                  </Text>
-                  <Text style={[styles.wagerFixture, { color: colors.mutedForeground }]}>
-                    {w.fixture}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.wagerBadge,
-                    { backgroundColor: w.status === "Won" ? colors.primary : colors.secondary },
+            {MY_WAGERS.map((w, i) => {
+              const completed = w.status === "Won" || w.status === "Lost";
+              return (
+                <Pressable
+                  key={w.id}
+                  onPress={
+                    completed
+                      ? () => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setReceiptWager(w);
+                        }
+                      : undefined
+                  }
+                  style={({ pressed }) => [
+                    styles.wagerRow,
+                    { borderBottomColor: colors.border },
+                    i === MY_WAGERS.length - 1 && { borderBottomWidth: 0 },
+                    { opacity: pressed && completed ? 0.6 : 1 },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.wagerStatus,
-                      {
-                        color:
-                          w.status === "Won"
-                            ? colors.primaryForeground
-                            : w.status === "Lost"
-                            ? colors.mutedForeground
-                            : colors.foreground,
-                      },
-                    ]}
-                  >
-                    {w.status}
-                  </Text>
-                </View>
-              </View>
-            ))}
+                  <View style={styles.wagerLeft}>
+                    <Text style={[styles.wagerTeam, { color: colors.foreground }]}>
+                      {w.amount} pts on {w.team}
+                    </Text>
+                    <Text style={[styles.wagerFixture, { color: colors.mutedForeground }]}>
+                      {w.fixture}
+                    </Text>
+                  </View>
+                  <View style={styles.wagerRight}>
+                    <View
+                      style={[
+                        styles.wagerBadge,
+                        { backgroundColor: w.status === "Won" ? colors.primary : colors.secondary },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.wagerStatus,
+                          {
+                            color:
+                              w.status === "Won"
+                                ? colors.primaryForeground
+                                : w.status === "Lost"
+                                ? colors.mutedForeground
+                                : colors.foreground,
+                          },
+                        ]}
+                      >
+                        {w.status}
+                      </Text>
+                    </View>
+                    {completed && (
+                      <Feather name="share" size={15} color={colors.mutedForeground} />
+                    )}
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -364,6 +385,15 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      <ReceiptModal
+        visible={!!receiptWager}
+        onClose={() => setReceiptWager(null)}
+        question={receiptWager?.question ?? ""}
+        finalResult={receiptWager?.result ?? ""}
+        prediction={receiptWager?.team ?? ""}
+        won={receiptWager?.status === "Won"}
+      />
     </View>
   );
 }
@@ -495,6 +525,7 @@ const styles = StyleSheet.create({
   wagerLeft: { flex: 1 },
   wagerTeam: { fontFamily: "Inter_400Regular", fontSize: 14 },
   wagerFixture: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
+  wagerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   wagerBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, marginLeft: 12 },
   wagerStatus: { fontFamily: "Inter_600SemiBold", fontSize: 11 },
   modalOverlay: {
