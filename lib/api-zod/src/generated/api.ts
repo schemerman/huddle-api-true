@@ -8,6 +8,22 @@
 import * as zod from "zod";
 
 /**
+ * Returns upcoming match fixtures with pre-match odds, served strictly from the local cache populated by the background fetch job. Clients must never call the external sports API directly.
+ * @summary List upcoming fixtures
+ */
+export const ListFixturesResponseItem = zod.object({
+  id: zod.string(),
+  competition: zod.string(),
+  homeTeam: zod.string(),
+  awayTeam: zod.string(),
+  startTime: zod.coerce.date(),
+  oddsHome: zod.number(),
+  oddsDraw: zod.number(),
+  oddsAway: zod.number(),
+});
+export const ListFixturesResponse = zod.array(ListFixturesResponseItem);
+
+/**
  * Returns server health status
  * @summary Health check
  */

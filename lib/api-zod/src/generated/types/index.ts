@@ -8,6 +8,7 @@
 
 export * from "./claimResult";
 export * from "./error";
+export * from "./fixture";
 export * from "./healthStatus";
 export * from "./user";
 export * from "./userSyncInput";

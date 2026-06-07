@@ -30,6 +30,17 @@ export interface User {
   profileComplete: boolean;
 }
 
+export interface Fixture {
+  id: string;
+  competition: string;
+  homeTeam: string;
+  awayTeam: string;
+  startTime: string;
+  oddsHome: number;
+  oddsDraw: number;
+  oddsAway: number;
+}
+
 export interface Wager {
   id: string;
   userId: string;

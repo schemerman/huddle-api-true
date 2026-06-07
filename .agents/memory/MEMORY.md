@@ -1,1 +1,1 @@
-- [HUDDLE point economy](huddle-point-economy.md) — points are server-authoritative via transactional /api/users/* routes; never reintroduce client-side point math.
+- [Metro stale resolution after codegen](metro-codegen-cache.md) — orval "clean output folder" breaks Metro module resolution; clear all caches + restart, not just one.

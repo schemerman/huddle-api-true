@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { listFixtures, type Fixture as ApiFixture } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
 
@@ -39,18 +40,46 @@ interface Fixture {
   userWager?: number;
 }
 
-const SEED_FIXTURES: Fixture[] = [
-  { id: "fx1", competition: "Premier League", kickoff: "Sat · 3:00 PM", question: "Who will win: Arsenal or Man City?", teamA: "Arsenal", teamB: "Man City", oddsA: 2.2, oddsD: 3.5, oddsB: 1.7, votesA: 142, votesD: 89, votesB: 381 },
-  { id: "fx2", competition: "Premier League", kickoff: "Sat · 12:30 PM", question: "Who will win: Liverpool or Chelsea?", teamA: "Liverpool", teamB: "Chelsea", oddsA: 1.5, oddsD: 3.8, oddsB: 2.8, votesA: 334, votesD: 112, votesB: 198 },
-  { id: "fx3", competition: "Premier League", kickoff: "Sun · 2:00 PM", question: "Who will win: Man United or Tottenham?", teamA: "Man United", teamB: "Tottenham", oddsA: 2.6, oddsD: 3.2, oddsB: 1.5, votesA: 201, votesD: 78, votesB: 287 },
-  { id: "fx4", competition: "Premier League", kickoff: "Sun · 4:30 PM", question: "Who will win: Newcastle or Aston Villa?", teamA: "Newcastle", teamB: "Aston Villa", oddsA: 1.9, oddsD: 3.4, oddsB: 2.0, votesA: 312, votesD: 134, votesB: 256 },
-  { id: "fx5", competition: "World Cup", kickoff: "Mon · 3:00 PM", question: "Who will win: Brazil or Germany?", teamA: "Brazil", teamB: "Germany", oddsA: 1.6, oddsD: 3.6, oddsB: 2.4, votesA: 489, votesD: 201, votesB: 374 },
-  { id: "fx6", competition: "World Cup", kickoff: "Mon · 6:00 PM", question: "Who will win: France or Argentina?", teamA: "France", teamB: "Argentina", oddsA: 1.8, oddsD: 3.3, oddsB: 2.1, votesA: 412, votesD: 178, votesB: 501 },
-  { id: "fx7", competition: "World Cup", kickoff: "Tue · 3:00 PM", question: "Who will win: Spain or Portugal?", teamA: "Spain", teamB: "Portugal", oddsA: 1.9, oddsD: 3.4, oddsB: 2.0, votesA: 398, votesD: 155, votesB: 367 },
-  { id: "fx8", competition: "World Cup", kickoff: "Tue · 6:00 PM", question: "Who will win: England or Netherlands?", teamA: "England", teamB: "Netherlands", oddsA: 2.3, oddsD: 3.1, oddsB: 1.6, votesA: 445, votesD: 190, votesB: 321 },
-];
+/** Per-fixture user interaction state, kept locally and merged onto server data. */
+interface FixtureOverlay {
+  userVote: Choice;
+  userWager: number;
+}
 
-const STORAGE_KEY = "huddle_fixtures_v5";
+const OVERLAY_KEY = "huddle_fixture_overlay_v1";
+
+function formatKickoff(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function toFixture(
+  api: ApiFixture,
+  overlay: Record<string, FixtureOverlay>,
+): Fixture {
+  const o = overlay[api.id];
+  return {
+    id: api.id,
+    competition: api.competition,
+    kickoff: formatKickoff(api.startTime),
+    question: `Who will win: ${api.homeTeam} or ${api.awayTeam}?`,
+    teamA: api.homeTeam,
+    teamB: api.awayTeam,
+    oddsA: api.oddsHome,
+    oddsD: api.oddsDraw,
+    oddsB: api.oddsAway,
+    votesA: 0,
+    votesD: 0,
+    votesB: 0,
+    userVote: o?.userVote,
+    userWager: o?.userWager,
+  };
+}
 
 interface WagerTarget {
   fixture: Fixture;
@@ -138,6 +167,8 @@ export default function PredictScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
+  const [overlay, setOverlay] = useState<Record<string, FixtureOverlay>>({});
+  const [loading, setLoading] = useState(true);
   const [wagerTarget, setWagerTarget] = useState<WagerTarget | null>(null);
   const [wagerAmount, setWagerAmount] = useState("10");
   const [submitting, setSubmitting] = useState(false);
@@ -172,9 +203,25 @@ export default function PredictScreen() {
   };
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
-      setFixtures(raw ? JSON.parse(raw) : SEED_FIXTURES);
-    });
+    let cancelled = false;
+    (async () => {
+      const raw = await AsyncStorage.getItem(OVERLAY_KEY);
+      const loadedOverlay: Record<string, FixtureOverlay> = raw ? JSON.parse(raw) : {};
+      if (!cancelled) setOverlay(loadedOverlay);
+      try {
+        const apiFixtures = await listFixtures();
+        if (!cancelled) {
+          setFixtures(apiFixtures.map((f) => toFixture(f, loadedOverlay)));
+        }
+      } catch {
+        if (!cancelled) setFixtures([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -221,19 +268,19 @@ export default function PredictScreen() {
       return;
     }
 
-    const next = fixtures.map((f) => {
-      if (f.id !== fixture.id || f.userVote) return f;
-      return {
-        ...f,
-        userVote: choice,
-        userWager: capped,
-        votesA: choice === "A" ? f.votesA + 1 : f.votesA,
-        votesD: choice === "D" ? f.votesD + 1 : f.votesD,
-        votesB: choice === "B" ? f.votesB + 1 : f.votesB,
-      };
-    });
-    setFixtures(next);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    const nextOverlay: Record<string, FixtureOverlay> = {
+      ...overlay,
+      [fixture.id]: { userVote: choice, userWager: capped },
+    };
+    setOverlay(nextOverlay);
+    setFixtures((prev) =>
+      prev.map((f) =>
+        f.id !== fixture.id || f.userVote
+          ? f
+          : { ...f, userVote: choice, userWager: capped },
+      ),
+    );
+    await AsyncStorage.setItem(OVERLAY_KEY, JSON.stringify(nextOverlay));
 
     Animated.timing(translateY, { toValue: 600, duration: 220, useNativeDriver: true }).start(() => {
       setWagerTarget(null);
@@ -278,13 +325,31 @@ export default function PredictScreen() {
         </View>
       </View>
 
-      <FlatList<Fixture>
-        data={fixtures}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <FixtureCard fixture={item} onOpenWager={handleOpenWager} />}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}
-      />
+      {loading ? (
+        <View style={styles.stateWrap}>
+          <ActivityIndicator size="small" color={colors.mutedForeground} />
+        </View>
+      ) : (
+        <FlatList<Fixture>
+          data={fixtures}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => <FixtureCard fixture={item} onOpenWager={handleOpenWager} />}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={
+            fixtures.length === 0
+              ? styles.emptyContent
+              : { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }
+          }
+          ListEmptyComponent={
+            <View style={styles.stateWrap}>
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No fixtures yet</Text>
+              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
+                Upcoming matches will appear here once they're available. Check back soon.
+              </Text>
+            </View>
+          }
+        />
+      )}
 
       <Modal
         visible={!!wagerTarget}
@@ -437,6 +502,10 @@ const styles = StyleSheet.create({
   optionLabel: { fontFamily: "Inter_500Medium", fontSize: 14, flexShrink: 1 },
   optionOdds: { fontFamily: "Inter_700Bold", fontSize: 13, marginLeft: 8 },
   votesMeta: { fontFamily: "Inter_400Regular", fontSize: 12 },
+  stateWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingVertical: 64, gap: 8 },
+  emptyContent: { flexGrow: 1 },
+  emptyTitle: { fontFamily: "Inter_700Bold", fontSize: 17, letterSpacing: -0.3 },
+  emptyBody: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 20, textAlign: "center" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   modalDismiss: { flex: 1 },
   modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: 36 },

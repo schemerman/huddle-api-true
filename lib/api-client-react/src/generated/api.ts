@@ -19,6 +19,7 @@ import type {
 import type {
   ClaimResult,
   Error,
+  Fixture,
   HealthStatus,
   User,
   UserSyncInput,
@@ -35,6 +36,82 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * Returns upcoming match fixtures with pre-match odds, served strictly from the local cache populated by the background fetch job. Clients must never call the external sports API directly.
+ * @summary List upcoming fixtures
+ */
+export const getListFixturesUrl = () => {
+  return `/api/fixtures`;
+};
+
+export const listFixtures = async (
+  options?: RequestInit,
+): Promise<Fixture[]> => {
+  return customFetch<Fixture[]>(getListFixturesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListFixturesQueryKey = () => {
+  return [`/api/fixtures`] as const;
+};
+
+export const getListFixturesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listFixtures>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listFixtures>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListFixturesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listFixtures>>> = ({
+    signal,
+  }) => listFixtures({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listFixtures>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListFixturesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listFixtures>>
+>;
+export type ListFixturesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List upcoming fixtures
+ */
+
+export function useListFixtures<
+  TData = Awaited<ReturnType<typeof listFixtures>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listFixtures>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListFixturesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * Returns server health status

@@ -14,7 +14,27 @@ tags:
     description: User economy operations
   - name: wagers
     description: Wager operations
+  - name: fixtures
+    description: Match fixture operations
 paths:
+  /fixtures:
+    get:
+      operationId: listFixtures
+      tags: [fixtures]
+      summary: List upcoming fixtures
+      description: >-
+        Returns upcoming match fixtures with pre-match odds, served strictly
+        from the local cache populated by the background fetch job. Clients must
+        never call the external sports API directly.
+      responses:
+        "200":
+          description: Upcoming fixtures
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Fixture"
   /healthz:
     get:
       operationId: healthCheck
@@ -241,6 +261,26 @@ components:
         - previousWagers
         - lastDailyClaim
         - profileComplete
+    Fixture:
+      type: object
+      properties:
+        id: { type: string }
+        competition: { type: string }
+        homeTeam: { type: string }
+        awayTeam: { type: string }
+        startTime: { type: string, format: date-time }
+        oddsHome: { type: number }
+        oddsDraw: { type: number }
+        oddsAway: { type: number }
+      required:
+        - id
+        - competition
+        - homeTeam
+        - awayTeam
+        - startTime
+        - oddsHome
+        - oddsDraw
+        - oddsAway
     Wager:
       type: object
       properties:
