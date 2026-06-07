@@ -303,23 +303,42 @@ export default function PredictScreen() {
               How many points do you want to wager?
             </Text>
 
-            <TextInput
-              ref={inputRef}
-              style={[
-                styles.wagerInput,
-                {
-                  backgroundColor: colors.secondary,
-                  color: colors.foreground,
-                  borderColor: colors.border,
-                },
-              ]}
-              value={wagerAmount}
-              onChangeText={(t) => setWagerAmount(t.replace(/[^0-9]/g, ""))}
-              keyboardType="number-pad"
-              returnKeyType="done"
-              blurOnSubmit
-              maxLength={6}
-            />
+            <View style={styles.wagerInputRow}>
+              <TextInput
+                ref={inputRef}
+                style={[
+                  styles.wagerInput,
+                  {
+                    backgroundColor: colors.secondary,
+                    color: colors.foreground,
+                    borderColor: colors.border,
+                  },
+                ]}
+                value={wagerAmount}
+                onChangeText={(t) => setWagerAmount(t.replace(/[^0-9]/g, ""))}
+                keyboardType="number-pad"
+                returnKeyType="done"
+                blurOnSubmit
+                maxLength={6}
+              />
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                  setWagerAmount(String(user?.points ?? 0));
+                }}
+                disabled={(user?.points ?? 0) <= 0}
+                style={({ pressed }) => [
+                  styles.allInBtn,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                    opacity: pressed ? 0.7 : (user?.points ?? 0) <= 0 ? 0.4 : 1,
+                  },
+                ]}
+              >
+                <Text style={[styles.allInText, { color: colors.foreground }]}>ALL IN</Text>
+              </Pressable>
+            </View>
 
             <View style={styles.metaRow}>
               <Text style={[styles.balanceHint, { color: colors.mutedForeground }]}>
@@ -405,7 +424,9 @@ const styles = StyleSheet.create({
   chosenTeamText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
   oddsTag: { fontFamily: "Inter_400Regular", fontSize: 13 },
   wagerLabel: { fontFamily: "Inter_500Medium", fontSize: 15, marginBottom: 10 },
+  wagerInputRow: { flexDirection: "row", alignItems: "stretch", gap: 10, marginBottom: 10 },
   wagerInput: {
+    flex: 1,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -413,8 +434,15 @@ const styles = StyleSheet.create({
     fontSize: 28,
     letterSpacing: -0.5,
     borderWidth: 1,
-    marginBottom: 10,
   },
+  allInBtn: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  allInText: { fontFamily: "Inter_700Bold", fontSize: 14, letterSpacing: 0.5 },
   metaRow: { gap: 4, marginBottom: 20 },
   balanceHint: { fontFamily: "Inter_400Regular", fontSize: 12 },
   payoutText: { fontFamily: "Inter_400Regular", fontSize: 13 },

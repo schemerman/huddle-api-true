@@ -14,7 +14,11 @@ interface PostCardProps {
   onPress?: () => void;
   onAvatarPress?: () => void;
   onUsernamePress?: () => void;
+  onAcceptCallout?: () => void;
+  onDeclineCallout?: () => void;
   currentUserId?: string;
+  acceptDisabled?: boolean;
+  highlight?: boolean;
   hidePrediction?: boolean;
 }
 
@@ -25,11 +29,51 @@ export function PostCard({
   onPress,
   onAvatarPress,
   onUsernamePress,
+  onAcceptCallout,
+  onDeclineCallout,
   currentUserId,
+  acceptDisabled = false,
+  highlight = false,
   hidePrediction = false,
 }: PostCardProps) {
   const colors = useColors();
   const pred = hidePrediction ? undefined : post.prediction;
+
+  const callout = post.callout;
+  const isTarget =
+    !!callout &&
+    !!currentUserId &&
+    (callout.targetUserId === currentUserId || callout.targetUserId === "me");
+  const isAuthor = !!currentUserId && post.userId === currentUserId;
+
+  const calloutMessage = callout
+    ? callout.status === "accepted"
+      ? `Pot locked at ${(callout.pot ?? callout.amount * 2).toLocaleString()} pts. Winner takes all.`
+      : callout.status === "declined"
+      ? "Callout declined. No points on the line."
+      : isTarget
+      ? `@${post.username} called you out for ${callout.amount.toLocaleString()} pts. Winner takes all.`
+      : isAuthor
+      ? `You challenged @${callout.targetUsername} for ${callout.amount.toLocaleString()} pts. Awaiting response.`
+      : `${callout.amount.toLocaleString()} pts on the line. Winner takes all.`
+    : "";
+
+  const calloutLabel = callout
+    ? callout.status === "accepted"
+      ? "CALLOUT ACCEPTED"
+      : callout.status === "declined"
+      ? "CALLOUT DECLINED"
+      : "PENDING CALLOUT"
+    : "";
+
+  const handleAccept = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onAcceptCallout?.();
+  };
+  const handleDecline = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onDeclineCallout?.();
+  };
 
   const totalVotes = pred ? pred.votesA + pred.votesB : 0;
   const pctA = totalVotes > 0 ? Math.round((pred!.votesA / totalVotes) * 100) : 50;
@@ -62,6 +106,7 @@ export function PostCard({
           username={post.username}
           size={40}
           onPress={onAvatarPress}
+          highlight={highlight}
         />
         <Pressable
           style={styles.headerText}
@@ -76,6 +121,52 @@ export function PostCard({
       </View>
 
       <Text style={[styles.text, { color: colors.foreground }]}>{post.text}</Text>
+
+      {callout && (
+        <View style={[styles.calloutBox, { borderColor: colors.border }]}>
+          <Text style={[styles.calloutLabel, { color: colors.mutedForeground }]}>
+            {calloutLabel}
+          </Text>
+          <Text style={[styles.calloutText, { color: colors.foreground }]}>
+            {calloutMessage}
+          </Text>
+          {callout.status === "pending" && isTarget && (
+            <View style={styles.calloutActions}>
+              <Pressable
+                onPress={handleAccept}
+                disabled={acceptDisabled}
+                style={({ pressed }) => [
+                  styles.calloutAccept,
+                  {
+                    backgroundColor: acceptDisabled ? colors.secondary : colors.primary,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.calloutAcceptText,
+                    { color: acceptDisabled ? colors.mutedForeground : colors.primaryForeground },
+                  ]}
+                >
+                  {acceptDisabled ? "Not enough pts" : "Accept"}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleDecline}
+                style={({ pressed }) => [
+                  styles.calloutDecline,
+                  { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <Text style={[styles.calloutDeclineText, { color: colors.foreground }]}>
+                  Decline
+                </Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      )}
 
       {pred && (
         <View style={[styles.predictionBox, { borderColor: colors.border }]}>
@@ -196,6 +287,29 @@ const styles = StyleSheet.create({
   displayName: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
   handle: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 1 },
   text: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, marginBottom: 12 },
+  calloutBox: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, gap: 6 },
+  calloutLabel: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 10,
+    letterSpacing: 1,
+  },
+  calloutText: { fontFamily: "Inter_500Medium", fontSize: 14, lineHeight: 20 },
+  calloutActions: { flexDirection: "row", gap: 8, marginTop: 6 },
+  calloutAccept: {
+    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 9,
+    alignItems: "center",
+  },
+  calloutAcceptText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  calloutDecline: {
+    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 9,
+    alignItems: "center",
+    borderWidth: 1,
+  },
+  calloutDeclineText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
   predictionBox: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, gap: 10 },
   predQuestion: { fontFamily: "Inter_600SemiBold", fontSize: 14, lineHeight: 20 },
   pollRow: { flexDirection: "row", gap: 8 },

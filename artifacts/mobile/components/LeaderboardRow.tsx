@@ -1,21 +1,26 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import palette from "@/constants/colors";
+import { performanceTitle } from "@/utils/performance";
 import { Avatar } from "./Avatar";
 import type { LeaderboardEntry } from "@/context/DataContext";
 
 interface LeaderboardRowProps {
   entry: LeaderboardEntry;
   isCurrentUser?: boolean;
+  highlight?: boolean;
+  isBankrupt?: boolean;
   onAvatarPress?: () => void;
   onPress?: () => void;
 }
 
-export function LeaderboardRow({ entry, isCurrentUser, onAvatarPress, onPress }: LeaderboardRowProps) {
+export function LeaderboardRow({ entry, isCurrentUser, highlight, isBankrupt, onAvatarPress, onPress }: LeaderboardRowProps) {
   const colors = useColors();
 
   const rankLabel =
     entry.rank <= 3 ? ["1st", "2nd", "3rd"][entry.rank - 1] : `${entry.rank}th`;
+  const title = performanceTitle(entry.winRate);
 
   return (
     <Pressable
@@ -40,13 +45,19 @@ export function LeaderboardRow({ entry, isCurrentUser, onAvatarPress, onPress }:
         username={entry.username}
         size={36}
         onPress={onAvatarPress}
+        highlight={highlight}
       />
       <View style={styles.info}>
-        <Text style={[styles.displayName, { color: colors.foreground }]}>
-          {entry.displayName}
-          {isCurrentUser ? " (you)" : ""}
-        </Text>
-        <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{entry.username}</Text>
+        <View style={styles.nameRow}>
+          <Text style={[styles.displayName, { color: colors.foreground }]}>
+            {entry.displayName}
+            {isCurrentUser ? " (you)" : ""}
+          </Text>
+          {isBankrupt && (
+            <Text style={[styles.bankruptTag, { color: palette.light.crimson }]}>BANKRUPT</Text>
+          )}
+        </View>
+        <Text style={[styles.handle, { color: colors.mutedForeground }]}>{title}</Text>
       </View>
       <View style={styles.stats}>
         <Text style={[styles.points, { color: colors.foreground }]}>
@@ -74,7 +85,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   info: { flex: 1 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   displayName: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  bankruptTag: { fontFamily: "Inter_700Bold", fontSize: 9, letterSpacing: 0.5 },
   handle: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 1 },
   stats: { alignItems: "flex-end" },
   points: { fontFamily: "Inter_700Bold", fontSize: 15 },

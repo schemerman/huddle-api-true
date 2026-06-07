@@ -19,6 +19,7 @@ const colors = {
     border: "#E8E8E8",
     input: "#E8E8E8",
     handle: "#8A8A8A",
+    crimson: "#DC2626",
   },
   radius: 999,
 };

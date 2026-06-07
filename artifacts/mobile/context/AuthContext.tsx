@@ -9,6 +9,7 @@ export interface HuddleUser {
   dob: string;
   avatarColor: string;
   winRate: number;
+  currentStreak: number;
   points: number;
   isBankrupt: boolean;
   previousWagers: number;
@@ -52,6 +53,7 @@ const ECONOMY_DEFAULTS = {
   previousWagers: 0,
   joinedGroups: [] as string[],
   lastDailyClaim: 0,
+  currentStreak: 0,
 };
 
 function withDefaults(raw: Partial<HuddleUser>): HuddleUser {
@@ -64,6 +66,7 @@ function withDefaults(raw: Partial<HuddleUser>): HuddleUser {
     dob: raw.dob ?? "",
     avatarColor: raw.avatarColor ?? AVATAR_COLORS[0],
     winRate: raw.winRate ?? 0,
+    currentStreak: raw.currentStreak ?? 0,
     points,
     isBankrupt: raw.isBankrupt ?? points <= 0,
     previousWagers: raw.previousWagers ?? 0,
@@ -135,6 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dob,
       avatarColor,
       winRate: 62,
+      currentStreak: 3,
       points: user.points > 0 ? user.points : STARTING_BANKROLL,
       profileComplete: true,
     });

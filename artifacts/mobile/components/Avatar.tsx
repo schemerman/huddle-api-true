@@ -6,9 +6,10 @@ interface AvatarProps {
   username: string;
   size?: number;
   onPress?: () => void;
+  highlight?: boolean;
 }
 
-export function Avatar({ color, username, size = 40, onPress }: AvatarProps) {
+export function Avatar({ color, username, size = 40, onPress, highlight = false }: AvatarProps) {
   const initials = username ? username.substring(0, 2).toUpperCase() : "??";
   const fontSize = size * 0.38;
 
@@ -17,6 +18,7 @@ export function Avatar({ color, username, size = 40, onPress }: AvatarProps) {
       style={[
         styles.avatar,
         { width: size, height: size, borderRadius: size / 2, backgroundColor: color },
+        highlight && styles.highlight,
       ]}
     >
       <Text style={[styles.initials, { fontSize }]}>{initials}</Text>
@@ -42,6 +44,10 @@ const styles = StyleSheet.create({
   avatar: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  highlight: {
+    borderWidth: 2,
+    borderColor: "#000000",
   },
   initials: {
     color: "#FFFFFF",

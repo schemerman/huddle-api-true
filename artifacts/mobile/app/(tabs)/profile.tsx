@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import palette from "@/constants/colors";
+import { performanceTitle } from "@/utils/performance";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
 
@@ -106,13 +108,22 @@ export default function ProfileScreen() {
       >
         {/* Hero */}
         <View style={styles.heroSection}>
-          <Avatar color={user.avatarColor} username={user.username || user.email} size={80} />
+          <Avatar
+            color={user.avatarColor}
+            username={user.username || user.email}
+            size={80}
+            highlight={(user.currentStreak ?? 0) >= 3}
+          />
           <View style={styles.heroText}>
             <Text style={[styles.displayName, { color: colors.foreground }]}>
               {user.displayName || user.email}
             </Text>
             <Text style={[styles.handle, { color: colors.mutedForeground }]}>
               @{user.username || "—"}
+            </Text>
+            <Text style={[styles.perfTitle, { color: colors.mutedForeground }]}>
+              {performanceTitle(user.winRate)}
+              {(user.currentStreak ?? 0) >= 3 ? ` · ${user.currentStreak}-streak heater` : ""}
             </Text>
             {!!user.dob && (
               <Text style={[styles.dob, { color: colors.mutedForeground }]}>
@@ -124,8 +135,8 @@ export default function ProfileScreen() {
 
         {/* Bankrupt badge */}
         {user.isBankrupt && (
-          <View style={[styles.bankruptBanner, { borderColor: colors.foreground }]}>
-            <Text style={[styles.bankruptTag, { color: colors.foreground }]}>BANKRUPT</Text>
+          <View style={[styles.bankruptBanner, { borderColor: palette.light.crimson }]}>
+            <Text style={[styles.bankruptTag, { color: palette.light.crimson }]}>BANKRUPT</Text>
             <Text style={[styles.bankruptSub, { color: colors.mutedForeground }]}>
               Rebuild past 500 pts to clear this status.
             </Text>
@@ -381,6 +392,7 @@ const styles = StyleSheet.create({
   heroText: { flex: 1 },
   displayName: { fontFamily: "Inter_700Bold", fontSize: 20, letterSpacing: -0.3 },
   handle: { fontFamily: "Inter_400Regular", fontSize: 14, marginTop: 2 },
+  perfTitle: { fontFamily: "Inter_500Medium", fontSize: 13, marginTop: 4 },
   dob: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 4 },
   bankruptBanner: {
     marginHorizontal: 16,

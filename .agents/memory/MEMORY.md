@@ -1,0 +1,1 @@
+- [HUDDLE callouts & economy](huddle-callouts-economy.md) — callout target identity uses a "me" sentinel; single-user-per-device assumption; streak/title are mock-seeded (no resolution flow).

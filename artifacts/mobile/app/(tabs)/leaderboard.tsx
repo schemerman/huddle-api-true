@@ -96,6 +96,8 @@ export default function LeaderboardScreen() {
           <LeaderboardRow
             entry={item}
             isCurrentUser={item.userId === user?.id}
+            highlight={item.userId === user?.id && (user?.currentStreak ?? 0) >= 3}
+            isBankrupt={item.userId === user?.id && !!user?.isBankrupt}
             onAvatarPress={() => openProfile(item)}
             onPress={() => openProfile(item)}
           />
