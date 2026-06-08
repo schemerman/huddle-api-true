@@ -22,6 +22,10 @@ export default function Root({ children }: PropsWithChildren) {
           name="apple-mobile-web-app-status-bar-style"
           content="default"
         />
+        <meta name="apple-mobile-web-app-title" content="HUDDLE" />
+        <meta name="theme-color" content="#FFFFFF" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
         <ScrollViewStyleReset />
         <style dangerouslySetInnerHTML={{ __html: nativeFeelStyle }} />
       </head>

@@ -15,6 +15,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { AddToHomeScreenBanner } from "@/components/AddToHomeScreenBanner";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
@@ -63,6 +64,56 @@ function lockMobileViewport(): void {
   }
 }
 
+/**
+ * Wire up the Progressive Web App on web: link the manifest, set the theme
+ * color and apple-touch-icon, and register the shell service worker so mobile
+ * browsers treat the site as installable. No-ops on native and is resilient to
+ * sandboxed contexts (registration failures are swallowed).
+ */
+function setupPwa(): void {
+  if (Platform.OS !== "web" || typeof document === "undefined") return;
+
+  const head = document.head;
+  const ensure = <T extends HTMLElement>(
+    selector: string,
+    create: () => T,
+  ): T => {
+    const found = head.querySelector<T>(selector);
+    if (found) return found;
+    const el = create();
+    head.appendChild(el);
+    return el;
+  };
+
+  const manifest = ensure<HTMLLinkElement>('link[rel="manifest"]', () => {
+    const l = document.createElement("link");
+    l.rel = "manifest";
+    return l;
+  });
+  manifest.href = "/manifest.json";
+
+  const themeColor = ensure<HTMLMetaElement>('meta[name="theme-color"]', () => {
+    const m = document.createElement("meta");
+    m.name = "theme-color";
+    return m;
+  });
+  themeColor.content = "#FFFFFF";
+
+  const appleIcon = ensure<HTMLLinkElement>(
+    'link[rel="apple-touch-icon"]',
+    () => {
+      const l = document.createElement("link");
+      l.rel = "apple-touch-icon";
+      return l;
+    },
+  );
+  appleIcon.href = "/icon-192.png";
+
+  if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
+}
+
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -91,6 +142,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     lockMobileViewport();
+    setupPwa();
   }, []);
 
   if (!fontsLoaded && !fontError) return null;
@@ -105,6 +157,7 @@ export default function RootLayout() {
                 <KeyboardProvider>
                   <RootLayoutNav />
                 </KeyboardProvider>
+                <AddToHomeScreenBanner />
               </GestureHandlerRootView>
             </DataProvider>
           </AuthProvider>
