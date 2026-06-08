@@ -26,7 +26,7 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { posts, addPost, likePost, voteOnPrediction, getUserStats } = useData();
+  const { posts, addPost, voteOnPrediction, getUserStats } = useData();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
@@ -91,7 +91,6 @@ export default function HomeScreen() {
         renderItem={({ item }) => (
           <PostCard
             post={item}
-            onLike={() => likePost(item.id)}
             onVote={(choice) => voteOnPrediction(item.id, choice)}
             onPress={() => router.push(`/post/${item.id}`)}
             onAvatarPress={() => openProfile(item)}

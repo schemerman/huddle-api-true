@@ -21,6 +21,8 @@ import type {
   Error,
   Fixture,
   HealthStatus,
+  LeaderboardEntry,
+  LeaderboardMembersInput,
   Post,
   PostInput,
   User,
@@ -191,6 +193,170 @@ export const useCreatePost = <
   TContext
 > => {
   return useMutation(getCreatePostMutationOptions(options));
+};
+
+/**
+ * Returns all onboarded users ranked by points, highest first. Rank is assigned server-side.
+ * @summary Global leaderboard
+ */
+export const getGetLeaderboardUrl = () => {
+  return `/api/leaderboard`;
+};
+
+export const getLeaderboard = async (
+  options?: RequestInit,
+): Promise<LeaderboardEntry[]> => {
+  return customFetch<LeaderboardEntry[]>(getGetLeaderboardUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetLeaderboardQueryKey = () => {
+  return [`/api/leaderboard`] as const;
+};
+
+export const getGetLeaderboardQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLeaderboard>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getLeaderboard>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetLeaderboardQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getLeaderboard>>> = ({
+    signal,
+  }) => getLeaderboard({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getLeaderboard>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetLeaderboardQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLeaderboard>>
+>;
+export type GetLeaderboardQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Global leaderboard
+ */
+
+export function useGetLeaderboard<
+  TData = Awaited<ReturnType<typeof getLeaderboard>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getLeaderboard>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLeaderboardQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns the live, point-ranked standings for the given set of user ids. Ids that do not correspond to a real onboarded user are ignored, so only genuine members of the league are ranked.
+ * @summary Private league leaderboard
+ */
+export const getGetMemberLeaderboardUrl = () => {
+  return `/api/leaderboard/members`;
+};
+
+export const getMemberLeaderboard = async (
+  leaderboardMembersInput: LeaderboardMembersInput,
+  options?: RequestInit,
+): Promise<LeaderboardEntry[]> => {
+  return customFetch<LeaderboardEntry[]>(getGetMemberLeaderboardUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(leaderboardMembersInput),
+  });
+};
+
+export const getGetMemberLeaderboardMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof getMemberLeaderboard>>,
+    TError,
+    { data: BodyType<LeaderboardMembersInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof getMemberLeaderboard>>,
+  TError,
+  { data: BodyType<LeaderboardMembersInput> },
+  TContext
+> => {
+  const mutationKey = ["getMemberLeaderboard"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof getMemberLeaderboard>>,
+    { data: BodyType<LeaderboardMembersInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return getMemberLeaderboard(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GetMemberLeaderboardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof getMemberLeaderboard>>
+>;
+export type GetMemberLeaderboardMutationBody =
+  BodyType<LeaderboardMembersInput>;
+export type GetMemberLeaderboardMutationError = ErrorType<Error>;
+
+/**
+ * @summary Private league leaderboard
+ */
+export const useGetMemberLeaderboard = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof getMemberLeaderboard>>,
+    TError,
+    { data: BodyType<LeaderboardMembersInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof getMemberLeaderboard>>,
+  TError,
+  { data: BodyType<LeaderboardMembersInput> },
+  TContext
+> => {
+  return useMutation(getGetMemberLeaderboardMutationOptions(options));
 };
 
 /**

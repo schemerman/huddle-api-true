@@ -1,7 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useCallback, useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
-import { listPosts, createPost, type Post as ApiPost } from "@workspace/api-client-react";
+import {
+  listPosts,
+  createPost,
+  getLeaderboard,
+  getMemberLeaderboard,
+  type Post as ApiPost,
+  type LeaderboardEntry as ApiLeaderboardEntry,
+} from "@workspace/api-client-react";
 
 export interface Prediction {
   id: string;
@@ -124,16 +131,17 @@ const SEED_MESSAGES: Record<string, Message[]> = {
   ],
 };
 
-const SEED_LEADERBOARD: LeaderboardEntry[] = [
-  { userId: "u3", username: "tomaszwiecek", displayName: "Tomasz Wiecek", avatarColor: "#9B3AE8", points: 4820, winRate: 74, rank: 1 },
-  { userId: "u1", username: "kingsleyobi", displayName: "Kingsley Obi", avatarColor: "#E8533A", points: 3910, winRate: 68, rank: 2 },
-  { userId: "u5", username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A", points: 3640, winRate: 65, rank: 3 },
-  { userId: "u2", username: "sarahchidi", displayName: "Sarah Chidi", avatarColor: "#3A7DE8", points: 2890, winRate: 61, rank: 4 },
-  { userId: "u4", username: "ameliavoss", displayName: "Amelia Voss", avatarColor: "#3AE86A", points: 2210, winRate: 58, rank: 5 },
-  { userId: "u6", username: "mikeokoro", displayName: "Mike Okoro", avatarColor: "#E83A8C", points: 1980, winRate: 55, rank: 6 },
-  { userId: "u7", username: "priyapatel", displayName: "Priya Patel", avatarColor: "#3AE8D4", points: 1740, winRate: 52, rank: 7 },
-  { userId: "u8", username: "lucabianchi", displayName: "Luca Bianchi", avatarColor: "#E8533A", points: 1520, winRate: 49, rank: 8 },
-];
+function toLeaderboardEntry(api: ApiLeaderboardEntry): LeaderboardEntry {
+  return {
+    userId: api.userId,
+    username: api.username,
+    displayName: api.displayName,
+    avatarColor: api.avatarColor,
+    points: api.points,
+    winRate: api.winRate,
+    rank: api.rank,
+  };
+}
 
 interface DataContextType {
   posts: Post[];
@@ -146,7 +154,8 @@ interface DataContextType {
   sendMessage: (leagueId: string, text: string) => void;
   createLeague: (name: string) => League;
   joinLeague: (code: string) => boolean;
-  getLeagueLeaderboard: (league: League) => LeaderboardEntry[];
+  refreshLeaderboard: () => Promise<void>;
+  fetchLeagueLeaderboard: (league: League) => Promise<LeaderboardEntry[]>;
   getUserStats: (userId: string) => { points: number; winRate: number } | null;
 }
 
@@ -168,16 +177,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refreshLeaderboard = useCallback(async () => {
+    try {
+      const rows = await getLeaderboard();
+      setLeaderboard(rows.map(toLeaderboardEntry));
+    } catch {
+      setLeaderboard([]);
+    }
+  }, []);
+
   useEffect(() => {
     refreshPosts();
+    refreshLeaderboard();
     AsyncStorage.getItem("huddle_leagues").then((raw) => {
       setLeagues(raw ? JSON.parse(raw) : SEED_LEAGUES);
     });
     AsyncStorage.getItem("huddle_messages").then((raw) => {
       setMessages(raw ? JSON.parse(raw) : SEED_MESSAGES);
     });
-    setLeaderboard(SEED_LEADERBOARD);
-  }, []);
+  }, [refreshPosts, refreshLeaderboard]);
 
   const saveLeagues = (next: League[]) => {
     setLeagues(next);
@@ -270,36 +288,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  const getLeagueLeaderboard = (league: League): LeaderboardEntry[] => {
-    const seen = new Set<string>();
-    const entries: LeaderboardEntry[] = [];
-    league.memberIds.forEach((mid) => {
-      const isMe = user && (mid === user.id || mid === "me");
-      if (isMe && user) {
-        if (seen.has(user.id)) return;
-        seen.add(user.id);
-        entries.push({
-          userId: user.id,
-          username: user.username || "me",
-          displayName: user.displayName || "You",
-          avatarColor: user.avatarColor,
-          points: user.points,
-          winRate: user.winRate,
-          rank: 0,
-        });
-      } else {
-        if (seen.has(mid)) return;
-        const seed = leaderboard.find((e) => e.userId === mid);
-        if (seed) {
-          seen.add(mid);
-          entries.push({ ...seed });
-        }
+  const fetchLeagueLeaderboard = useCallback(
+    async (league: League): Promise<LeaderboardEntry[]> => {
+      // Translate the local "me" placeholder to the real user id; seed/dummy
+      // member ids are not real users, so the server simply ignores them and
+      // ranks only genuine members.
+      const ids = Array.from(
+        new Set(
+          league.memberIds.map((mid) => (mid === "me" ? user?.id ?? mid : mid)),
+        ),
+      );
+      try {
+        const rows = await getMemberLeaderboard({ userIds: ids });
+        return rows.map(toLeaderboardEntry);
+      } catch {
+        return [];
       }
-    });
-    return entries
-      .sort((a, b) => b.points - a.points)
-      .map((e, i) => ({ ...e, rank: i + 1 }));
-  };
+    },
+    [user?.id],
+  );
 
   const getUserStats = (userId: string): { points: number; winRate: number } | null => {
     const entry = leaderboard.find((e) => e.userId === userId);
@@ -308,7 +315,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <DataContext.Provider value={{ posts, leagues, messages, leaderboard, addPost, likePost, voteOnPrediction, sendMessage, createLeague, joinLeague, getLeagueLeaderboard, getUserStats }}>
+    <DataContext.Provider value={{ posts, leagues, messages, leaderboard, addPost, likePost, voteOnPrediction, sendMessage, createLeague, joinLeague, refreshLeaderboard, fetchLeagueLeaderboard, getUserStats }}>
       {children}
     </DataContext.Provider>
   );

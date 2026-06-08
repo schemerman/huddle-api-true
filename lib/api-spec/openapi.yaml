@@ -18,6 +18,8 @@ tags:
     description: Match fixture operations
   - name: posts
     description: Social timeline post operations
+  - name: leaderboard
+    description: Ranking operations
 paths:
   /posts:
     get:
@@ -60,6 +62,53 @@ paths:
                 $ref: "#/components/schemas/Error"
         "404":
           description: Author not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [leaderboard]
+      summary: Global leaderboard
+      description: >-
+        Returns all onboarded users ranked by points, highest first. Rank is
+        assigned server-side.
+      responses:
+        "200":
+          description: Ranked users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+  /leaderboard/members:
+    post:
+      operationId: getMemberLeaderboard
+      tags: [leaderboard]
+      summary: Private league leaderboard
+      description: >-
+        Returns the live, point-ranked standings for the given set of user ids.
+        Ids that do not correspond to a real onboarded user are ignored, so only
+        genuine members of the league are ranked.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaderboardMembersInput"
+      responses:
+        "200":
+          description: Ranked members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+        "400":
+          description: Invalid input
           content:
             application/json:
               schema:
@@ -407,6 +456,32 @@ components:
       required:
         - userId
         - text
+    LeaderboardEntry:
+      type: object
+      properties:
+        userId: { type: string }
+        username: { type: string }
+        displayName: { type: string }
+        avatarColor: { type: string }
+        points: { type: integer }
+        winRate: { type: number }
+        rank: { type: integer }
+      required:
+        - userId
+        - username
+        - displayName
+        - avatarColor
+        - points
+        - winRate
+        - rank
+    LeaderboardMembersInput:
+      type: object
+      properties:
+        userIds:
+          type: array
+          items: { type: string }
+      required:
+        - userIds
     UserSyncInput:
       type: object
       properties:

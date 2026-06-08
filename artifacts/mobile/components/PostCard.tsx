@@ -1,5 +1,3 @@
-import { AntDesign, Feather } from "@expo/vector-icons";
-// Note: AntDesign "heart" = filled red, Feather "heart" = outline grey
 import * as Haptics from "expo-haptics";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -9,7 +7,6 @@ import type { Post } from "@/context/DataContext";
 
 interface PostCardProps {
   post: Post;
-  onLike: () => void;
   onVote: (choice: "A" | "B") => void;
   onPress?: () => void;
   onAvatarPress?: () => void;
@@ -20,7 +17,6 @@ interface PostCardProps {
 
 export function PostCard({
   post,
-  onLike,
   onVote,
   onPress,
   onAvatarPress,
@@ -42,11 +38,6 @@ export function PostCard({
   const totalVotes = pred ? pred.votesA + pred.votesB : 0;
   const pctA = totalVotes > 0 ? Math.round((pred!.votesA / totalVotes) * 100) : 50;
   const pctB = 100 - pctA;
-
-  const handleLike = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onLike();
-  };
 
   const handleVote = (choice: "A" | "B") => {
     if (pred?.userVote || isResolved) return;
@@ -196,23 +187,6 @@ export function PostCard({
           </View>
         </View>
       )}
-
-      <View style={styles.actions}>
-        <Pressable style={styles.actionBtn} onPress={handleLike}>
-          {post.liked ? (
-            <AntDesign name="heart" size={18} color="#E8533A" />
-          ) : (
-            <Feather name="heart" size={18} color={colors.mutedForeground} />
-          )}
-          <Text style={[styles.actionCount, { color: post.liked ? "#E8533A" : colors.mutedForeground }]}>
-            {post.likes}
-          </Text>
-        </Pressable>
-        <Pressable style={styles.actionBtn} onPress={onPress}>
-          <Feather name="message-circle" size={18} color={colors.mutedForeground} />
-          <Text style={[styles.actionCount, { color: colors.mutedForeground }]}>{post.comments}</Text>
-        </Pressable>
-      </View>
     </Pressable>
   );
 }
@@ -221,7 +195,7 @@ const styles = StyleSheet.create({
   card: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 4,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     backgroundColor: "#FFFFFF",
   },
@@ -251,9 +225,6 @@ const styles = StyleSheet.create({
   pollOptionText: { fontFamily: "Inter_500Medium", fontSize: 13, flexShrink: 1 },
   pollPct: { fontFamily: "Inter_700Bold", fontSize: 12 },
   votesMeta: { fontFamily: "Inter_400Regular", fontSize: 12 },
-  actions: { flexDirection: "row", gap: 20, paddingVertical: 10 },
-  actionBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
-  actionCount: { fontFamily: "Inter_400Regular", fontSize: 13 },
   resolvedBox: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, gap: 10 },
   resolvedRow: {
     flexDirection: "row",

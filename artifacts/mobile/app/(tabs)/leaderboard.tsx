@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -18,19 +19,36 @@ import type { LeaderboardEntry } from "@/context/DataContext";
 export default function LeaderboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { leaderboard, leagues, getLeagueLeaderboard } = useData();
+  const { leaderboard, leagues, fetchLeagueLeaderboard, refreshLeaderboard } = useData();
   const { user } = useAuth();
   const [tab, setTab] = useState<"global" | string>("global");
+  const [leagueData, setLeagueData] = useState<LeaderboardEntry[]>([]);
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
+  useFocusEffect(
+    useCallback(() => {
+      refreshLeaderboard();
+    }, [refreshLeaderboard]),
+  );
+
   const activeLeague = leagues.find((l) => l.id === tab) ?? null;
-  const displayData: LeaderboardEntry[] =
-    tab === "global"
-      ? leaderboard
-      : activeLeague
-      ? getLeagueLeaderboard(activeLeague)
-      : [];
+
+  useEffect(() => {
+    if (tab === "global" || !activeLeague) {
+      setLeagueData([]);
+      return;
+    }
+    let cancelled = false;
+    fetchLeagueLeaderboard(activeLeague).then((rows) => {
+      if (!cancelled) setLeagueData(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, activeLeague, fetchLeagueLeaderboard]);
+
+  const displayData: LeaderboardEntry[] = tab === "global" ? leaderboard : leagueData;
 
   const openProfile = (entry: LeaderboardEntry) => {
     if (entry.userId === user?.id) return;

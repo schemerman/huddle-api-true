@@ -78,6 +78,20 @@ export interface PostInput {
   text: string;
 }
 
+export interface LeaderboardEntry {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarColor: string;
+  points: number;
+  winRate: number;
+  rank: number;
+}
+
+export interface LeaderboardMembersInput {
+  userIds: string[];
+}
+
 export interface UserSyncInput {
   /** @minLength 1 */
   id: string;

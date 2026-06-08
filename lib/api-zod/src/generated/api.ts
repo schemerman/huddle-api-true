@@ -45,6 +45,42 @@ export const CreatePostResponse = zod.object({
 });
 
 /**
+ * Returns all onboarded users ranked by points, highest first. Rank is assigned server-side.
+ * @summary Global leaderboard
+ */
+export const GetLeaderboardResponseItem = zod.object({
+  userId: zod.string(),
+  username: zod.string(),
+  displayName: zod.string(),
+  avatarColor: zod.string(),
+  points: zod.number(),
+  winRate: zod.number(),
+  rank: zod.number(),
+});
+export const GetLeaderboardResponse = zod.array(GetLeaderboardResponseItem);
+
+/**
+ * Returns the live, point-ranked standings for the given set of user ids. Ids that do not correspond to a real onboarded user are ignored, so only genuine members of the league are ranked.
+ * @summary Private league leaderboard
+ */
+export const GetMemberLeaderboardBody = zod.object({
+  userIds: zod.array(zod.string()),
+});
+
+export const GetMemberLeaderboardResponseItem = zod.object({
+  userId: zod.string(),
+  username: zod.string(),
+  displayName: zod.string(),
+  avatarColor: zod.string(),
+  points: zod.number(),
+  winRate: zod.number(),
+  rank: zod.number(),
+});
+export const GetMemberLeaderboardResponse = zod.array(
+  GetMemberLeaderboardResponseItem,
+);
+
+/**
  * Returns upcoming match fixtures with pre-match odds, served strictly from the local cache populated by the background fetch job. Clients must never call the external sports API directly.
  * @summary List upcoming fixtures
  */
