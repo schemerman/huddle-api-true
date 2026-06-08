@@ -10,6 +10,8 @@ export * from "./claimResult";
 export * from "./error";
 export * from "./fixture";
 export * from "./healthStatus";
+export * from "./post";
+export * from "./postInput";
 export * from "./user";
 export * from "./userSyncInput";
 export * from "./wager";

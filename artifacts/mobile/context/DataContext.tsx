@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useCallback, useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { listPosts, createPost, type Post as ApiPost } from "@workspace/api-client-react";
 
 export interface Prediction {
   id: string;
@@ -61,126 +62,34 @@ function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substring(2, 9);
 }
 
-const SEED_POSTS: Post[] = [
-  {
-    id: "p1",
-    userId: "u1",
-    username: "kingsleyobi",
-    displayName: "Kingsley Obi",
-    avatarColor: "#E8533A",
-    text: "No way Arsenal hold on today lads. City are on another level rn 💀",
-    prediction: {
-      id: "pred1",
-      question: "Will Arsenal beat Man City at the Etihad?",
-      optionA: "Yes, Arsenal win",
-      optionB: "No, City win",
-      votesA: 142,
-      votesB: 381,
-      userVote: "A",
-      resolved: true,
-      result: "B",
-    },
-    likes: 48,
+function formatRelative(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (isNaN(then)) return "";
+  const diff = Date.now() - then;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function toPost(api: ApiPost): Post {
+  return {
+    id: api.id,
+    userId: api.userId,
+    username: api.username,
+    displayName: api.displayName,
+    avatarColor: api.avatarColor,
+    text: api.text,
+    likes: 0,
     liked: false,
-    comments: 23,
-    createdAt: "2h",
-  },
-  {
-    id: "p2",
-    userId: "u2",
-    username: "sarahchidi",
-    displayName: "Sarah Chidi",
-    avatarColor: "#3A7DE8",
-    text: "Curry is cooking tonight, putting every point I have on this one 🔥",
-    prediction: {
-      id: "pred2",
-      question: "Will Steph Curry score 35+ points vs the Lakers?",
-      optionA: "Yes, 35+",
-      optionB: "No, under 35",
-      votesA: 267,
-      votesB: 189,
-      userVote: "A",
-      resolved: true,
-      result: "A",
-    },
-    likes: 91,
-    liked: false,
-    comments: 41,
-    createdAt: "4h",
-  },
-  {
-    id: "p3",
-    userId: "u3",
-    username: "tomaszwiecek",
-    displayName: "Tomasz Wiecek",
-    avatarColor: "#9B3AE8",
-    text: "Mbappé hasn't looked himself since the move. Respectfully disagree with anyone who says otherwise.",
-    prediction: {
-      id: "pred3",
-      question: "Will Mbappé score vs Atletico in the derby?",
-      optionA: "Goals for Kylian",
-      optionB: "Blanks again",
-      votesA: 412,
-      votesB: 208,
-    },
-    likes: 134,
-    liked: false,
-    comments: 67,
-    createdAt: "6h",
-  },
-  {
-    id: "p4",
-    userId: "u4",
-    username: "ameliavoss",
-    displayName: "Amelia Voss",
-    avatarColor: "#3AE86A",
-    text: "Respectfully, the Ashes is the greatest series in sport. Change my mind.",
-    prediction: {
-      id: "pred4",
-      question: "Will England win the first Ashes Test?",
-      optionA: "England take it",
-      optionB: "Australia hold",
-      votesA: 198,
-      votesB: 321,
-    },
-    likes: 77,
-    liked: false,
-    comments: 29,
-    createdAt: "8h",
-  },
-  {
-    id: "p5",
-    userId: "u5",
-    username: "joshadeleke",
-    displayName: "Josh Adeleke",
-    avatarColor: "#E8C83A",
-    text: "PSG are overrated every single season and every year the timeline pretends to be surprised 😭",
-    likes: 203,
-    liked: false,
-    comments: 88,
-    createdAt: "10h",
-  },
-  {
-    id: "p6",
-    userId: "u1",
-    username: "kingsleyobi",
-    displayName: "Kingsley Obi",
-    avatarColor: "#E8533A",
-    text: "Novak at 37 is still the most complete player on any surface. Wild.",
-    prediction: {
-      id: "pred5",
-      question: "Will Djokovic win his next Grand Slam?",
-      optionA: "One more title",
-      optionB: "His era is over",
-      votesA: 534,
-      votesB: 312,
-    },
-    likes: 156,
-    liked: false,
-    comments: 54,
-    createdAt: "12h",
-  },
-];
+    comments: 0,
+    createdAt: formatRelative(api.createdAt),
+  };
+}
 
 const SEED_LEAGUES: League[] = [
   {
@@ -250,10 +159,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
+  const refreshPosts = useCallback(async () => {
+    try {
+      const rows = await listPosts();
+      setPosts(rows.map(toPost));
+    } catch {
+      setPosts([]);
+    }
+  }, []);
+
   useEffect(() => {
-    AsyncStorage.getItem("huddle_posts_v4").then((raw) => {
-      setPosts(raw ? JSON.parse(raw) : SEED_POSTS);
-    });
+    refreshPosts();
     AsyncStorage.getItem("huddle_leagues").then((raw) => {
       setLeagues(raw ? JSON.parse(raw) : SEED_LEAGUES);
     });
@@ -263,10 +179,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLeaderboard(SEED_LEADERBOARD);
   }, []);
 
-  const savePosts = (next: Post[]) => {
-    setPosts(next);
-    AsyncStorage.setItem("huddle_posts_v4", JSON.stringify(next));
-  };
   const saveLeagues = (next: League[]) => {
     setLeagues(next);
     AsyncStorage.setItem("huddle_leagues", JSON.stringify(next));
@@ -276,34 +188,27 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem("huddle_messages", JSON.stringify(next));
   };
 
-  const addPost = (text: string) => {
+  const addPost = async (text: string) => {
     if (!user || !text.trim()) return;
-    const post: Post = {
-      id: generateId(),
-      userId: user.id,
-      username: user.username || "me",
-      displayName: user.displayName || "You",
-      avatarColor: user.avatarColor,
-      text: text.trim(),
-      likes: 0,
-      liked: false,
-      comments: 0,
-      createdAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-    savePosts([post, ...posts]);
+    try {
+      await createPost({ userId: user.id, text: text.trim() });
+      await refreshPosts();
+    } catch {
+      // Leave the feed unchanged if the post fails to save.
+    }
   };
 
   const likePost = (postId: string) => {
-    savePosts(
-      posts.map((p) =>
+    setPosts((prev) =>
+      prev.map((p) =>
         p.id === postId ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 } : p
       )
     );
   };
 
   const voteOnPrediction = (postId: string, choice: "A" | "B") => {
-    savePosts(
-      posts.map((p) => {
+    setPosts((prev) =>
+      prev.map((p) => {
         if (p.id !== postId || !p.prediction) return p;
         const pred = p.prediction;
         if (pred.userVote) return p;

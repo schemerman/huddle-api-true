@@ -21,6 +21,8 @@ import type {
   Error,
   Fixture,
   HealthStatus,
+  Post,
+  PostInput,
   User,
   UserSyncInput,
   WagerInput,
@@ -36,6 +38,159 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * Returns all timeline posts, newest first.
+ * @summary List timeline posts
+ */
+export const getListPostsUrl = () => {
+  return `/api/posts`;
+};
+
+export const listPosts = async (options?: RequestInit): Promise<Post[]> => {
+  return customFetch<Post[]>(getListPostsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListPostsQueryKey = () => {
+  return [`/api/posts`] as const;
+};
+
+export const getListPostsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPosts>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listPosts>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListPostsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPosts>>> = ({
+    signal,
+  }) => listPosts({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPosts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPostsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPosts>>
+>;
+export type ListPostsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List timeline posts
+ */
+
+export function useListPosts<
+  TData = Awaited<ReturnType<typeof listPosts>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listPosts>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPostsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Creates a new timeline post authored by the given user.
+ * @summary Create a post
+ */
+export const getCreatePostUrl = () => {
+  return `/api/posts`;
+};
+
+export const createPost = async (
+  postInput: PostInput,
+  options?: RequestInit,
+): Promise<Post> => {
+  return customFetch<Post>(getCreatePostUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(postInput),
+  });
+};
+
+export const getCreatePostMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPost>>,
+    TError,
+    { data: BodyType<PostInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPost>>,
+  TError,
+  { data: BodyType<PostInput> },
+  TContext
+> => {
+  const mutationKey = ["createPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPost>>,
+    { data: BodyType<PostInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPost>>
+>;
+export type CreatePostMutationBody = BodyType<PostInput>;
+export type CreatePostMutationError = ErrorType<Error>;
+
+/**
+ * @summary Create a post
+ */
+export const useCreatePost = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPost>>,
+    TError,
+    { data: BodyType<PostInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPost>>,
+  TError,
+  { data: BodyType<PostInput> },
+  TContext
+> => {
+  return useMutation(getCreatePostMutationOptions(options));
+};
 
 /**
  * Returns upcoming match fixtures with pre-match odds, served strictly from the local cache populated by the background fetch job. Clients must never call the external sports API directly.

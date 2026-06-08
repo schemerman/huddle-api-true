@@ -100,6 +100,13 @@ export default function HomeScreen() {
             hidePrediction
           />
         )}
+        ListEmptyComponent={
+          <View style={styles.emptyWrap}>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+              The timeline is quiet. Start the trash talk.
+            </Text>
+          </View>
+        }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80),
@@ -179,6 +186,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   wordmark: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: -0.5 },
+  emptyWrap: { paddingHorizontal: 16, paddingTop: 48, paddingBottom: 24, alignItems: "center" },
+  emptyText: { fontFamily: "Inter_400Regular", fontSize: 15, textAlign: "center" },
   composer: {
     flexDirection: "row",
     alignItems: "center",

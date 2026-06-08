@@ -16,7 +16,54 @@ tags:
     description: Wager operations
   - name: fixtures
     description: Match fixture operations
+  - name: posts
+    description: Social timeline post operations
 paths:
+  /posts:
+    get:
+      operationId: listPosts
+      tags: [posts]
+      summary: List timeline posts
+      description: Returns all timeline posts, newest first.
+      responses:
+        "200":
+          description: Posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Post"
+    post:
+      operationId: createPost
+      tags: [posts]
+      summary: Create a post
+      description: Creates a new timeline post authored by the given user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostInput"
+      responses:
+        "200":
+          description: Created post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Author not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /fixtures:
     get:
       operationId: listFixtures
@@ -311,6 +358,32 @@ components:
         - payout
         - createdAt
         - settledAt
+    Post:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        username: { type: string }
+        displayName: { type: string }
+        avatarColor: { type: string }
+        text: { type: string }
+        createdAt: { type: string, format: date-time }
+      required:
+        - id
+        - userId
+        - username
+        - displayName
+        - avatarColor
+        - text
+        - createdAt
+    PostInput:
+      type: object
+      properties:
+        userId: { type: string, minLength: 1 }
+        text: { type: string, minLength: 1, maxLength: 280 }
+      required:
+        - userId
+        - text
     UserSyncInput:
       type: object
       properties:

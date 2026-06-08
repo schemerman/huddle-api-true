@@ -58,6 +58,26 @@ export interface Wager {
   settledAt: string | null;
 }
 
+export interface Post {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarColor: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface PostInput {
+  /** @minLength 1 */
+  userId: string;
+  /**
+   * @minLength 1
+   * @maxLength 280
+   */
+  text: string;
+}
+
 export interface UserSyncInput {
   /** @minLength 1 */
   id: string;

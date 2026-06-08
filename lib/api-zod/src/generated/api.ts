@@ -8,6 +8,43 @@
 import * as zod from "zod";
 
 /**
+ * Returns all timeline posts, newest first.
+ * @summary List timeline posts
+ */
+export const ListPostsResponseItem = zod.object({
+  id: zod.string(),
+  userId: zod.string(),
+  username: zod.string(),
+  displayName: zod.string(),
+  avatarColor: zod.string(),
+  text: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+export const ListPostsResponse = zod.array(ListPostsResponseItem);
+
+/**
+ * Creates a new timeline post authored by the given user.
+ * @summary Create a post
+ */
+
+export const createPostBodyTextMax = 280;
+
+export const CreatePostBody = zod.object({
+  userId: zod.string().min(1),
+  text: zod.string().min(1).max(createPostBodyTextMax),
+});
+
+export const CreatePostResponse = zod.object({
+  id: zod.string(),
+  userId: zod.string(),
+  username: zod.string(),
+  displayName: zod.string(),
+  avatarColor: zod.string(),
+  text: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
  * Returns upcoming match fixtures with pre-match odds, served strictly from the local cache populated by the background fetch job. Clients must never call the external sports API directly.
  * @summary List upcoming fixtures
  */
