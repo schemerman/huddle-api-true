@@ -194,9 +194,9 @@ export function PublicProfileModal({ user, onClose }: Props) {
               </View>
             </View>
 
-            {/* Recent Wagers */}
+            {/* Recent Picks */}
             <View style={styles.wagersSection}>
-              <Text style={[styles.wagersTitle, { color: colors.foreground }]}>Recent Wagers</Text>
+              <Text style={[styles.wagersTitle, { color: colors.foreground }]}>Recent Picks</Text>
               <ScrollView
                 style={styles.wagersList}
                 nestedScrollEnabled

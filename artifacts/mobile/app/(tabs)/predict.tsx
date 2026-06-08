@@ -153,7 +153,7 @@ function FixtureCard({
       {voted && (
         <Text style={[styles.votesMeta, { color: colors.mutedForeground }]}>
           {(total + 1).toLocaleString()} predictions
-          {fixture.userWager ? ` · ${fixture.userWager} pts wagered` : ""}
+          {fixture.userWager ? ` · ${fixture.userWager} pts picked` : ""}
         </Text>
       )}
     </View>
@@ -369,7 +369,7 @@ export default function PredictScreen() {
               <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             </View>
 
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Place a Wager</Text>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Place a Pick</Text>
             <Text style={[styles.modalPick, { color: colors.mutedForeground }]}>
               {wagerTarget?.fixture.question}
             </Text>
@@ -381,12 +381,12 @@ export default function PredictScreen() {
                 </Text>
               </View>
               <Text style={[styles.oddsTag, { color: colors.mutedForeground }]}>
-                {chosenOdds}x odds
+                {chosenOdds}x multiplier
               </Text>
             </View>
 
             <Text style={[styles.wagerLabel, { color: colors.foreground }]}>
-              How many points do you want to wager?
+              How many points for your pick?
             </Text>
 
             <View style={styles.wagerInputRow}>
@@ -458,7 +458,7 @@ export default function PredictScreen() {
                     { color: canConfirm ? colors.primaryForeground : colors.mutedForeground },
                   ]}
                 >
-                  Confirm Wager
+                  Confirm Pick
                 </Text>
               )}
             </Pressable>

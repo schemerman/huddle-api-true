@@ -20,7 +20,7 @@ export const usersTable = pgTable(
     avatarColor: text("avatar_color").notNull().default("#E8533A"),
     winRate: real("win_rate").notNull().default(0),
     currentStreak: integer("current_streak").notNull().default(0),
-    points: integer("points").notNull().default(10000),
+    points: integer("points").notNull().default(1000),
     isBankrupt: boolean("is_bankrupt").notNull().default(false),
     previousWagers: integer("previous_wagers").notNull().default(0),
     lastDailyClaim: timestamp("last_daily_claim", { withTimezone: true }),

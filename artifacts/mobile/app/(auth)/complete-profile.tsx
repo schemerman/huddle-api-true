@@ -40,7 +40,7 @@ function validateDob(dob: string): string | null {
   let age = today.getFullYear() - year;
   const monthDiff = today.getMonth() - (month - 1);
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < day)) age--;
-  if (age < 13) return "You must be 13 or older to use Huddle.";
+  if (age < 13) return "You must be 13 or older to join Huddle.";
   if (age > 100) return "Please enter a valid date of birth.";
   return null;
 }

@@ -1,3 +1,2 @@
-- [Metro stale resolution after codegen](metro-codegen-cache.md) — orval "clean output folder" breaks Metro module resolution; clear all caches + restart, not just one.
-- [Per-user fetched data must clear on user change](huddle-per-user-fetch.md) — focus-fetch keyed on user id also needs an id-keyed reset effect, or a prior account's rows flash after logout/switch.
-- [Expo web export deploy](expo-web-export-deploy.md) — HUDDLE mobile artifact ships a static web SPA/PWA in prod (not Expo Go); output:single ignores +html.tsx so patch dist/index.html.
+# HUDDLE memory index
+- [Terminology sweeps](terminology-sweeps.md) — rename only user-visible UI strings; Wager/Odds are code identifiers tied to generated client, OpenAPI, and DB schema.

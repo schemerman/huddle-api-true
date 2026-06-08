@@ -110,7 +110,7 @@ export default function ProfileScreen() {
   const statsData = [
     { label: "Win Rate", value: `${user.winRate}%` },
     { label: "Points", value: user.points.toLocaleString() },
-    { label: "Wagers", value: user.previousWagers.toLocaleString() },
+    { label: "Picks", value: user.previousWagers.toLocaleString() },
   ];
 
   return (
@@ -247,7 +247,7 @@ export default function ProfileScreen() {
                   { color: tab === t ? colors.foreground : colors.mutedForeground },
                 ]}
               >
-                {t === "stats" ? "Stats" : "Wagers"}
+                {t === "stats" ? "Stats" : "Picks"}
               </Text>
             </Pressable>
           ))}
@@ -287,10 +287,10 @@ export default function ProfileScreen() {
           </>
         ) : (
           <View style={styles.wagersSection}>
-            <Text style={[styles.wagersHeading, { color: colors.foreground }]}>Recent Wagers</Text>
+            <Text style={[styles.wagersHeading, { color: colors.foreground }]}>Recent Picks</Text>
             {wagersLoaded && wagers.length === 0 ? (
               <Text style={[styles.wagersEmpty, { color: colors.mutedForeground }]}>
-                No wagers placed yet. Go make a call on the Predict tab.
+                No picks placed yet. Go make a call on the Predict tab.
               </Text>
             ) : (
               wagers.map((w, i) => {
