@@ -1,4 +1,4 @@
-export const STARTING_BANKROLL = 10000;
+export const STARTING_BANKROLL = 1000;
 export const SOLVENT_THRESHOLD = 500;
 export const DAILY_AMOUNT = 100;
 export const BAILOUT_AMOUNT = 100;

@@ -51,7 +51,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 const AVATAR_COLORS = ["#E8533A", "#3A7DE8", "#3AE86A", "#E8C83A", "#9B3AE8", "#E83A8C", "#3AE8D4"];
 
-const STARTING_BANKROLL = 10000;
+const STARTING_BANKROLL = 1000;
 
 function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substring(2, 9);
