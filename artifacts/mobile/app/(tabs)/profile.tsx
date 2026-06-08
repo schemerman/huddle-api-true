@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Modal,
@@ -19,28 +19,15 @@ import { PerformanceTitleBadge } from "@/components/PerformanceTitleBadge";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { ReceiptModal } from "@/components/ReceiptModal";
-
-interface WagerEntry {
-  id: string;
-  team: string;
-  fixture: string;
-  question: string;
-  result: string;
-  amount: number;
-  points: number;
-  status: "Won" | "Lost" | "Pending";
-}
-
-const MY_WAGERS: WagerEntry[] = [
-  { id: "mw1", team: "Arsenal", fixture: "Arsenal vs Man City", question: "Who will win: Arsenal or Man City?", result: "TBD", amount: 120, points: 0, status: "Pending" },
-  { id: "mw2", team: "Liverpool", fixture: "Liverpool vs Chelsea", question: "Who will win: Liverpool or Chelsea?", result: "Liverpool", amount: 200, points: 260, status: "Won" },
-  { id: "mw3", team: "Brazil", fixture: "Brazil vs Germany", question: "Who will win: Brazil or Germany?", result: "Brazil", amount: 80, points: 96, status: "Won" },
-  { id: "mw4", team: "Draw", fixture: "Man United vs Tottenham", question: "Who will win: Man United or Tottenham?", result: "Tottenham", amount: 50, points: 50, status: "Lost" },
-  { id: "mw5", team: "France", fixture: "France vs Argentina", question: "Who will win: France or Argentina?", result: "TBD", amount: 150, points: 0, status: "Pending" },
-  { id: "mw6", team: "Spain", fixture: "Spain vs Portugal", question: "Who will win: Spain or Portugal?", result: "Spain", amount: 90, points: 108, status: "Won" },
-];
+import { listWagers, type Wager } from "@workspace/api-client-react";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+function statusLabel(status: string): string {
+  if (status === "won") return "Won";
+  if (status === "lost") return "Lost";
+  return "Pending";
+}
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -49,7 +36,37 @@ export default function ProfileScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [tab, setTab] = useState<"stats" | "wagers">("stats");
   const [agreementOpen, setAgreementOpen] = useState(false);
-  const [receiptWager, setReceiptWager] = useState<WagerEntry | null>(null);
+  const [receiptWager, setReceiptWager] = useState<Wager | null>(null);
+  const [wagers, setWagers] = useState<Wager[]>([]);
+  const [wagersLoaded, setWagersLoaded] = useState(false);
+
+  // Drop any prior account's wagers immediately when the user changes (or logs out)
+  // so a different user's history can never flash before the refetch resolves.
+  useEffect(() => {
+    setWagers([]);
+    setWagersLoaded(false);
+  }, [user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const userId = user?.id;
+      if (!userId) return;
+      let active = true;
+      (async () => {
+        try {
+          const data = await listWagers(userId);
+          if (active) setWagers(data);
+        } catch {
+          // Leave the last known list in place on a transient fetch error.
+        } finally {
+          if (active) setWagersLoaded(true);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [user?.id]),
+  );
 
   const handleLogout = () => {
     Alert.alert("Sign out", "Are you sure you want to sign out?", [
@@ -271,64 +288,71 @@ export default function ProfileScreen() {
         ) : (
           <View style={styles.wagersSection}>
             <Text style={[styles.wagersHeading, { color: colors.foreground }]}>Recent Wagers</Text>
-            {MY_WAGERS.map((w, i) => {
-              const completed = w.status === "Won" || w.status === "Lost";
-              return (
-                <Pressable
-                  key={w.id}
-                  onPress={
-                    completed
-                      ? () => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          setReceiptWager(w);
-                        }
-                      : undefined
-                  }
-                  style={({ pressed }) => [
-                    styles.wagerRow,
-                    { borderBottomColor: colors.border },
-                    i === MY_WAGERS.length - 1 && { borderBottomWidth: 0 },
-                    { opacity: pressed && completed ? 0.6 : 1 },
-                  ]}
-                >
-                  <View style={styles.wagerLeft}>
-                    <Text style={[styles.wagerTeam, { color: colors.foreground }]}>
-                      {w.amount} pts on {w.team}
-                    </Text>
-                    <Text style={[styles.wagerFixture, { color: colors.mutedForeground }]}>
-                      {w.fixture}
-                    </Text>
-                  </View>
-                  <View style={styles.wagerRight}>
-                    <View
-                      style={[
-                        styles.wagerBadge,
-                        { backgroundColor: w.status === "Won" ? colors.primary : colors.secondary },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.wagerStatus,
-                          {
-                            color:
-                              w.status === "Won"
-                                ? colors.primaryForeground
-                                : w.status === "Lost"
-                                ? colors.mutedForeground
-                                : colors.foreground,
-                          },
-                        ]}
-                      >
-                        {w.status}
+            {wagersLoaded && wagers.length === 0 ? (
+              <Text style={[styles.wagersEmpty, { color: colors.mutedForeground }]}>
+                No wagers placed yet. Go make a call on the Predict tab.
+              </Text>
+            ) : (
+              wagers.map((w, i) => {
+                const completed = w.status === "won" || w.status === "lost";
+                const won = w.status === "won";
+                const pick = w.prediction || w.choice;
+                return (
+                  <Pressable
+                    key={w.id}
+                    onPress={
+                      completed
+                        ? () => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setReceiptWager(w);
+                          }
+                        : undefined
+                    }
+                    style={({ pressed }) => [
+                      styles.wagerRow,
+                      { borderBottomColor: colors.border },
+                      i === wagers.length - 1 && { borderBottomWidth: 0 },
+                      { opacity: pressed && completed ? 0.6 : 1 },
+                    ]}
+                  >
+                    <View style={styles.wagerLeft}>
+                      <Text style={[styles.wagerTeam, { color: colors.foreground }]}>
+                        {w.amount} pts on {pick}
+                      </Text>
+                      <Text style={[styles.wagerFixture, { color: colors.mutedForeground }]}>
+                        {w.question}
                       </Text>
                     </View>
-                    {completed && (
-                      <Feather name="share" size={15} color={colors.mutedForeground} />
-                    )}
-                  </View>
-                </Pressable>
-              );
-            })}
+                    <View style={styles.wagerRight}>
+                      <View
+                        style={[
+                          styles.wagerBadge,
+                          { backgroundColor: won ? colors.primary : colors.secondary },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.wagerStatus,
+                            {
+                              color: won
+                                ? colors.primaryForeground
+                                : w.status === "lost"
+                                ? colors.mutedForeground
+                                : colors.foreground,
+                            },
+                          ]}
+                        >
+                          {statusLabel(w.status)}
+                        </Text>
+                      </View>
+                      {completed && (
+                        <Feather name="share" size={15} color={colors.mutedForeground} />
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
           </View>
         )}
       </ScrollView>
@@ -391,10 +415,18 @@ export default function ProfileScreen() {
         visible={!!receiptWager}
         onClose={() => setReceiptWager(null)}
         question={receiptWager?.question ?? ""}
-        finalResult={receiptWager?.result ?? ""}
-        prediction={receiptWager?.team ?? ""}
-        points={receiptWager?.points ?? 0}
-        won={receiptWager?.status === "Won"}
+        finalResult={
+          receiptWager?.status === "won"
+            ? receiptWager.prediction || receiptWager.choice
+            : "—"
+        }
+        prediction={receiptWager?.prediction || receiptWager?.choice || ""}
+        points={
+          receiptWager?.status === "won"
+            ? receiptWager.payout
+            : receiptWager?.amount ?? 0
+        }
+        won={receiptWager?.status === "won"}
       />
     </View>
   );
@@ -516,6 +548,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     letterSpacing: -0.2,
     marginBottom: 14,
+  },
+  wagersEmpty: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    lineHeight: 21,
+    paddingVertical: 8,
   },
   wagerRow: {
     flexDirection: "row",

@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db, usersTable, wagersTable, type User as DbUser } from "@workspace/db";
 import {
   SyncUserBody,
   GetUserParams,
+  ListWagersParams,
   PlaceWagerParams,
   PlaceWagerBody,
   SettleWagerParams,
@@ -13,6 +14,7 @@ import {
   ClaimBailoutParams,
   SyncUserResponse,
   GetUserResponse,
+  ListWagersResponse,
   PlaceWagerResponse,
   SettleWagerResponse,
   ClaimDailyResponse,
@@ -112,6 +114,40 @@ router.get("/users/:id", async (req, res): Promise<void> => {
   }
 
   res.json(GetUserResponse.parse(serializeUser(user)));
+});
+
+router.get("/users/:id/wagers", async (req, res): Promise<void> => {
+  const params = ListWagersParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const { id } = params.data;
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, id));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const rows = await db
+    .select()
+    .from(wagersTable)
+    .where(eq(wagersTable.userId, id))
+    .orderBy(desc(wagersTable.createdAt));
+
+  res.json(
+    ListWagersResponse.parse(
+      rows.map((w) => ({
+        ...w,
+        createdAt: w.createdAt.toISOString(),
+        settledAt: w.settledAt ? w.settledAt.toISOString() : null,
+      })),
+    ),
+  );
 });
 
 router.post("/users/:id/wagers", async (req, res): Promise<void> => {

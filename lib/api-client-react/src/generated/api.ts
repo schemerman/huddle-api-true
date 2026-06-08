@@ -25,6 +25,7 @@ import type {
   PostInput,
   User,
   UserSyncInput,
+  Wager,
   WagerInput,
   WagerResult,
   WagerSettleInput,
@@ -500,6 +501,94 @@ export function useGetUser<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetUserQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns all wagers placed by the user, newest first.
+ * @summary List a user's wagers
+ */
+export const getListWagersUrl = (id: string) => {
+  return `/api/users/${id}/wagers`;
+};
+
+export const listWagers = async (
+  id: string,
+  options?: RequestInit,
+): Promise<Wager[]> => {
+  return customFetch<Wager[]>(getListWagersUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListWagersQueryKey = (id: string) => {
+  return [`/api/users/${id}/wagers`] as const;
+};
+
+export const getListWagersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listWagers>>,
+  TError = ErrorType<Error>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWagers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListWagersQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listWagers>>> = ({
+    signal,
+  }) => listWagers(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listWagers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListWagersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listWagers>>
+>;
+export type ListWagersQueryError = ErrorType<Error>;
+
+/**
+ * @summary List a user's wagers
+ */
+
+export function useListWagers<
+  TData = Awaited<ReturnType<typeof listWagers>>,
+  TError = ErrorType<Error>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWagers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListWagersQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

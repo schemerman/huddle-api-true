@@ -1,1 +1,2 @@
 - [Metro stale resolution after codegen](metro-codegen-cache.md) — orval "clean output folder" breaks Metro module resolution; clear all caches + restart, not just one.
+- [Per-user fetched data must clear on user change](huddle-per-user-fetch.md) — focus-fetch keyed on user id also needs an id-keyed reset effect, or a prior account's rows flash after logout/switch.

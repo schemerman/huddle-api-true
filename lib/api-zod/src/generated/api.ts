@@ -123,6 +123,31 @@ export const GetUserResponse = zod.object({
 });
 
 /**
+ * Returns all wagers placed by the user, newest first.
+ * @summary List a user's wagers
+ */
+export const ListWagersParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const ListWagersResponseItem = zod.object({
+  id: zod.string(),
+  userId: zod.string(),
+  fixtureId: zod.string(),
+  choice: zod.string(),
+  question: zod.string(),
+  prediction: zod.string(),
+  amount: zod.number(),
+  odds: zod.number(),
+  potentialPayout: zod.number(),
+  status: zod.string(),
+  payout: zod.number(),
+  createdAt: zod.coerce.date(),
+  settledAt: zod.coerce.date().nullable(),
+});
+export const ListWagersResponse = zod.array(ListWagersResponseItem);
+
+/**
  * Atomically verifies the user has enough points at the moment of the transaction, deducts the stake, and records the wager.
  * @summary Place a wager
  */
