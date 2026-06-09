@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Modal,
@@ -12,6 +12,7 @@ import {
 import { useColors } from "@/hooks/useColors";
 import { PerformanceTitleBadge } from "./PerformanceTitleBadge";
 import { Avatar } from "./Avatar";
+import { listWagers, type Wager } from "@workspace/api-client-react";
 
 export interface PublicProfileUser {
   userId: string;
@@ -22,64 +23,8 @@ export interface PublicProfileUser {
   winRate: number;
 }
 
-interface WagerEntry {
-  id: string;
-  team: string;
-  amount: number;
-  status: "Won" | "Lost" | "Pending";
-}
-
-const MOCK_WAGER_HISTORY: Record<string, WagerEntry[]> = {
-  u1: [
-    { id: "w1", team: "Arsenal", amount: 200, status: "Won" },
-    { id: "w2", team: "Man City", amount: 50, status: "Lost" },
-    { id: "w3", team: "Brazil", amount: 150, status: "Pending" },
-    { id: "w4", team: "Liverpool", amount: 80, status: "Won" },
-  ],
-  u2: [
-    { id: "w5", team: "Liverpool", amount: 100, status: "Won" },
-    { id: "w6", team: "Chelsea", amount: 75, status: "Pending" },
-    { id: "w7", team: "France", amount: 120, status: "Lost" },
-  ],
-  u3: [
-    { id: "w8", team: "Tottenham", amount: 300, status: "Won" },
-    { id: "w9", team: "Germany", amount: 200, status: "Won" },
-    { id: "w10", team: "Spain", amount: 150, status: "Pending" },
-    { id: "w11", team: "Arsenal", amount: 100, status: "Lost" },
-    { id: "w12", team: "Argentina", amount: 250, status: "Won" },
-  ],
-  u4: [
-    { id: "w13", team: "Aston Villa", amount: 50, status: "Lost" },
-    { id: "w14", team: "England", amount: 60, status: "Pending" },
-  ],
-  u5: [
-    { id: "w15", team: "Brazil", amount: 180, status: "Won" },
-    { id: "w16", team: "Chelsea", amount: 90, status: "Pending" },
-    { id: "w17", team: "Man City", amount: 120, status: "Won" },
-  ],
-  u6: [
-    { id: "w18", team: "Newcastle", amount: 40, status: "Lost" },
-    { id: "w19", team: "Portugal", amount: 55, status: "Pending" },
-  ],
-  u7: [
-    { id: "w20", team: "Spain", amount: 70, status: "Won" },
-    { id: "w21", team: "Netherlands", amount: 85, status: "Lost" },
-    { id: "w22", team: "Liverpool", amount: 60, status: "Pending" },
-  ],
-};
-
-const FALLBACK_WAGERS: WagerEntry[] = [
-  { id: "fb1", team: "Arsenal", amount: 50, status: "Pending" },
-  { id: "fb2", team: "Brazil", amount: 100, status: "Won" },
-];
-
-function statusColor(status: WagerEntry["status"], foreground: string, muted: string): string {
-  if (status === "Won") return foreground;
-  return muted;
-}
-
-function statusLabel(status: WagerEntry["status"]): string {
-  return status;
+function statusLabel(status: string): string {
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 interface Props {
@@ -120,7 +65,32 @@ export function PublicProfileModal({ user, onClose }: Props) {
     })
   ).current;
 
-  const wagers = user ? (MOCK_WAGER_HISTORY[user.userId] ?? FALLBACK_WAGERS) : [];
+  const [wagers, setWagers] = useState<Wager[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const id = user?.userId;
+    if (!id) {
+      setWagers([]);
+      setLoaded(false);
+      return;
+    }
+    let active = true;
+    setLoaded(false);
+    listWagers(id)
+      .then((rows) => {
+        if (active) setWagers(rows);
+      })
+      .catch(() => {
+        if (active) setWagers([]);
+      })
+      .finally(() => {
+        if (active) setLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user?.userId]);
 
   const handleClose = () => {
     Animated.timing(translateY, {
@@ -197,54 +167,60 @@ export function PublicProfileModal({ user, onClose }: Props) {
             {/* Recent Picks */}
             <View style={styles.wagersSection}>
               <Text style={[styles.wagersTitle, { color: colors.foreground }]}>Recent Picks</Text>
-              <ScrollView
-                style={styles.wagersList}
-                nestedScrollEnabled
-                showsVerticalScrollIndicator={false}
-                scrollEnabled={wagers.length > 4}
-              >
-                {wagers.map((w, i) => (
-                  <View
-                    key={w.id}
-                    style={[
-                      styles.wagerRow,
-                      { borderBottomColor: colors.border },
-                      i === wagers.length - 1 && { borderBottomWidth: 0 },
-                    ]}
-                  >
-                    <View style={styles.wagerLeft}>
-                      <Text style={[styles.wagerTeam, { color: colors.foreground }]}>
-                        {w.amount} pts on {w.team}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.wagerBadge,
-                        {
-                          backgroundColor:
-                            w.status === "Won"
-                              ? colors.primary
-                              : colors.secondary,
-                        },
-                      ]}
-                    >
-                      <Text
+              {loaded && wagers.length === 0 ? (
+                <Text style={[styles.wagersEmpty, { color: colors.mutedForeground }]}>
+                  No activity yet
+                </Text>
+              ) : (
+                <ScrollView
+                  style={styles.wagersList}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={false}
+                  scrollEnabled={wagers.length > 4}
+                >
+                  {wagers.map((w, i) => {
+                    const won = w.status === "won";
+                    const pick = w.prediction || w.choice;
+                    return (
+                      <View
+                        key={w.id}
                         style={[
-                          styles.wagerStatus,
-                          {
-                            color:
-                              w.status === "Won"
-                                ? colors.primaryForeground
-                                : statusColor(w.status, colors.foreground, colors.mutedForeground),
-                          },
+                          styles.wagerRow,
+                          { borderBottomColor: colors.border },
+                          i === wagers.length - 1 && { borderBottomWidth: 0 },
                         ]}
                       >
-                        {statusLabel(w.status)}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
+                        <View style={styles.wagerLeft}>
+                          <Text style={[styles.wagerTeam, { color: colors.foreground }]}>
+                            {w.amount} pts on {pick}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.wagerBadge,
+                            { backgroundColor: won ? colors.primary : colors.secondary },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.wagerStatus,
+                              {
+                                color: won
+                                  ? colors.primaryForeground
+                                  : w.status === "lost"
+                                  ? colors.mutedForeground
+                                  : colors.foreground,
+                              },
+                            ]}
+                          >
+                            {statusLabel(w.status)}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              )}
             </View>
 
             <Pressable
@@ -342,6 +318,11 @@ const styles = StyleSheet.create({
   },
   wagersList: {
     maxHeight: 200,
+  },
+  wagersEmpty: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    paddingVertical: 8,
   },
   wagerRow: {
     flexDirection: "row",

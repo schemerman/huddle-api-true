@@ -98,38 +98,9 @@ function toPost(api: ApiPost): Post {
   };
 }
 
-const SEED_LEAGUES: League[] = [
-  {
-    id: "l1",
-    name: "KCL Banter FC",
-    code: "KCL2024",
-    memberIds: ["u1", "u2", "u3", "me"],
-    ownerId: "u1",
-    createdAt: "2024-01-10",
-  },
-  {
-    id: "l2",
-    name: "Housemates Huddle",
-    code: "HOUSE99",
-    memberIds: ["u2", "u4", "me"],
-    ownerId: "me",
-    createdAt: "2024-02-01",
-  },
-];
-
-const SEED_MESSAGES: Record<string, Message[]> = {
-  l1: [
-    { id: "m1", leagueId: "l1", userId: "u1", username: "kingsleyobi", avatarColor: "#E8533A", text: "Who's putting points on the Arsenal match tonight?", createdAt: "2:15 PM" },
-    { id: "m2", leagueId: "l1", userId: "u2", username: "sarahchidi", avatarColor: "#3A7DE8", text: "I already voted. City all day, no cap", createdAt: "2:17 PM" },
-    { id: "m3", leagueId: "l1", userId: "u3", username: "tomaszwiecek", avatarColor: "#9B3AE8", text: "Same lol. Arsenal have been shaky for weeks", createdAt: "2:19 PM" },
-    { id: "m4", leagueId: "l1", userId: "u1", username: "kingsleyobi", avatarColor: "#E8533A", text: "Fair enough. I'm riding with Arsenal though. They need the points", createdAt: "2:22 PM" },
-  ],
-  l2: [
-    { id: "m5", leagueId: "l2", userId: "u4", username: "ameliavoss", avatarColor: "#3AE86A", text: "Can someone explain the Ashes format again lol", createdAt: "Yesterday" },
-    { id: "m6", leagueId: "l2", userId: "me", username: "me", avatarColor: "#E8C83A", text: "It's 5 tests, first to 3 series wins basically", createdAt: "Yesterday" },
-    { id: "m7", leagueId: "l2", userId: "u4", username: "ameliavoss", avatarColor: "#3AE86A", text: "Okay makes sense. I voted England to win", createdAt: "Yesterday" },
-  ],
-};
+// Ids of leagues that were previously seeded as mock data. Existing installs
+// may still have these cached in AsyncStorage, so we purge them once.
+const LEGACY_SEED_LEAGUE_IDS = ["l1", "l2"];
 
 function toLeaderboardEntry(api: ApiLeaderboardEntry): LeaderboardEntry {
   return {
@@ -189,11 +160,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     refreshPosts();
     refreshLeaderboard();
-    AsyncStorage.getItem("huddle_leagues").then((raw) => {
-      setLeagues(raw ? JSON.parse(raw) : SEED_LEAGUES);
-    });
-    AsyncStorage.getItem("huddle_messages").then((raw) => {
-      setMessages(raw ? JSON.parse(raw) : SEED_MESSAGES);
+    AsyncStorage.getItem("huddle_seed_purged").then((purged) => {
+      AsyncStorage.getItem("huddle_leagues").then((raw) => {
+        let parsed: League[] = raw ? JSON.parse(raw) : [];
+        if (!purged) {
+          parsed = parsed.filter((l) => !LEGACY_SEED_LEAGUE_IDS.includes(l.id));
+          AsyncStorage.setItem("huddle_leagues", JSON.stringify(parsed));
+        }
+        setLeagues(parsed);
+      });
+      AsyncStorage.getItem("huddle_messages").then((raw) => {
+        const parsed: Record<string, Message[]> = raw ? JSON.parse(raw) : {};
+        if (!purged) {
+          LEGACY_SEED_LEAGUE_IDS.forEach((id) => delete parsed[id]);
+          AsyncStorage.setItem("huddle_messages", JSON.stringify(parsed));
+        }
+        setMessages(parsed);
+      });
+      if (!purged) AsyncStorage.setItem("huddle_seed_purged", "1");
     });
   }, [refreshPosts, refreshLeaderboard]);
 
@@ -290,14 +274,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const fetchLeagueLeaderboard = useCallback(
     async (league: League): Promise<LeaderboardEntry[]> => {
-      // Translate the local "me" placeholder to the real user id; seed/dummy
-      // member ids are not real users, so the server simply ignores them and
-      // ranks only genuine members.
-      const ids = Array.from(
-        new Set(
-          league.memberIds.map((mid) => (mid === "me" ? user?.id ?? mid : mid)),
-        ),
-      );
+      const ids = Array.from(new Set(league.memberIds));
+      if (ids.length === 0) return [];
       try {
         const rows = await getMemberLeaderboard({ userIds: ids });
         return rows.map(toLeaderboardEntry);
@@ -305,7 +283,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return [];
       }
     },
-    [user?.id],
+    [],
   );
 
   const getUserStats = (userId: string): { points: number; winRate: number } | null => {
