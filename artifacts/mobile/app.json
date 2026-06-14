@@ -20,13 +20,14 @@
     "web": {
       "favicon": "./assets/images/icon.png",
       "bundler": "metro",
-      "output": "single"
+      "output": "single",
+      "display": "standalone"
     },
     "plugins": [
       [
         "expo-router",
         {
-          "origin": "https://replit.com/"
+          "origin": "https://huddle-app.vercel.app"
         }
       ],
       "expo-font",
