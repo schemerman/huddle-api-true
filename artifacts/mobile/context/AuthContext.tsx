@@ -79,11 +79,6 @@ function withDefaults(raw: Partial<HuddleUser>): HuddleUser {
   };
 }
 
-/**
- * Merge a server-authoritative user record into the local shape. Economy fields
- * (points, bankruptcy, wager count, daily claim) always come from the server;
- * social-only fields (joinedGroups) are preserved from local state.
- */
 function mergeServerUser(server: ApiUser, local: HuddleUser | null): HuddleUser {
   return {
     id: server.id,
@@ -125,20 +120,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /** Push identity to the server and adopt the authoritative economy fields. */
   const syncToServer = async (local: HuddleUser): Promise<HuddleUser> => {
-    try {
-      const server = await syncUser({
-        id: local.id,
-        email: local.email,
-        username: local.username,
-        displayName: local.displayName,
-        dob: local.dob,
-        avatarColor: local.avatarColor,
-        profileComplete: local.profileComplete,
-      });
-      return mergeServerUser(server, local);
-    } catch {
-      return local;
-    }
+    // We removed the try/catch block here! 
+    // If the server rejects the request (e.g. duplicate email), it will now throw a real error
+    // so the frontend knows to stop and show a warning message.
+    const server = await syncUser({
+      id: local.id,
+      email: local.email,
+      username: local.username,
+      displayName: local.displayName,
+      dob: local.dob,
+      avatarColor: local.avatarColor,
+      profileComplete: local.profileComplete,
+    });
+    return mergeServerUser(server, local);
   };
 
   const login = async (email: string, _password: string): Promise<HuddleUser> => {
@@ -152,11 +146,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
     if (!raw) local.email = email;
     
-    // Sync with server and capture the returned user profile
     const syncedUser = await syncToServer(local);
     await persist(syncedUser);
     
-    // Return the profile so the login page can check if they have a username
     return syncedUser;
   };
 
