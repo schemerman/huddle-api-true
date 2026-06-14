@@ -37,8 +37,8 @@ export interface WagerDetails {
 interface AuthContextType {
   user: HuddleUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<HuddleUser>;
+  register: (email: string, password: string) => Promise<HuddleUser>;
   completeProfile: (username: string, dob: string, avatarColor: string) => Promise<void>;
   placeWager: (details: WagerDetails) => Promise<void>;
   claimDailyBonus: () => Promise<boolean>;
@@ -141,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const login = async (email: string, _password: string) => {
+  const login = async (email: string, _password: string): Promise<HuddleUser> => {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     const local = raw
       ? withDefaults(JSON.parse(raw))
@@ -151,16 +151,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           points: STARTING_BANKROLL,
         });
     if (!raw) local.email = email;
-    await persist(await syncToServer(local));
+    
+    // Sync with server and capture the returned user profile
+    const syncedUser = await syncToServer(local);
+    await persist(syncedUser);
+    
+    // Return the profile so the login page can check if they have a username
+    return syncedUser;
   };
 
-  const register = async (email: string, _password: string) => {
+  const register = async (email: string, _password: string): Promise<HuddleUser> => {
     const local = withDefaults({
       email,
       avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
       points: STARTING_BANKROLL,
     });
-    await persist(await syncToServer(local));
+    
+    const syncedUser = await syncToServer(local);
+    await persist(syncedUser);
+    
+    return syncedUser;
   };
 
   const completeProfile = async (username: string, dob: string, avatarColor: string) => {

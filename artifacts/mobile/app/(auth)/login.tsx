@@ -1,5 +1,5 @@
 import { Link, router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -21,6 +21,21 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showIosInstall, setShowIosInstall] = useState(false);
+
+  // Detect if user is on an iPhone Safari browser but hasn't installed the app yet
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent);
+      const isStandalone = 
+        window.matchMedia("(display-mode: standalone)").matches || 
+        (window.navigator as any).standalone;
+        
+      if (isIos && !isStandalone) {
+        setShowIosInstall(true);
+      }
+    }
+  }, []);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -33,9 +48,21 @@ export default function LoginScreen() {
     }
     setLoading(true);
     setError("");
+    
     try {
-      await login(email.trim(), password);
-      router.replace("/");
+      // Assuming your login function returns the user data or session
+      const response = await login(email.trim(), password);
+      
+      // If your AuthContext exposes the user profile, we check the username here
+      // Note: If your login() doesn't return data, you may need to fetch the profile first!
+      const hasUsername = response?.username || response?.user?.username;
+
+      if (hasUsername) {
+        router.replace("/(tabs)"); // Send veterans straight to the app
+      } else {
+        router.replace("/complete-profile"); // Send newbies to the setup screen
+      }
+      
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -69,7 +96,7 @@ export default function LoginScreen() {
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
-              placeholder="you@university.ac.uk"
+              placeholder="you@kent.ac.uk"
               placeholderTextColor="#ABABAB"
               value={email}
               onChangeText={setEmail}
@@ -102,6 +129,17 @@ export default function LoginScreen() {
             </Pressable>
           </Link>
         </View>
+
+        {/* Custom Apple iOS Installation Banner */}
+        {showIosInstall && (
+          <View style={styles.iosBanner}>
+            <Text style={styles.iosBannerTitle}>Install HUDDLE</Text>
+            <Text style={styles.iosBannerText}>
+              1. Tap the Share button at the bottom of Safari.{"\n"}
+              2. Scroll down and tap "Add to Home Screen".
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -173,5 +211,25 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     fontSize: 14,
     color: "#000000",
+  },
+  iosBanner: {
+    marginTop: 40,
+    padding: 16,
+    backgroundColor: "#F8F8F8",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E8E8E8",
+  },
+  iosBannerTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 14,
+    color: "#000000",
+    marginBottom: 6,
+  },
+  iosBannerText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    color: "#8A8A8A",
+    lineHeight: 20,
   },
 });
