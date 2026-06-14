@@ -20,7 +20,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
 
-setBaseUrl('http://172.20.10.5:5000');
+setBaseUrl('https://huddle-api-true.onrender.com');
 
 SplashScreen.preventAutoHideAsync();
 
