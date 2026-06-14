@@ -136,9 +136,8 @@ export default function PostDetailScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const post = posts.find((p) => p.id === id);
-  const seedComments = MOCK_COMMENTS[id ?? ""] ?? FALLBACK_COMMENTS;
 
-  const [comments, setComments] = useState<Comment[]>(seedComments);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [inputText, setInputText] = useState("");
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
   const inputRef = useRef<TextInput>(null);
@@ -146,9 +145,7 @@ export default function PostDetailScreen() {
 
   const openProfile = (userId: string, username: string, displayName: string, avatarColor: string) => {
     if (userId === user?.id) return;
-    const stats =
-      getUserStats(userId) ??
-      getUserStats(USERNAME_TO_USERID[username] ?? "") ?? { points: 0, winRate: 0 };
+    const stats = getUserStats(userId) ?? { points: 0, winRate: 0 };
     setProfileUser({ userId, username, displayName, avatarColor, points: stats.points, winRate: stats.winRate });
   };
 

@@ -21,8 +21,35 @@ import { useAuth } from "@/context/AuthContext";
 import { HuddleButton } from "@/components/HuddleButton";
 import type { League } from "@/context/DataContext";
 
-function HuddleCard({ league, onPress }: { league: League; onPress: () => void }) {
+function HuddleCard({ 
+  league, 
+  onPress, 
+  onLeave 
+}: { 
+  league: League; 
+  onPress: () => void;
+  onLeave: () => void;
+}) {
   const colors = useColors();
+  
+  const handleLeave = () => {
+    Alert.alert(
+      "Leave This Huddle?",
+      `Are you sure you want to leave ${league.name}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Leave", 
+          style: "destructive", 
+          onPress: () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            onLeave();
+          } 
+        }
+      ]
+    );
+  };
+
   return (
     <Pressable
       onPress={onPress}
@@ -40,6 +67,12 @@ function HuddleCard({ league, onPress }: { league: League; onPress: () => void }
           {league.memberIds.length} members · Code: {league.code}
         </Text>
       </View>
+      
+      {/* The New Leave Button */}
+      <Pressable onPress={handleLeave} style={{ padding: 8 }}>
+        <Feather name="log-out" size={18} color="#E8533A" />
+      </Pressable>
+      
       <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
     </Pressable>
   );
@@ -48,7 +81,7 @@ function HuddleCard({ league, onPress }: { league: League; onPress: () => void }
 export default function HuddlesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { leagues, createLeague, joinLeague } = useData();
+  const { leagues, createLeague, joinLeague, leaveLeague } = useData();
   const { user } = useAuth();
   const [modal, setModal] = useState<"create" | "join" | null>(null);
   const [huddleName, setHuddleName] = useState("");
@@ -64,13 +97,25 @@ export default function HuddlesScreen() {
     setModal(null);
   };
 
-  const handleJoin = () => {
-    if (!joinCode.trim()) return;
-    const success = joinLeague(joinCode.trim().toUpperCase());
+  const handleJoin = async () => {
+    const codeToJoin = joinCode.trim().toUpperCase();
+    if (!codeToJoin) return;
+
+    // Check if we are already in this Huddle
+    const alreadyJoined = leagues.some((l) => l.code === codeToJoin);
+    if (alreadyJoined) {
+      Alert.alert("Already Joined", "You are already a member of this Huddle!");
+      setJoinCode("");
+      setModal(null);
+      return;
+    }
+
+    const success = await joinLeague(codeToJoin);
     if (!success) {
       Alert.alert("Not found", "No huddle found with that code. Double-check and try again.");
       return;
     }
+    
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setJoinCode("");
     setModal(null);
@@ -97,12 +142,13 @@ export default function HuddlesScreen() {
       </View>
 
       <FlatList<League>
-        data={leagues}
+        data={leagues.filter((league) => user && league.memberIds.includes(user.id))}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <HuddleCard
             league={item}
             onPress={() => router.push(`/league/${item.id}`)}
+            onLeave={() => leaveLeague(item.id)}
           />
         )}
         ListEmptyComponent={

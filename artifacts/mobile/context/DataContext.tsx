@@ -98,10 +98,6 @@ function toPost(api: ApiPost): Post {
   };
 }
 
-// Ids of leagues that were previously seeded as mock data. Existing installs
-// may still have these cached in AsyncStorage, so we purge them once.
-const LEGACY_SEED_LEAGUE_IDS = ["l1", "l2"];
-
 function toLeaderboardEntry(api: ApiLeaderboardEntry): LeaderboardEntry {
   return {
     userId: api.userId,
@@ -123,8 +119,10 @@ interface DataContextType {
   likePost: (postId: string) => void;
   voteOnPrediction: (postId: string, choice: "A" | "B") => void;
   sendMessage: (leagueId: string, text: string) => void;
-  createLeague: (name: string) => League;
-  joinLeague: (code: string) => boolean;
+  createLeague: (name: string) => Promise<League | null>;
+  joinLeague: (code: string) => Promise<boolean>;
+  leaveLeague: (leagueId: string) => Promise<void>;
+  refreshLeagues: () => Promise<void>;
   refreshLeaderboard: () => Promise<void>;
   fetchLeagueLeaderboard: (league: League) => Promise<LeaderboardEntry[]>;
   getUserStats: (userId: string) => { points: number; winRate: number } | null;
@@ -157,34 +155,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refreshLeagues = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/leagues/${user.id}`);
+      if (res.ok) setLeagues(await res.json());
+    } catch (e) {
+      console.error("Fetch leagues error:", e);
+    }
+  }, [user]);
+
   useEffect(() => {
     refreshPosts();
     refreshLeaderboard();
-    AsyncStorage.getItem("huddle_seed_purged").then((purged) => {
-      AsyncStorage.getItem("huddle_leagues").then((raw) => {
-        let parsed: League[] = raw ? JSON.parse(raw) : [];
-        if (!purged) {
-          parsed = parsed.filter((l) => !LEGACY_SEED_LEAGUE_IDS.includes(l.id));
-          AsyncStorage.setItem("huddle_leagues", JSON.stringify(parsed));
-        }
-        setLeagues(parsed);
-      });
-      AsyncStorage.getItem("huddle_messages").then((raw) => {
-        const parsed: Record<string, Message[]> = raw ? JSON.parse(raw) : {};
-        if (!purged) {
-          LEGACY_SEED_LEAGUE_IDS.forEach((id) => delete parsed[id]);
-          AsyncStorage.setItem("huddle_messages", JSON.stringify(parsed));
-        }
-        setMessages(parsed);
-      });
-      if (!purged) AsyncStorage.setItem("huddle_seed_purged", "1");
+    refreshLeagues();
+    AsyncStorage.getItem("huddle_messages").then((raw) => {
+      setMessages(raw ? JSON.parse(raw) : {});
     });
-  }, [refreshPosts, refreshLeaderboard]);
+  }, [refreshPosts, refreshLeaderboard, refreshLeagues]);
 
-  const saveLeagues = (next: League[]) => {
-    setLeagues(next);
-    AsyncStorage.setItem("huddle_leagues", JSON.stringify(next));
-  };
   const saveMessages = (next: Record<string, Message[]>) => {
     setMessages(next);
     AsyncStorage.setItem("huddle_messages", JSON.stringify(next));
@@ -242,34 +231,54 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     saveMessages(next);
   };
 
-  const createLeague = (name: string): League => {
-    if (!user) throw new Error("Not authenticated");
-    const code = name.replace(/\s/g, "").toUpperCase().substring(0, 6) + Math.floor(Math.random() * 99);
-    const league: League = {
-      id: generateId(),
-      name,
-      code,
-      memberIds: [user.id],
-      ownerId: user.id,
-      createdAt: new Date().toISOString(),
-    };
-    saveLeagues([...leagues, league]);
-    joinGroup(league.id);
-    return league;
+  const createLeague = async (name: string): Promise<League | null> => {
+    if (!user) return null;
+    try {
+      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/leagues`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, userId: user.id }),
+      });
+      if (!res.ok) return null;
+      const newLeague = await res.json();
+      setLeagues((prev) => [...prev, newLeague]);
+      joinGroup(newLeague.id);
+      return newLeague;
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
   };
 
-  const joinLeague = (code: string): boolean => {
+  const joinLeague = async (code: string): Promise<boolean> => {
     if (!user) return false;
-    const idx = leagues.findIndex((l) => l.code === code);
-    if (idx === -1) return false;
-    const league = leagues[idx];
-    joinGroup(league.id);
-    if (league.memberIds.includes(user.id)) return true;
-    const updated = { ...league, memberIds: [...league.memberIds, user.id] };
-    const next = [...leagues];
-    next[idx] = updated;
-    saveLeagues(next);
-    return true;
+    try {
+      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/leagues/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, userId: user.id }),
+      });
+      if (!res.ok) return false;
+      await refreshLeagues();
+      return true;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  };
+
+  const leaveLeague = async (leagueId: string) => {
+    if (!user) return;
+    try {
+      await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/leagues/leave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leagueId, userId: user.id }),
+      });
+      setLeagues((prev) => prev.filter((l) => l.id !== leagueId));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const fetchLeagueLeaderboard = useCallback(
@@ -293,7 +302,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <DataContext.Provider value={{ posts, leagues, messages, leaderboard, addPost, likePost, voteOnPrediction, sendMessage, createLeague, joinLeague, refreshLeaderboard, fetchLeagueLeaderboard, getUserStats }}>
+    <DataContext.Provider value={{ posts, leagues, messages, leaderboard, addPost, likePost, voteOnPrediction, sendMessage, createLeague, joinLeague, leaveLeague, refreshLeagues, refreshLeaderboard, fetchLeagueLeaderboard, getUserStats }}>
       {children}
     </DataContext.Provider>
   );

@@ -13,4 +13,8 @@ if (!process.env.DATABASE_URL) {
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 export const db = drizzle(pool, { schema });
 
+// This single line restores ALL of your original tables automatically
 export * from "./schema";
+
+// This line adds our new multiplayer Huddles table
+export { leagues as leaguesTable } from "./schema/leagues";
