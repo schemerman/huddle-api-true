@@ -19,8 +19,7 @@ import { PerformanceTitleBadge } from "@/components/PerformanceTitleBadge";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { ReceiptModal } from "@/components/ReceiptModal";
-import { type Wager } from "@workspace/api-client-react";
-import { supabase } from "@/lib/supabase";
+import { listWagers, type Wager } from "@workspace/api-client-react";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -51,37 +50,16 @@ export default function ProfileScreen() {
       const userId = user?.id;
       if (!userId) return;
       let active = true;
-      
       (async () => {
         try {
-          // 🚨 We bypass the old cached API and ask Supabase directly!
-          const { data, error } = await supabase
-            .from("wagers")
-            .select("*")
-            .eq("user_id", userId);
-
-          let finalData = data;
-
-          // Failsafe just in case your database column is named 'userId' instead of 'user_id'
-          if (error && error.message.includes("user_id")) {
-            const fallback = await supabase
-              .from("wagers")
-              .select("*")
-              .eq("userId", userId);
-            finalData = fallback.data;
-          }
-
-          if (active && finalData) {
-            // Reverse the array so your newest bets show up at the very top of the list
-            setWagers((finalData as Wager[]).reverse());
-          }
+          const data = await listWagers(userId);
+          if (active) setWagers(data);
         } catch {
           // Leave the last known list in place on a transient fetch error.
         } finally {
           if (active) setWagersLoaded(true);
         }
       })();
-      
       return () => {
         active = false;
       };
