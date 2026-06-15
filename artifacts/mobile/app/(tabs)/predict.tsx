@@ -1,5 +1,7 @@
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useEffect, useRef, useState } from "react";
+import { useFocusEffect, router } from "expo-router";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -16,10 +18,10 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { listFixtures, type Fixture as ApiFixture } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 type Choice = "A" | "D" | "B";
 
@@ -40,13 +42,10 @@ interface Fixture {
   userWager?: number;
 }
 
-/** Per-fixture user interaction state, kept locally and merged onto server data. */
 interface FixtureOverlay {
   userVote: Choice;
   userWager: number;
 }
-
-const OVERLAY_KEY = "huddle_fixture_overlay_v1";
 
 function formatKickoff(iso: string): string {
   const d = new Date(iso);
@@ -167,7 +166,6 @@ export default function PredictScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
-  const [overlay, setOverlay] = useState<Record<string, FixtureOverlay>>({});
   const [loading, setLoading] = useState(true);
   const [wagerTarget, setWagerTarget] = useState<WagerTarget | null>(null);
   const [wagerAmount, setWagerAmount] = useState("10");
@@ -202,34 +200,62 @@ export default function PredictScreen() {
     });
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const raw = await AsyncStorage.getItem(OVERLAY_KEY);
-      const loadedOverlay: Record<string, FixtureOverlay> = raw ? JSON.parse(raw) : {};
-      if (!cancelled) setOverlay(loadedOverlay);
-      try {
-        const apiFixtures = await listFixtures();
-        if (!cancelled) {
-          setFixtures(apiFixtures.map((f) => toFixture(f, loadedOverlay)));
-        }
-      } catch {
-        if (!cancelled) setFixtures([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // The Bulletproof Sync: Fetch API games, then cross-reference with actual Cloud Database picks
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      
+      const loadLiveFixtures = async () => {
+        try {
+          // 1. Get raw games from API
+          const apiFixtures = await listFixtures();
+          const cloudOverlay: Record<string, FixtureOverlay> = {};
 
-  useEffect(() => {
-    if (!wagerTarget) {
-      translateY.setValue(0);
-      setSubmitting(false);
-    }
-  }, [wagerTarget]);
+          // 2. Fetch truth from Supabase (bypassing local storage)
+          if (user?.id) {
+            const { data } = await supabase
+              .from("wagers")
+              .select("*")
+              .eq("user_id", user.id);
+
+            if (data) {
+              data.forEach((w: any) => {
+                // Determine ID (safeguard against different column names)
+                const fId = w.fixture_id || w.fixtureId;
+                
+                if (fId) {
+                  cloudOverlay[fId] = { userVote: w.choice, userWager: w.amount };
+                } else {
+                  // Ultimate Failsafe: Match by question text if fixture_id is missing in DB
+                  const matchedApi = apiFixtures.find(
+                    (apiF) => `Who will win: ${apiF.homeTeam} or ${apiF.awayTeam}?` === w.question
+                  );
+                  if (matchedApi) {
+                    cloudOverlay[matchedApi.id] = { userVote: w.choice, userWager: w.amount };
+                  }
+                }
+              });
+            }
+          }
+
+          // 3. Map the data and disable voted cards
+          if (active) {
+            setFixtures(apiFixtures.map((f) => toFixture(f, cloudOverlay)));
+          }
+        } catch {
+          if (active) setFixtures([]);
+        } finally {
+          if (active) setLoading(false);
+        }
+      };
+
+      loadLiveFixtures();
+
+      return () => {
+        active = false;
+      };
+    }, [user?.id])
+  );
 
   const handleOpenWager = (fixture: Fixture, choice: Choice) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -268,23 +294,17 @@ export default function PredictScreen() {
       return;
     }
 
-    const nextOverlay: Record<string, FixtureOverlay> = {
-      ...overlay,
-      [fixture.id]: { userVote: choice, userWager: capped },
-    };
-    setOverlay(nextOverlay);
+    // Instantly lock the UI upon successful database push
     setFixtures((prev) =>
       prev.map((f) =>
-        f.id !== fixture.id || f.userVote
-          ? f
-          : { ...f, userVote: choice, userWager: capped },
-      ),
+        f.id === fixture.id ? { ...f, userVote: choice, userWager: capped } : f
+      )
     );
-    await AsyncStorage.setItem(OVERLAY_KEY, JSON.stringify(nextOverlay));
 
     Animated.timing(translateY, { toValue: 600, duration: 220, useNativeDriver: true }).start(() => {
       setWagerTarget(null);
       translateY.setValue(0);
+      setSubmitting(false);
     });
   };
 

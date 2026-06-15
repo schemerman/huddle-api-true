@@ -40,8 +40,8 @@ export default function ProfileScreen() {
   const [wagers, setWagers] = useState<any[]>([]);
   const [wagersLoaded, setWagersLoaded] = useState(false);
   
-  // Local state to instantly lock the button when pressed
-  const [localClaimed, setLocalClaimed] = useState(false);
+  // Live cloud database states for perfect cross-device syncing
+  const [cloudProfile, setCloudProfile] = useState<any>(null);
 
   useEffect(() => {
     setWagers([]);
@@ -53,17 +53,30 @@ export default function ProfileScreen() {
       const userId = user?.id;
       if (!userId) return;
       let active = true;
+      
       (async () => {
         try {
-          const { data } = await supabase
+          // 1. Fetch live profile stats (points, claims) directly from the database row
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", userId)
+            .single();
+
+          if (active && profileData) {
+            setCloudProfile(profileData);
+          }
+
+          // 2. Fetch recent wagers
+          const { data: wagersData } = await supabase
             .from("wagers")
             .select("*")
             .eq("user_id", userId)
             .order("created_at", { ascending: false });
             
-          if (active && data) setWagers(data);
+          if (active && wagersData) setWagers(wagersData);
         } catch {
-          // Leave the last known list in place on a transient fetch error.
+          // Keep fallback settings on transient errors
         } finally {
           if (active) setWagersLoaded(true);
         }
@@ -99,15 +112,28 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
-  // If localClaimed is true OR the database says they claimed it, lock the button
-  const isBonusReady = (Date.now() - (user.lastDailyClaim || 0) >= DAY_MS) && !localClaimed;
+  // Resolve cross-device live variables with safe standard state fallbacks
+  const currentPoints = cloudProfile?.points ?? user.points;
+  const currentWinRate = cloudProfile?.win_rate ?? cloudProfile?.winRate ?? user.winRate;
+  const lastClaim = cloudProfile?.last_daily_claim ?? cloudProfile?.lastDailyClaim ?? user.lastDailyClaim ?? 0;
+  const currentUsername = cloudProfile?.username ?? user.username;
+  const currentDisplayName = cloudProfile?.display_name ?? cloudProfile?.displayName ?? user.displayName;
+
+  const bonusReady = Date.now() - lastClaim >= DAY_MS;
+  const hoursLeft = Math.max(
+    1,
+    Math.ceil((DAY_MS - (Date.now() - lastClaim)) / (60 * 60 * 1000))
+  );
 
   const handleDailyBonus = async () => {
-    if (!isBonusReady) return;
+    if (!bonusReady) return;
     
     const ok = await claimDailyBonus();
     if (ok) {
-      setLocalClaimed(true); // Instantly grey out the button
+      // Re-fetch instantly from database to trigger lock state across context boundaries
+      const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+      if (data) setCloudProfile(data);
+
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -123,21 +149,24 @@ export default function ProfileScreen() {
   const handleBailout = async () => {
     const ok = await claimBailout();
     if (ok) {
+      const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+      if (data) setCloudProfile(data);
+
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
 
       if (Platform.OS === "web") {
-        window.alert("Bailout claimed! +100 emergency points. Spend them wisely.");
+        window.alert("Bailout claimed! +100 emergency points.");
       } else {
-        Alert.alert("Bailout claimed", "+100 emergency points. Spend them wisely.");
+        Alert.alert("Bailout claimed", "+100 emergency points.");
       }
     }
   };
 
   const statsData = [
-    { label: "Win Rate", value: `${user.winRate}%` },
-    { label: "Points", value: user.points.toLocaleString() },
+    { label: "Win Rate", value: `${currentWinRate}%` },
+    { label: "Points", value: currentPoints.toLocaleString() },
     { label: "Picks", value: wagers.length.toLocaleString() },
   ];
 
@@ -159,19 +188,19 @@ export default function ProfileScreen() {
         <View style={styles.heroSection}>
           <Avatar
             color={user.avatarColor}
-            username={user.username || user.email}
+            username={currentUsername || user.email}
             size={80}
             highlight={(user.currentStreak ?? 0) >= 3}
           />
           <View style={styles.heroText}>
             <Text style={[styles.displayName, { color: colors.foreground }]}>
-              {user.displayName || user.email}
+              {currentDisplayName || user.email}
             </Text>
             <Text style={[styles.handle, { color: colors.mutedForeground }]}>
-              @{user.username || "—"}
+              @{currentUsername || "—"}
             </Text>
             <View style={styles.perfRow}>
-              <PerformanceTitleBadge winRate={user.winRate} />
+              <PerformanceTitleBadge winRate={currentWinRate} />
               {(user.currentStreak ?? 0) >= 3 && (
                 <Text style={[styles.streakText, { color: colors.mutedForeground }]}>
                   {user.currentStreak}-streak heater
@@ -213,32 +242,32 @@ export default function ProfileScreen() {
         <View style={styles.economyRow}>
           <Pressable
             onPress={handleDailyBonus}
-            disabled={!isBonusReady}
+            disabled={!bonusReady}
             style={({ pressed }) => [
               styles.economyBtn,
               {
-                borderColor: isBonusReady ? colors.border : "#E5E5EA",
-                backgroundColor: isBonusReady ? colors.background : "#E5E5EA",
-                opacity: !isBonusReady ? 0.6 : (pressed ? 0.7 : 1),
+                borderColor: bonusReady ? colors.border : "#D1D1D6",
+                backgroundColor: bonusReady ? colors.background : "#E5E5EA",
+                opacity: !bonusReady ? 0.5 : (pressed ? 0.7 : 1),
               },
             ]}
           >
             <Feather
               name="gift"
               size={16}
-              color={isBonusReady ? colors.foreground : "#8E8E93"}
+              color={bonusReady ? colors.foreground : "#8E8E93"}
             />
             <Text
               style={[
                 styles.economyBtnText,
-                { color: isBonusReady ? colors.foreground : "#8E8E93" },
+                { color: bonusReady ? colors.foreground : "#8E8E93" },
               ]}
             >
-              {isBonusReady ? "Claim Daily Bonus" : "Bonus Claimed"}
+              {bonusReady ? "Claim Daily Bonus" : `Bonus in ${hoursLeft}h`}
             </Text>
           </Pressable>
 
-          {user.points <= 0 && (
+          {currentPoints <= 0 && (
             <Pressable
               onPress={handleBailout}
               style={({ pressed }) => [
@@ -287,7 +316,7 @@ export default function ProfileScreen() {
                 </View>
                 <View style={styles.settingsRow}>
                   <Feather name="at-sign" size={18} color={colors.foreground} />
-                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>@{user.username || "—"}</Text>
+                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>@{currentUsername || "—"}</Text>
                 </View>
               </View>
             </View>
@@ -391,36 +420,9 @@ export default function ProfileScreen() {
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} style={styles.agreementScroll}>
-              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
-                1. User-Generated Content
-              </Text>
+              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>1. User-Generated Content</Text>
               <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
-                You are solely responsible for the posts, predictions, and messages you share on
-                Huddle. Content must not be unlawful, abusive, or harassing.
-              </Text>
-
-              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
-                2. Assumption of Prediction Risk
-              </Text>
-              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
-                Huddle is a social prediction game played with virtual points that hold no monetary
-                value. All predictions are made for entertainment.
-              </Text>
-
-              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
-                3. Privacy Protections
-              </Text>
-              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
-                We collect only the information needed to operate your account. Your data is stored securely
-                on your device and is never sold to third parties.
-              </Text>
-
-              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
-                4. Fair Play
-              </Text>
-              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
-                Manipulating the points economy, exploiting bugs, or creating multiple accounts to
-                gain an unfair advantage is prohibited and may result in suspension.
+                You are solely responsible for the posts, predictions, and messages you share on Huddle. Content must not be unlawful, abusive, or harassing.
               </Text>
             </ScrollView>
           </View>
@@ -431,17 +433,9 @@ export default function ProfileScreen() {
         visible={!!receiptWager}
         onClose={() => setReceiptWager(null)}
         question={receiptWager?.question ?? ""}
-        finalResult={
-          receiptWager?.status === "won"
-            ? receiptWager.prediction || receiptWager.choice
-            : "—"
-        }
+        finalResult={receiptWager?.status === "won" ? receiptWager.prediction || receiptWager.choice : "—"}
         prediction={receiptWager?.prediction || receiptWager?.choice || ""}
-        points={
-          receiptWager?.status === "won"
-            ? receiptWager.payout
-            : receiptWager?.amount ?? 0
-        }
+        points={receiptWager?.status === "won" ? receiptWager.payout : receiptWager?.amount ?? 0}
         won={receiptWager?.status === "won"}
       />
     </View>
@@ -450,166 +444,50 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-  },
+  topBar: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
   title: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: -0.5 },
-  heroSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    gap: 16,
-  },
+  heroSection: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 24, gap: 16 },
   heroText: { flex: 1 },
   displayName: { fontFamily: "Inter_700Bold", fontSize: 20, letterSpacing: -0.3 },
   handle: { fontFamily: "Inter_400Regular", fontSize: 14, marginTop: 2 },
   perfRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" },
   streakText: { fontFamily: "Inter_500Medium", fontSize: 13 },
   dob: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 4 },
-  bankruptBanner: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderRadius: 12,
-  },
-  bankruptTag: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
-    letterSpacing: 2,
-  },
+  bankruptBanner: { marginHorizontal: 16, marginBottom: 16, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderRadius: 12 },
+  bankruptTag: { fontFamily: "Inter_700Bold", fontSize: 15, letterSpacing: 2 },
   bankruptSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 3 },
   statsRow: { flexDirection: "row", borderTopWidth: 1, borderBottomWidth: 1 },
   statItem: { flex: 1, alignItems: "center", paddingVertical: 18, gap: 4 },
   statValue: { fontFamily: "Inter_700Bold", fontSize: 24, letterSpacing: -1 },
-  statLabel: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  economyRow: {
-    flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  economyBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderRadius: 999,
-  },
-  economyBtnSolid: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 999,
-  },
+  statLabel: { fontFamily: "Inter_400Regular", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
+  economyRow: { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 16 },
+  economyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderWidth: 1, borderRadius: 999 },
+  economyBtnSolid: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 999 },
   economyBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
-  tabRow: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    paddingHorizontal: 4,
-    marginTop: 20,
-  },
-  tabBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 13,
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
-  },
+  tabRow: { flexDirection: "row", borderBottomWidth: 1, paddingHorizontal: 4, marginTop: 20 },
+  tabBtn: { paddingHorizontal: 20, paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: "transparent" },
   tabLabel: { fontFamily: "Inter_500Medium", fontSize: 14 },
   section: { paddingTop: 24, paddingHorizontal: 16, gap: 10 },
   sectionTitle: { fontFamily: "Inter_500Medium", fontSize: 11, letterSpacing: 1 },
   settingsGroup: { borderWidth: 1, borderRadius: 12, overflow: "hidden" },
-  settingsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    gap: 12,
-    borderBottomWidth: 1,
-  },
+  settingsRow: { flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 16, gap: 12, borderBottomWidth: 1 },
   settingsLabel: { fontFamily: "Inter_400Regular", fontSize: 15, flex: 1 },
-  signOutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    margin: 20,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderRadius: 999,
-    borderColor: "#E8E8E8",
-  },
+  signOutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, margin: 20, paddingVertical: 14, borderWidth: 1, borderRadius: 999, borderColor: "#E8E8E8" },
   signOutText: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: "#FF3B30" },
   wagersSection: { paddingHorizontal: 16, paddingTop: 20 },
-  wagersHeading: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 16,
-    letterSpacing: -0.2,
-    marginBottom: 14,
-  },
-  wagersEmpty: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    lineHeight: 21,
-    paddingVertical: 8,
-  },
-  wagerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 13,
-    borderBottomWidth: 1,
-  },
+  wagersHeading: { fontFamily: "Inter_700Bold", fontSize: 16, letterSpacing: -0.2, marginBottom: 14 },
+  wagersEmpty: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 21, paddingVertical: 8 },
+  wagerRow: { flexDirection: "row", alignItems: "center", justifyWagers: "space-between", paddingVertical: 13, borderBottomWidth: 1 },
   wagerLeft: { flex: 1 },
   wagerTeam: { fontFamily: "Inter_400Regular", fontSize: 14 },
   wagerFixture: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
   wagerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   wagerBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, marginLeft: 12 },
   wagerStatus: { fontFamily: "Inter_600SemiBold", fontSize: 11 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   modalDismiss: { flex: 1 },
-  modalSheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 40,
-    maxHeight: "80%",
-  },
-  modalHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
+  modalSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40, maxHeight: "80%" },
+  modalHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   modalTitle: { fontFamily: "Inter_700Bold", fontSize: 20, letterSpacing: -0.3 },
   agreementScroll: { flexGrow: 0 },
-  agreementHeading: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 15,
-    marginBottom: 6,
-    marginTop: 14,
-  },
-  agreementText: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 21 },
 });
