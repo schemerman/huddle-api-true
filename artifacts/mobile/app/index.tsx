@@ -1,19 +1,25 @@
 import { Redirect } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
-import { View, ActivityIndicator } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 
 export default function Index() {
-  const { user, isLoading } = useAuth();
+  const { user, loading } = useAuth();
 
-  if (isLoading) {
+  // 1. Give the app a split second to pull your secure session from the database
+  if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" }}>
-        <ActivityIndicator color="#000000" />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FFFFFF" }}>
+        <ActivityIndicator size="large" color="#000000" />
       </View>
     );
   }
 
-  if (!user) return <Redirect href="/(auth)/login" />;
-  if (!user.profileComplete) return <Redirect href="/(auth)/complete-profile" />;
+  // 2. If they are not logged in at all, bounce them to the login screen
+  if (!user) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
+  // 3. If they are logged in, send them straight into the action!
+  // No more forced profile checks.
   return <Redirect href="/(tabs)" />;
 }
