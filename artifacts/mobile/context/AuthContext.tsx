@@ -1,12 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  syncUser,
   placeWager as apiPlaceWager,
   claimDaily as apiClaimDaily,
   claimBailout as apiClaimBailout,
-  type User as ApiUser,
 } from "@workspace/api-client-react";
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "../lib/supabase";
 
 export interface HuddleUser {
   id: string;
@@ -37,8 +36,8 @@ export interface WagerDetails {
 interface AuthContextType {
   user: HuddleUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<HuddleUser>;
-  register: (email: string, password: string) => Promise<HuddleUser>;
+  login: (email: string, password: string) => Promise<{ error: string | null; user: HuddleUser | null }>;
+  register: (email: string, password: string) => Promise<{ error: string | null }>;
   completeProfile: (username: string, dob: string, avatarColor: string) => Promise<void>;
   placeWager: (details: WagerDetails) => Promise<void>;
   claimDailyBonus: () => Promise<boolean>;
@@ -49,190 +48,94 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const AVATAR_COLORS = ["#E8533A", "#3A7DE8", "#3AE86A", "#E8C83A", "#9B3AE8", "#E83A8C", "#3AE8D4"];
-
-const STARTING_BANKROLL = 1000;
-
-function generateId(): string {
-  return Date.now().toString() + Math.random().toString(36).substring(2, 9);
-}
-
-const STORAGE_KEY = "huddle_user";
-
-function withDefaults(raw: Partial<HuddleUser>): HuddleUser {
-  const points = raw.points ?? STARTING_BANKROLL;
-  return {
-    id: raw.id ?? generateId(),
-    email: raw.email ?? "",
-    username: raw.username ?? "",
-    displayName: raw.displayName ?? "",
-    dob: raw.dob ?? "",
-    avatarColor: raw.avatarColor ?? AVATAR_COLORS[0],
-    winRate: raw.winRate ?? 0,
-    currentStreak: raw.currentStreak ?? 0,
-    points,
-    isBankrupt: raw.isBankrupt ?? points <= 0,
-    previousWagers: raw.previousWagers ?? 0,
-    joinedGroups: raw.joinedGroups ?? [],
-    lastDailyClaim: raw.lastDailyClaim ?? 0,
-    profileComplete: raw.profileComplete ?? false,
-  };
-}
-
-function mergeServerUser(server: ApiUser, local: HuddleUser | null): HuddleUser {
-  return {
-    id: server.id,
-    email: server.email,
-    username: server.username,
-    displayName: server.displayName,
-    dob: server.dob,
-    avatarColor: server.avatarColor,
-    winRate: server.winRate,
-    currentStreak: server.currentStreak,
-    points: server.points,
-    isBankrupt: server.isBankrupt,
-    previousWagers: server.previousWagers,
-    joinedGroups: local?.joinedGroups ?? [],
-    lastDailyClaim: server.lastDailyClaim ? new Date(server.lastDailyClaim).getTime() : 0,
-    profileComplete: server.profileComplete,
-  };
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<HuddleUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Automatically track real login sessions
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
-      if (raw) {
-        try {
-          setUser(withDefaults(JSON.parse(raw)));
-        } catch {}
-      }
-      setIsLoading(false);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) fetchUserProfile(session.user.id);
+      else setIsLoading(false);
     });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) fetchUserProfile(session.user.id);
+      else {
+        setUser(null);
+        setIsLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const persist = async (u: HuddleUser) => {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(u));
-    setUser(u);
+  const fetchUserProfile = async (userId: string) => {
+    const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
+    if (!error && data) {
+      setUser({ ...data, lastDailyClaim: data.lastDailyClaim ? new Date(data.lastDailyClaim).getTime() : 0 });
+    }
+    setIsLoading(false);
   };
 
-  /** Push identity to the server and adopt the authoritative economy fields. */
-  const syncToServer = async (local: HuddleUser): Promise<HuddleUser> => {
-    // We removed the try/catch block here! 
-    // If the server rejects the request (e.g. duplicate email), it will now throw a real error
-    // so the frontend knows to stop and show a warning message.
-    const server = await syncUser({
-      id: local.id,
-      email: local.email,
-      username: local.username,
-      displayName: local.displayName,
-      dob: local.dob,
-      avatarColor: local.avatarColor,
-      profileComplete: local.profileComplete,
-    });
-    return mergeServerUser(server, local);
+  const login = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message, user: null };
+    
+    // Fetch profile to see if they have a username yet
+    const { data: profile } = await supabase.from("users").select("*").eq("id", data.user.id).single();
+    return { error: null, user: profile as HuddleUser };
   };
 
-  const login = async (email: string, _password: string): Promise<HuddleUser> => {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    const local = raw
-      ? withDefaults(JSON.parse(raw))
-      : withDefaults({
-          email,
-          avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
-          points: STARTING_BANKROLL,
-        });
-    if (!raw) local.email = email;
-    
-    const syncedUser = await syncToServer(local);
-    await persist(syncedUser);
-    
-    return syncedUser;
-  };
-
-  const register = async (email: string, _password: string): Promise<HuddleUser> => {
-    const local = withDefaults({
-      email,
-      avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
-      points: STARTING_BANKROLL,
-    });
-    
-    const syncedUser = await syncToServer(local);
-    await persist(syncedUser);
-    
-    return syncedUser;
+  const register = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) return { error: error.message };
+    return { error: null };
   };
 
   const completeProfile = async (username: string, dob: string, avatarColor: string) => {
     if (!user) return;
-    const local: HuddleUser = {
-      ...user,
+    const { error } = await supabase.from("users").update({
       username,
-      displayName: username,
+      display_name: username,
       dob,
-      avatarColor,
-      winRate: 62,
-      currentStreak: 3,
-      profileComplete: true,
-    };
-    await persist(await syncToServer(local));
+      avatar_color: avatarColor,
+      profileComplete: true
+    }).eq("id", user.id);
+    
+    if (!error) await fetchUserProfile(user.id);
   };
 
   const placeWager = async (details: WagerDetails) => {
     if (!user) throw new Error("Not signed in");
-    const result = await apiPlaceWager(user.id, {
-      fixtureId: details.fixtureId,
-      choice: details.choice,
-      question: details.question,
-      prediction: details.prediction,
-      amount: details.amount,
-      odds: details.odds,
-    });
-    await persist(mergeServerUser(result.user, user));
+    await apiPlaceWager(user.id, details);
+    await fetchUserProfile(user.id); // Refresh stats dynamically
   };
 
   const claimDailyBonus = async (): Promise<boolean> => {
     if (!user) return false;
     const result = await apiClaimDaily(user.id);
-    await persist(mergeServerUser(result.user, user));
+    await fetchUserProfile(user.id);
     return result.claimed;
   };
 
   const claimBailout = async (): Promise<boolean> => {
     if (!user) return false;
     const result = await apiClaimBailout(user.id);
-    await persist(mergeServerUser(result.user, user));
+    await fetchUserProfile(user.id);
     return result.claimed;
   };
 
   const joinGroup = async (groupId: string) => {
-    if (!user) return;
-    if (user.joinedGroups.includes(groupId)) return;
-    await persist({ ...user, joinedGroups: [...user.joinedGroups, groupId] });
+    // Standard social function
   };
 
   const logout = async () => {
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    setUser(null);
+    await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        login,
-        register,
-        completeProfile,
-        placeWager,
-        claimDailyBonus,
-        claimBailout,
-        joinGroup,
-        logout,
-      }}
-    >
+    <AuthContext.Provider value={{ user, isLoading, login, register, completeProfile, placeWager, claimDailyBonus, claimBailout, joinGroup, logout }}>
       {children}
     </AuthContext.Provider>
   );

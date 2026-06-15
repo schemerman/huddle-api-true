@@ -42,25 +42,26 @@ export default function LoginScreen() {
       setError("Please fill in all fields.");
       return;
     }
-    if (!email.trim().toLowerCase().endsWith("@kent.ac.uk")) {
-      setError("An exclusive @kent.ac.uk email is required to join Huddle.");
-      return;
-    }
     setLoading(true);
     setError("");
     
     try {
-      // Assuming your login function returns the user data or session
-      const response = await login(email.trim(), password);
+      const result = await login(email.trim(), password);
       
-      // If your AuthContext exposes the user profile, we check the username here
-      // Note: If your login() doesn't return data, you may need to fetch the profile first!
-      const hasUsername = response?.username || response?.user?.username;
+      if (result.error) {
+        if (result.error.toLowerCase().includes("invalid login credentials")) {
+          setError("Incorrect email or password.");
+        } else {
+          setError(result.error);
+        }
+        return;
+      }
 
-      if (hasUsername) {
-        router.replace("/(tabs)"); // Send veterans straight to the app
+      // Check if they have set a username in the database
+      if (result.user?.username) {
+        router.replace("/(tabs)");
       } else {
-        router.replace("/complete-profile"); // Send newbies to the setup screen
+        router.replace("/complete-profile");
       }
       
     } catch {

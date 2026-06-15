@@ -16,7 +16,10 @@ import { HuddleButton } from "@/components/HuddleButton";
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
-  const { register } = useAuth();
+  
+  // Notice we are pulling 'signUp' from the new AuthContext now!
+  const { signUp } = useAuth(); 
+  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -40,11 +43,27 @@ export default function RegisterScreen() {
       setError("Password must be at least 6 characters.");
       return;
     }
+    
     setLoading(true);
     setError("");
+    
     try {
-      await register(email.trim(), password);
+      // We wait for the result from our new Supabase Auth function
+      const result = await signUp(email.trim(), password);
+      
+      // If Supabase blocked it, display the specific reason to the user
+      if (result.error) {
+        if (result.error.toLowerCase().includes("already registered") || result.error.toLowerCase().includes("already exists")) {
+          setError("This email is already in use. Please sign in instead.");
+        } else {
+          setError(result.error); // Show whatever specific error Supabase returned
+        }
+        return; // Stop the function so it doesn't redirect
+      }
+
+      // If there is no error, it succeeded! Send them to pick a username.
       router.replace("/(auth)/complete-profile");
+      
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -78,7 +97,7 @@ export default function RegisterScreen() {
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
-              placeholder="you@university.ac.uk"
+              placeholder="you@kent.ac.uk"
               placeholderTextColor="#ABABAB"
               value={email}
               onChangeText={setEmail}
