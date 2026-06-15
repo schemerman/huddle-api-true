@@ -5,10 +5,18 @@ import React, { useCallback, useState } from "react";
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import palette from "@/constants/colors";
 import { PerformanceTitleBadge } from "@/components/PerformanceTitleBadge";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
+import { ReceiptModal } from "@/components/ReceiptModal";
 import { supabase } from "@/lib/supabase";
+
+function statusLabel(status: string): string {
+  if (status === "won") return "Won";
+  if (status === "lost") return "Lost";
+  return "Pending";
+}
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -16,6 +24,7 @@ export default function ProfileScreen() {
   const { user, logout, claimDailyBonus } = useAuth();
   const [tab, setTab] = useState<"stats" | "wagers">("stats");
   const [wagers, setWagers] = useState<any[]>([]);
+  const [receiptWager, setReceiptWager] = useState<any | null>(null);
 
   const fetchWagers = async () => {
     if (!user?.id) return;
@@ -25,11 +34,7 @@ export default function ProfileScreen() {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
     
-    if (data) {
-      // DEBUGGING: This will print the raw data to your browser console
-      console.log("DEBUG: Raw wager data received:", data[0]); 
-      setWagers(data);
-    }
+    if (data) setWagers(data);
   };
 
   useFocusEffect(useCallback(() => { fetchWagers(); }, [user?.id]));
@@ -60,19 +65,34 @@ export default function ProfileScreen() {
           <Pressable onPress={() => setTab("wagers")} style={styles.tabBtn}><Text style={{ fontWeight: tab === 'wagers' ? 'bold' : 'normal' }}>Picks</Text></Pressable>
         </View>
 
-        {tab === "wagers" && (
+        {tab === "wagers" ? (
           <View style={{ padding: 20 }}>
-            {wagers.length === 0 ? <Text style={{ textAlign: 'center' }}>No picks placed yet.</Text> : 
-             wagers.map((w) => (
-               <View key={w.id} style={styles.wagerRow}>
-                 {/* This displays the data. If this shows 'undefined', the column name is wrong */}
-                 <Text>{w.amount} pts on {w.prediction || w.choice || "Unknown Pick"}</Text>
-                 <Text>{w.status || "Pending"}</Text>
-               </View>
-             ))}
+            {wagers.map((w) => (
+              <Pressable key={w.id} onPress={() => setReceiptWager(w)} style={styles.wagerRow}>
+                <View>
+                  <Text style={{ fontWeight: 'bold' }}>{w.amount} pts on {w.prediction || w.choice}</Text>
+                  <Text style={{ fontSize: 12, color: 'gray' }}>{w.question}</Text>
+                </View>
+                <View style={[styles.badge, { backgroundColor: w.status === 'won' ? 'black' : '#eee' }]}>
+                  <Text style={{ color: w.status === 'won' ? 'white' : 'black' }}>{statusLabel(w.status)}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.statsSection}>
+            <Text>Email: {user?.email}</Text>
+            <Text>Username: @{user?.username}</Text>
           </View>
         )}
       </ScrollView>
+
+      <ReceiptModal 
+        visible={!!receiptWager} 
+        onClose={() => setReceiptWager(null)} 
+        {...receiptWager} 
+        won={receiptWager?.status === 'won'}
+      />
     </View>
   );
 }
@@ -88,5 +108,7 @@ const styles = StyleSheet.create({
   bonusText: { color: '#fff', fontWeight: 'bold' },
   tabRow: { flexDirection: "row", borderBottomWidth: 1, borderColor: '#eee' },
   tabBtn: { padding: 15, flex: 1, alignItems: 'center' },
-  wagerRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 15, borderBottomWidth: 1, borderColor: '#eee' }
+  wagerRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 15, borderBottomWidth: 1, borderColor: '#eee', alignItems: 'center' },
+  badge: { padding: 5, borderRadius: 5 },
+  statsSection: { padding: 20 }
 });
