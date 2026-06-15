@@ -32,7 +32,7 @@ function statusLabel(status: string): string {
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, logout, claimDailyBonus, claimBailout } = useAuth();
+  const { user, logout, claimDailyBonus } = useAuth();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [tab, setTab] = useState<"stats" | "wagers">("stats");
@@ -40,9 +40,11 @@ export default function ProfileScreen() {
   const [receiptWager, setReceiptWager] = useState<any | null>(null);
   const [wagers, setWagers] = useState<any[]>([]);
   const [wagersLoaded, setWagersLoaded] = useState(false);
+  
+  // Local state to instantly lock the button when pressed
   const [localClaimed, setLocalClaimed] = useState(false);
 
-  // Safe, crash-free auto-refreshing logic
+  // Safe auto-refreshing logic for Profile screen
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
@@ -64,7 +66,6 @@ export default function ProfileScreen() {
         }
       };
 
-      // Fetch immediately on focus, then poll every 3 seconds while looking at the screen
       fetchFreshData();
       const interval = setInterval(fetchFreshData, 3000);
 
@@ -92,34 +93,26 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
+  // The logic that determines if the button is active
   const isBonusReady = (Date.now() - (user.lastDailyClaim || 0) >= DAY_MS) && !localClaimed;
-  const hoursLeft = Math.max(1, Math.ceil((DAY_MS - (Date.now() - (user.lastDailyClaim || 0))) / (60 * 60 * 1000)));
 
   const handleDailyBonus = async () => {
     if (!isBonusReady) return;
+    
     const ok = await claimDailyBonus();
     if (ok) {
-      setLocalClaimed(true);
-      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (Platform.OS === "web") window.alert("Daily bonus claimed! +100 points added to your bankroll.");
-      else Alert.alert("Daily bonus claimed", "+100 points added to your bankroll.");
+      setLocalClaimed(true); // Instantly locks the UI
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      
+      if (Platform.OS === "web") {
+        window.alert("Daily bonus claimed! +100 points added to your bankroll.");
+      } else {
+        Alert.alert("Daily bonus claimed", "+100 points added to your bankroll.");
+      }
     }
   };
-
-  const handleBailout = async () => {
-    const ok = await claimBailout();
-    if (ok) {
-      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (Platform.OS === "web") window.alert("Bailout claimed! +100 emergency points.");
-      else Alert.alert("Bailout claimed", "+100 emergency points.");
-    }
-  };
-
-  const statsData = [
-    { label: "Win Rate", value: `${user.winRate}%` },
-    { label: "Points", value: user.points.toLocaleString() },
-    { label: "Picks", value: wagers.length.toLocaleString() },
-  ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -131,6 +124,7 @@ export default function ProfileScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}>
+        
         <View style={styles.heroSection}>
           <Avatar color={user.avatarColor} username={user.username || user.email} size={80} highlight={(user.currentStreak ?? 0) >= 3} />
           <View style={styles.heroText}>
@@ -152,36 +146,35 @@ export default function ProfileScreen() {
         )}
 
         <View style={[styles.statsRow, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
-          {statsData.map((stat, i) => (
-            <View key={stat.label} style={[styles.statItem, i < statsData.length - 1 && { borderRightColor: colors.border, borderRightWidth: 1 }]}>
-              <Text style={[styles.statValue, { color: colors.foreground }]}>{stat.value}</Text>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{stat.label}</Text>
-            </View>
-          ))}
+          <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1 }]}>
+            <Text style={[styles.statValue, { color: colors.foreground }]}>{user.winRate}%</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>WIN RATE</Text>
+          </View>
+          <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1 }]}>
+            <Text style={[styles.statValue, { color: colors.foreground }]}>{user.points.toLocaleString()}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>POINTS</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: colors.foreground }]}>{wagers.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>PICKS</Text>
+          </View>
         </View>
 
-        <View style={styles.economyRow}>
-          <Pressable
-            onPress={handleDailyBonus}
-            disabled={!isBonusReady}
-            style={({ pressed }) => [
-              styles.economyBtn,
-              { borderColor: isBonusReady ? colors.border : "#E5E5EA", backgroundColor: isBonusReady ? colors.background : "#E5E5EA", opacity: !isBonusReady ? 0.6 : (pressed ? 0.7 : 1) },
-            ]}
-          >
-            <Feather name="gift" size={16} color={isBonusReady ? colors.foreground : "#8E8E93"} />
-            <Text style={[styles.economyBtnText, { color: isBonusReady ? colors.foreground : "#8E8E93" }]}>
-              {isBonusReady ? "Claim Daily Bonus" : "Bonus Claimed"}
-            </Text>
-          </Pressable>
-
-          {user.points <= 0 && (
-            <Pressable onPress={handleBailout} style={({ pressed }) => [styles.economyBtnSolid, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
-              <Feather name="life-buoy" size={16} color={colors.primaryForeground} />
-              <Text style={[styles.economyBtnText, { color: colors.primaryForeground }]}>Claim Daily Bailout</Text>
-            </Pressable>
-          )}
-        </View>
+        {/* The 100% Unmistakable Greyed-Out Button */}
+        <Pressable
+          onPress={handleDailyBonus}
+          disabled={!isBonusReady}
+          style={({ pressed }) => [
+            styles.bonusBtn,
+            !isBonusReady && styles.bonusBtnDisabled,
+            pressed && isBonusReady && { opacity: 0.6 }
+          ]}
+        >
+          <Feather name="gift" size={16} color={isBonusReady ? colors.foreground : "#A1A1AA"} />
+          <Text style={[styles.bonusText, { color: isBonusReady ? colors.foreground : "#A1A1AA" }]}>
+            {isBonusReady ? "Claim Daily Bonus" : "Bonus Claimed"}
+          </Text>
+        </Pressable>
 
         <View style={[styles.tabRow, { borderBottomColor: colors.border }]}>
           {(["stats", "wagers"] as const).map((t) => (
@@ -262,7 +255,7 @@ export default function ProfileScreen() {
             </View>
             <ScrollView showsVerticalScrollIndicator={false} style={styles.agreementScroll}>
               <Text style={[styles.agreementHeading, { color: colors.foreground }]}>1. User-Generated Content</Text>
-              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>You are solely responsible for the posts, predictions, and messages you share on Huddle.</Text>
+              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>You are solely responsible for the posts, predictions, and messages you share on Huddle. Content must not be unlawful, abusive, or harassing.</Text>
             </ScrollView>
           </View>
         </View>
@@ -291,10 +284,12 @@ const styles = StyleSheet.create({
   statItem: { flex: 1, alignItems: "center", paddingVertical: 18, gap: 4 },
   statValue: { fontFamily: "Inter_700Bold", fontSize: 24, letterSpacing: -1 },
   statLabel: { fontFamily: "Inter_400Regular", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
-  economyRow: { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 16 },
-  economyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderWidth: 1, borderRadius: 999 },
-  economyBtnSolid: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 999 },
-  economyBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  
+  // Custom button styles that will not fail
+  bonusBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 15, marginHorizontal: 16, marginTop: 20, marginBottom: 8, borderRadius: 999, borderWidth: 1, borderColor: '#E5E5EA', backgroundColor: '#FFFFFF' },
+  bonusBtnDisabled: { backgroundColor: '#F4F4F5', borderColor: '#F4F4F5' },
+  bonusText: { fontFamily: "Inter_600SemiBold", fontSize: 15, marginLeft: 8, color: '#000000' },
+
   tabRow: { flexDirection: "row", borderBottomWidth: 1, paddingHorizontal: 4, marginTop: 20 },
   tabBtn: { paddingHorizontal: 20, paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: "transparent" },
   tabLabel: { fontFamily: "Inter_500Medium", fontSize: 14 },
@@ -308,7 +303,7 @@ const styles = StyleSheet.create({
   wagersSection: { paddingHorizontal: 16, paddingTop: 20 },
   wagersHeading: { fontFamily: "Inter_700Bold", fontSize: 16, letterSpacing: -0.2, marginBottom: 14 },
   wagersEmpty: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 21, paddingVertical: 8 },
-  wagerRow: { flexDirection: "row", alignItems: "center", justifyWagers: "space-between", paddingVertical: 13, borderBottomWidth: 1 },
+  wagerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 13, borderBottomWidth: 1 },
   wagerLeft: { flex: 1 },
   wagerTeam: { fontFamily: "Inter_400Regular", fontSize: 14 },
   wagerFixture: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
