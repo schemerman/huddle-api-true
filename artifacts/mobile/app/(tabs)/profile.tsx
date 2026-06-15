@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router, useIsFocused } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   Modal,
@@ -34,7 +34,6 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout, claimDailyBonus, claimBailout } = useAuth();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const isFocused = useIsFocused(); // This hook triggers exactly when the user looks at the tab
 
   const [tab, setTab] = useState<"stats" | "wagers">("stats");
   const [agreementOpen, setAgreementOpen] = useState(false);
@@ -43,50 +42,50 @@ export default function ProfileScreen() {
   const [wagersLoaded, setWagersLoaded] = useState(false);
   const [localClaimed, setLocalClaimed] = useState(false);
 
-  // Aggressive Real-Time Fetch
-  useEffect(() => {
-    if (!isFocused || !user?.id) return;
-    
-    let isMounted = true;
-    const fetchFreshData = async () => {
-      try {
-        const { data } = await supabase
-          .from("wagers")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false });
-          
-        // Force the UI to repaint with the absolute latest cloud data
-        if (isMounted && data) setWagers(data);
-      } catch {
-        // Silent catch for transient errors
-      } finally {
-        if (isMounted) setWagersLoaded(true);
-      }
-    };
+  // Safe, crash-free auto-refreshing logic
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id) return;
+      let isMounted = true;
 
-    fetchFreshData();
-    
-    // Fallback: Set an interval to poll the database every 3 seconds while they look at the screen
-    const interval = setInterval(fetchFreshData, 3000);
+      const fetchFreshData = async () => {
+        try {
+          const { data } = await supabase
+            .from("wagers")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false });
+            
+          if (isMounted && data) setWagers(data);
+        } catch {
+          // Silent catch
+        } finally {
+          if (isMounted) setWagersLoaded(true);
+        }
+      };
 
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [isFocused, user?.id]);
+      // Fetch immediately on focus, then poll every 3 seconds while looking at the screen
+      fetchFreshData();
+      const interval = setInterval(fetchFreshData, 3000);
+
+      return () => {
+        isMounted = false;
+        clearInterval(interval);
+      };
+    }, [user?.id])
+  );
 
   const handleLogout = async () => {
     if (Platform.OS === "web") {
       const confirmLogout = window.confirm("Are you sure you want to sign out?");
       if (confirmLogout) {
         await logout();
-        router.replace("/login");
+        router.replace("/(auth)/login");
       }
     } else {
       Alert.alert("Sign out", "Are you sure you want to sign out?", [
         { text: "Cancel", style: "cancel" },
-        { text: "Sign out", style: "destructive", onPress: async () => { await logout(); router.replace("/login"); } },
+        { text: "Sign out", style: "destructive", onPress: async () => { await logout(); router.replace("/(auth)/login"); } },
       ]);
     }
   };

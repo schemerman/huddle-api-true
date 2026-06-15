@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useIsFocused } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -128,7 +128,6 @@ export default function PredictScreen() {
   const insets = useSafeAreaInsets();
   const { user, placeWager } = useAuth();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const isFocused = useIsFocused(); // Triggers real-time sync
 
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [loading, setLoading] = useState(true);
@@ -164,46 +163,48 @@ export default function PredictScreen() {
     });
   };
 
-  // Aggressive Real-Time Sync on Focus
-  useEffect(() => {
-    if (!isFocused || !user?.id) return;
-    let isMounted = true;
+  // Safe auto-refreshing logic for Predict screen
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id) return;
+      let isMounted = true;
 
-    const loadLiveFixtures = async () => {
-      try {
-        const apiFixtures = await listFixtures();
-        const cloudOverlay: Record<string, FixtureOverlay> = {};
+      const loadLiveFixtures = async () => {
+        try {
+          const apiFixtures = await listFixtures();
+          const cloudOverlay: Record<string, FixtureOverlay> = {};
 
-        const { data } = await supabase.from("wagers").select("*").eq("user_id", user.id);
+          const { data } = await supabase.from("wagers").select("*").eq("user_id", user.id);
 
-        if (data) {
-          data.forEach((w: any) => {
-            const fId = w.fixture_id || w.fixtureId;
-            if (fId) {
-              cloudOverlay[fId] = { userVote: w.choice, userWager: w.amount };
-            } else {
-              const matchedApi = apiFixtures.find((apiF) => `Who will win: ${apiF.homeTeam} or ${apiF.awayTeam}?` === w.question);
-              if (matchedApi) cloudOverlay[matchedApi.id] = { userVote: w.choice, userWager: w.amount };
-            }
-          });
+          if (data) {
+            data.forEach((w: any) => {
+              const fId = w.fixture_id || w.fixtureId;
+              if (fId) {
+                cloudOverlay[fId] = { userVote: w.choice, userWager: w.amount };
+              } else {
+                const matchedApi = apiFixtures.find((apiF) => `Who will win: ${apiF.homeTeam} or ${apiF.awayTeam}?` === w.question);
+                if (matchedApi) cloudOverlay[matchedApi.id] = { userVote: w.choice, userWager: w.amount };
+              }
+            });
+          }
+
+          if (isMounted) setFixtures(apiFixtures.map((f) => toFixture(f, cloudOverlay)));
+        } catch {
+          // Silent catch
+        } finally {
+          if (isMounted) setLoading(false);
         }
+      };
 
-        if (isMounted) setFixtures(apiFixtures.map((f) => toFixture(f, cloudOverlay)));
-      } catch {
-        // Silent catch for transient errors
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
+      loadLiveFixtures();
+      const interval = setInterval(loadLiveFixtures, 3000);
 
-    loadLiveFixtures();
-    const interval = setInterval(loadLiveFixtures, 3000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [isFocused, user?.id]);
+      return () => {
+        isMounted = false;
+        clearInterval(interval);
+      };
+    }, [user?.id])
+  );
 
   const handleOpenWager = (fixture: Fixture, choice: Choice) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
