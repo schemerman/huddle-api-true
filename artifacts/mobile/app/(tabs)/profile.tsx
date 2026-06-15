@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Modal,
@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import palette from "@/constants/colors";
 import { PerformanceTitleBadge } from "@/components/PerformanceTitleBadge";
@@ -41,7 +42,14 @@ export default function ProfileScreen() {
   const [wagers, setWagers] = useState<any[]>([]);
   const [wagersLoaded, setWagersLoaded] = useState(false);
   const [cloudProfile, setCloudProfile] = useState<any>(null);
-  const [localClaimed, setLocalClaimed] = useState(false);
+  const [localClaimTimestamp, setLocalClaimTimestamp] = useState<number>(0);
+
+  // Load the ironclad local button lock
+  useEffect(() => {
+    AsyncStorage.getItem('huddle_last_claim').then((val) => {
+      if (val) setLocalClaimTimestamp(parseInt(val, 10));
+    });
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -50,7 +58,6 @@ export default function ProfileScreen() {
 
       const fetchFreshData = async () => {
         try {
-          // Fetch BOTH wagers and live profile timestamp simultaneously
           const [wagersRes, profileRes] = await Promise.all([
             supabase.from("wagers").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
             supabase.from("profiles").select("*").eq("id", user.id).single()
@@ -94,7 +101,6 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
-  // EXTREME SAFEGUARDS: Guaranteed crash prevention
   const safePoints = user.points || 0;
   const safeWinRate = user.winRate || 0;
   const safeStreak = user.currentStreak || 0;
@@ -103,16 +109,23 @@ export default function ProfileScreen() {
   const safeDisplayName = user.displayName || safeEmail;
   const safeWagersCount = wagers?.length || 0;
 
-  // Live timestamp check
-  const liveLastClaim = cloudProfile?.last_daily_claim || cloudProfile?.lastDailyClaim || user.lastDailyClaim || 0;
-  const isBonusReady = (Date.now() - liveLastClaim >= DAY_MS) && !localClaimed;
+  // The ultimate date check - handles DB strings, numbers, AND local storage
+  const dbTimestamp = cloudProfile?.last_daily_claim || user.lastDailyClaim;
+  const parsedDbTime = typeof dbTimestamp === 'string' ? new Date(dbTimestamp).getTime() : (Number(dbTimestamp) || 0);
+  const latestClaimTime = Math.max(parsedDbTime, localClaimTimestamp);
+
+  const isBonusReady = Date.now() - latestClaimTime >= DAY_MS;
 
   const handleDailyBonus = async () => {
     if (!isBonusReady) return;
     
     const ok = await claimDailyBonus();
     if (ok) {
-      setLocalClaimed(true); // Instantly locks the UI
+      // Instantly lock the button and save to device memory
+      const now = Date.now();
+      setLocalClaimTimestamp(now);
+      AsyncStorage.setItem('huddle_last_claim', now.toString());
+
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -170,18 +183,27 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* The 100% Unmistakable Greyed-Out Button */}
+        {/* 100% Unbreakable Hardcoded Grey Button */}
         <Pressable
           onPress={handleDailyBonus}
           disabled={!isBonusReady}
-          style={({ pressed }) => [
-            styles.bonusBtn,
-            !isBonusReady && styles.bonusBtnDisabled,
-            pressed && isBonusReady && { opacity: 0.6 }
-          ]}
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            justifyContent: 'center',
+            alignItems: 'center',
+            paddingVertical: 15,
+            marginHorizontal: 16,
+            marginTop: 20,
+            marginBottom: 8,
+            borderRadius: 999,
+            borderWidth: 1,
+            backgroundColor: isBonusReady ? "#FFFFFF" : "#F4F4F5",
+            borderColor: isBonusReady ? "#E5E5EA" : "#E5E5EA",
+            opacity: !isBonusReady ? 0.6 : (pressed ? 0.7 : 1),
+          })}
         >
-          <Feather name="gift" size={16} color={isBonusReady ? colors.foreground : "#A1A1AA"} />
-          <Text style={[styles.bonusText, { color: isBonusReady ? colors.foreground : "#A1A1AA" }]}>
+          <Feather name="gift" size={16} color={isBonusReady ? colors.foreground : "#8E8E93"} />
+          <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 15, marginLeft: 8, color: isBonusReady ? colors.foreground : "#8E8E93" }}>
             {isBonusReady ? "Claim Daily Bonus" : "Bonus Claimed"}
           </Text>
         </Pressable>
@@ -294,11 +316,6 @@ const styles = StyleSheet.create({
   statItem: { flex: 1, alignItems: "center", paddingVertical: 18, gap: 4 },
   statValue: { fontFamily: "Inter_700Bold", fontSize: 24, letterSpacing: -1 },
   statLabel: { fontFamily: "Inter_400Regular", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
-  
-  bonusBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 15, marginHorizontal: 16, marginTop: 20, marginBottom: 8, borderRadius: 999, borderWidth: 1, borderColor: '#E5E5EA', backgroundColor: '#FFFFFF' },
-  bonusBtnDisabled: { backgroundColor: '#F4F4F5', borderColor: '#F4F4F5' },
-  bonusText: { fontFamily: "Inter_600SemiBold", fontSize: 15, marginLeft: 8, color: '#000000' },
-
   tabRow: { flexDirection: "row", borderBottomWidth: 1, paddingHorizontal: 4, marginTop: 20 },
   tabBtn: { paddingHorizontal: 20, paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: "transparent" },
   tabLabel: { fontFamily: "Inter_500Medium", fontSize: 14 },
