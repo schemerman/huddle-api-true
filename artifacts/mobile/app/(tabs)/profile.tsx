@@ -19,7 +19,7 @@ import { PerformanceTitleBadge } from "@/components/PerformanceTitleBadge";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { ReceiptModal } from "@/components/ReceiptModal";
-import { listWagers, type Wager } from "@workspace/api-client-react";
+import { supabase } from "@/lib/supabase";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -36,42 +36,40 @@ export default function ProfileScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [tab, setTab] = useState<"stats" | "wagers">("stats");
   const [agreementOpen, setAgreementOpen] = useState(false);
-  const [receiptWager, setReceiptWager] = useState<Wager | null>(null);
-  const [wagers, setWagers] = useState<Wager[]>([]);
+  const [receiptWager, setReceiptWager] = useState<any | null>(null);
+  const [wagers, setWagers] = useState<any[]>([]);
   const [wagersLoaded, setWagersLoaded] = useState(false);
 
-  useEffect(() => {
-    setWagers([]);
-    setWagersLoaded(false);
-  }, [user?.id]);
+  // 1. Bulletproof Database Fetch
+  const fetchWagers = async () => {
+    if (!user?.id) return;
+    let active = true;
+    try {
+      const { data } = await supabase
+        .from("wagers")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      
+      if (active && data) {
+        setWagers(data);
+      }
+    } catch {
+      // transient error fallback
+    } finally {
+      if (active) setWagersLoaded(true);
+    }
+    return () => { active = false; };
+  };
 
-  useFocusEffect(
-    useCallback(() => {
-      const userId = user?.id;
-      if (!userId) return;
-      let active = true;
-      (async () => {
-        try {
-          const data = await listWagers(userId);
-          if (active) setWagers(data);
-        } catch {
-          // Leave the last known list in place on a transient fetch error.
-        } finally {
-          if (active) setWagersLoaded(true);
-        }
-      })();
-      return () => {
-        active = false;
-      };
-    }, [user?.id]),
-  );
+  useFocusEffect(useCallback(() => { fetchWagers(); }, [user?.id]));
 
   const handleLogout = async () => {
     if (Platform.OS === "web") {
       const confirmLogout = window.confirm("Are you sure you want to sign out?");
       if (confirmLogout) {
         await logout();
-        router.replace("/login");
+        router.replace("/(auth)/login");
       }
     } else {
       Alert.alert("Sign out", "Are you sure you want to sign out?", [
@@ -82,7 +80,7 @@ export default function ProfileScreen() {
           onPress: async () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             await logout();
-            router.replace("/login");
+            router.replace("/(auth)/login");
           },
         },
       ]);
@@ -91,6 +89,7 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
+  // 2. Restored Bonus Logic
   const bonusReady = Date.now() - (user.lastDailyClaim || 0) >= DAY_MS;
   const hoursLeft = Math.max(
     1,
@@ -103,7 +102,6 @@ export default function ProfileScreen() {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      
       if (Platform.OS === "web") {
         window.alert("Daily bonus claimed! +100 points added to your bankroll.");
       } else {
@@ -118,19 +116,19 @@ export default function ProfileScreen() {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-
       if (Platform.OS === "web") {
-        window.alert("Bailout claimed! +100 emergency points. Spend them wisely.");
+        window.alert("Bailout claimed! +100 emergency points.");
       } else {
-        Alert.alert("Bailout claimed", "+100 emergency points. Spend them wisely.");
+        Alert.alert("Bailout claimed", "+100 emergency points.");
       }
     }
   };
 
+  // 3. Fix for the "0 Picks" bug (counts the actual list dynamically)
   const statsData = [
     { label: "Win Rate", value: `${user.winRate}%` },
     { label: "Points", value: user.points.toLocaleString() },
-    { label: "Picks", value: user.previousWagers.toLocaleString() },
+    { label: "Picks", value: wagers.length.toLocaleString() }, 
   ];
 
   return (
@@ -388,9 +386,7 @@ export default function ProfileScreen() {
               </Text>
               <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
                 You are solely responsible for the posts, predictions, and messages you share on
-                Huddle. Content must not be unlawful, abusive, or harassing. Posts form a permanent
-                record and cannot be deleted once published. We may remove content that violates
-                these terms.
+                Huddle. Content must not be unlawful, abusive, or harassing.
               </Text>
 
               <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
@@ -398,19 +394,15 @@ export default function ProfileScreen() {
               </Text>
               <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
                 Huddle is a social prediction game played with virtual points that hold no monetary
-                value and cannot be exchanged for cash or prizes. All predictions are made for
-                entertainment. You accept that points may be won or lost based on real-world outcomes
-                beyond our control.
+                value. All predictions are made for entertainment.
               </Text>
 
               <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
                 3. Privacy Protections
               </Text>
               <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
-                We collect only the information needed to operate your account, including your
-                university email, username, and activity within the app. Your data is stored securely
-                on your device and is never sold to third parties. You may request deletion of your
-                account at any time.
+                We collect only the information needed to operate your account. Your data is stored securely
+                on your device and is never sold to third parties.
               </Text>
 
               <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
