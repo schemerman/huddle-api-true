@@ -39,6 +39,9 @@ export default function ProfileScreen() {
   const [receiptWager, setReceiptWager] = useState<any | null>(null);
   const [wagers, setWagers] = useState<any[]>([]);
   const [wagersLoaded, setWagersLoaded] = useState(false);
+  
+  // Local state to instantly lock the button when pressed
+  const [localClaimed, setLocalClaimed] = useState(false);
 
   useEffect(() => {
     setWagers([]);
@@ -52,7 +55,6 @@ export default function ProfileScreen() {
       let active = true;
       (async () => {
         try {
-          // Direct Supabase fetch for instant sync
           const { data } = await supabase
             .from("wagers")
             .select("*")
@@ -97,17 +99,15 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
-  const bonusReady = Date.now() - (user.lastDailyClaim || 0) >= DAY_MS;
-  const hoursLeft = Math.max(
-    1,
-    Math.ceil((DAY_MS - (Date.now() - (user.lastDailyClaim || 0))) / (60 * 60 * 1000))
-  );
+  // If localClaimed is true OR the database says they claimed it, lock the button
+  const isBonusReady = (Date.now() - (user.lastDailyClaim || 0) >= DAY_MS) && !localClaimed;
 
   const handleDailyBonus = async () => {
-    if (!bonusReady) return;
+    if (!isBonusReady) return;
     
     const ok = await claimDailyBonus();
     if (ok) {
+      setLocalClaimed(true); // Instantly grey out the button
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -213,28 +213,28 @@ export default function ProfileScreen() {
         <View style={styles.economyRow}>
           <Pressable
             onPress={handleDailyBonus}
-            disabled={!bonusReady}
+            disabled={!isBonusReady}
             style={({ pressed }) => [
               styles.economyBtn,
               {
-                borderColor: colors.border,
-                backgroundColor: bonusReady ? colors.background : "#F2F2F7",
-                opacity: !bonusReady ? 0.4 : (pressed ? 0.7 : 1),
+                borderColor: isBonusReady ? colors.border : "#E5E5EA",
+                backgroundColor: isBonusReady ? colors.background : "#E5E5EA",
+                opacity: !isBonusReady ? 0.6 : (pressed ? 0.7 : 1),
               },
             ]}
           >
             <Feather
               name="gift"
               size={16}
-              color={bonusReady ? colors.foreground : colors.mutedForeground}
+              color={isBonusReady ? colors.foreground : "#8E8E93"}
             />
             <Text
               style={[
                 styles.economyBtnText,
-                { color: bonusReady ? colors.foreground : colors.mutedForeground },
+                { color: isBonusReady ? colors.foreground : "#8E8E93" },
               ]}
             >
-              {bonusReady ? "Claim Daily Bonus" : `Bonus in ${hoursLeft}h`}
+              {isBonusReady ? "Claim Daily Bonus" : "Bonus Claimed"}
             </Text>
           </Pressable>
 
@@ -396,9 +396,7 @@ export default function ProfileScreen() {
               </Text>
               <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
                 You are solely responsible for the posts, predictions, and messages you share on
-                Huddle. Content must not be unlawful, abusive, or harassing. Posts form a permanent
-                record and cannot be deleted once published. We may remove content that violates
-                these terms.
+                Huddle. Content must not be unlawful, abusive, or harassing.
               </Text>
 
               <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
@@ -406,19 +404,15 @@ export default function ProfileScreen() {
               </Text>
               <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
                 Huddle is a social prediction game played with virtual points that hold no monetary
-                value and cannot be exchanged for cash or prizes. All predictions are made for
-                entertainment. You accept that points may be won or lost based on real-world outcomes
-                beyond our control.
+                value. All predictions are made for entertainment.
               </Text>
 
               <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
                 3. Privacy Protections
               </Text>
               <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
-                We collect only the information needed to operate your account, including your
-                university email, username, and activity within the app. Your data is stored securely
-                on your device and is never sold to third parties. You may request deletion of your
-                account at any time.
+                We collect only the information needed to operate your account. Your data is stored securely
+                on your device and is never sold to third parties.
               </Text>
 
               <Text style={[styles.agreementHeading, { color: colors.foreground }]}>
