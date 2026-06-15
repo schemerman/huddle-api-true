@@ -94,10 +94,17 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
-  // Pull the live timestamp from the cloud database, fallback to local user cache
+  // EXTREME SAFEGUARDS: Guaranteed crash prevention
+  const safePoints = user.points || 0;
+  const safeWinRate = user.winRate || 0;
+  const safeStreak = user.currentStreak || 0;
+  const safeEmail = user.email || "—";
+  const safeUsername = user.username || safeEmail;
+  const safeDisplayName = user.displayName || safeEmail;
+  const safeWagersCount = wagers?.length || 0;
+
+  // Live timestamp check
   const liveLastClaim = cloudProfile?.last_daily_claim || cloudProfile?.lastDailyClaim || user.lastDailyClaim || 0;
-  
-  // Logic evaluating if it should be greyed out
   const isBonusReady = (Date.now() - liveLastClaim >= DAY_MS) && !localClaimed;
 
   const handleDailyBonus = async () => {
@@ -109,7 +116,6 @@ export default function ProfileScreen() {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      
       if (Platform.OS === "web") {
         window.alert("Daily bonus claimed! +100 points added to your bankroll.");
       } else {
@@ -130,13 +136,13 @@ export default function ProfileScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}>
         
         <View style={styles.heroSection}>
-          <Avatar color={user.avatarColor} username={user.username || user.email} size={80} highlight={(user.currentStreak ?? 0) >= 3} />
+          <Avatar color={user.avatarColor} username={safeUsername} size={80} highlight={safeStreak >= 3} />
           <View style={styles.heroText}>
-            <Text style={[styles.displayName, { color: colors.foreground }]}>{user.displayName || user.email}</Text>
+            <Text style={[styles.displayName, { color: colors.foreground }]}>{safeDisplayName}</Text>
             <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{user.username || "—"}</Text>
             <View style={styles.perfRow}>
-              <PerformanceTitleBadge winRate={user.winRate} />
-              {(user.currentStreak ?? 0) >= 3 && <Text style={[styles.streakText, { color: colors.mutedForeground }]}>{user.currentStreak}-streak heater</Text>}
+              <PerformanceTitleBadge winRate={safeWinRate} />
+              {safeStreak >= 3 && <Text style={[styles.streakText, { color: colors.mutedForeground }]}>{safeStreak}-streak heater</Text>}
             </View>
             {!!user.dob && <Text style={[styles.dob, { color: colors.mutedForeground }]}>Born {user.dob}</Text>}
           </View>
@@ -151,19 +157,20 @@ export default function ProfileScreen() {
 
         <View style={[styles.statsRow, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
           <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1 }]}>
-            <Text style={[styles.statValue, { color: colors.foreground }]}>{user.winRate}%</Text>
+            <Text style={[styles.statValue, { color: colors.foreground }]}>{safeWinRate}%</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>WIN RATE</Text>
           </View>
           <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1 }]}>
-            <Text style={[styles.statValue, { color: colors.foreground }]}>{user.points.toLocaleString()}</Text>
+            <Text style={[styles.statValue, { color: colors.foreground }]}>{safePoints.toLocaleString()}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>POINTS</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: colors.foreground }]}>{wagers.length}</Text>
+            <Text style={[styles.statValue, { color: colors.foreground }]}>{safeWagersCount}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>PICKS</Text>
           </View>
         </View>
 
+        {/* The 100% Unmistakable Greyed-Out Button */}
         <Pressable
           onPress={handleDailyBonus}
           disabled={!isBonusReady}
@@ -194,7 +201,7 @@ export default function ProfileScreen() {
               <View style={[styles.settingsGroup, { borderColor: colors.border }]}>
                 <View style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
                   <Feather name="mail" size={18} color={colors.foreground} />
-                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>{user.email}</Text>
+                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>{safeEmail}</Text>
                 </View>
                 <View style={styles.settingsRow}>
                   <Feather name="at-sign" size={18} color={colors.foreground} />

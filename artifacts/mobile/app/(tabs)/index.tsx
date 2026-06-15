@@ -1,32 +1,34 @@
-import { Redirect } from "expo-router";
-import { useEffect, useState } from "react";
+import { router } from "expo-router";
+import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { supabase } from "@/lib/supabase";
 
 export default function Index() {
-  const [isReady, setIsReady] = useState(false);
-  const [hasSession, setHasSession] = useState(false);
-
   useEffect(() => {
-    // Explicitly ask Supabase if a session exists in local storage
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setHasSession(!!session);
-      setIsReady(true); // Don't allow any redirects until this is true
-    });
+    let isMounted = true;
+
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!isMounted) return;
+
+      // A tiny delay stops Expo Router from crashing during the initial mount
+      if (session) {
+        setTimeout(() => router.replace("/(tabs)"), 50);
+      } else {
+        setTimeout(() => router.replace("/(auth)/login"), 50);
+      }
+    };
+
+    checkSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  if (!isReady) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FFFFFF" }}>
-        <ActivityIndicator size="large" color="#000000" />
-      </View>
-    );
-  }
-
-  if (!hasSession) {
-    return <Redirect href="/(auth)/login" />;
-  }
-
-  // If they have a session, drop them right onto the main app
-  return <Redirect href="/(tabs)" />; 
+  return (
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FFFFFF" }}>
+      <ActivityIndicator size="large" color="#000000" />
+    </View>
+  );
 }
