@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import { router, useIsFocused } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Modal,
@@ -34,58 +34,47 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout, claimDailyBonus, claimBailout } = useAuth();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const isFocused = useIsFocused(); // This hook triggers exactly when the user looks at the tab
+
   const [tab, setTab] = useState<"stats" | "wagers">("stats");
   const [agreementOpen, setAgreementOpen] = useState(false);
   const [receiptWager, setReceiptWager] = useState<any | null>(null);
   const [wagers, setWagers] = useState<any[]>([]);
   const [wagersLoaded, setWagersLoaded] = useState(false);
-  
-  // Live cloud database states for perfect cross-device syncing
-  const [cloudProfile, setCloudProfile] = useState<any>(null);
+  const [localClaimed, setLocalClaimed] = useState(false);
 
+  // Aggressive Real-Time Fetch
   useEffect(() => {
-    setWagers([]);
-    setWagersLoaded(false);
-  }, [user?.id]);
+    if (!isFocused || !user?.id) return;
+    
+    let isMounted = true;
+    const fetchFreshData = async () => {
+      try {
+        const { data } = await supabase
+          .from("wagers")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+          
+        // Force the UI to repaint with the absolute latest cloud data
+        if (isMounted && data) setWagers(data);
+      } catch {
+        // Silent catch for transient errors
+      } finally {
+        if (isMounted) setWagersLoaded(true);
+      }
+    };
 
-  useFocusEffect(
-    useCallback(() => {
-      const userId = user?.id;
-      if (!userId) return;
-      let active = true;
-      
-      (async () => {
-        try {
-          // 1. Fetch live profile stats (points, claims) directly from the database row
-          const { data: profileData } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", userId)
-            .single();
+    fetchFreshData();
+    
+    // Fallback: Set an interval to poll the database every 3 seconds while they look at the screen
+    const interval = setInterval(fetchFreshData, 3000);
 
-          if (active && profileData) {
-            setCloudProfile(profileData);
-          }
-
-          // 2. Fetch recent wagers
-          const { data: wagersData } = await supabase
-            .from("wagers")
-            .select("*")
-            .eq("user_id", userId)
-            .order("created_at", { ascending: false });
-            
-          if (active && wagersData) setWagers(wagersData);
-        } catch {
-          // Keep fallback settings on transient errors
-        } finally {
-          if (active) setWagersLoaded(true);
-        }
-      })();
-      return () => {
-        active = false;
-      };
-    }, [user?.id]),
-  );
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isFocused, user?.id]);
 
   const handleLogout = async () => {
     if (Platform.OS === "web") {
@@ -97,76 +86,39 @@ export default function ProfileScreen() {
     } else {
       Alert.alert("Sign out", "Are you sure you want to sign out?", [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Sign out",
-          style: "destructive",
-          onPress: async () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            await logout();
-            router.replace("/login");
-          },
-        },
+        { text: "Sign out", style: "destructive", onPress: async () => { await logout(); router.replace("/login"); } },
       ]);
     }
   };
 
   if (!user) return null;
 
-  // Resolve cross-device live variables with safe standard state fallbacks
-  const currentPoints = cloudProfile?.points ?? user.points;
-  const currentWinRate = cloudProfile?.win_rate ?? cloudProfile?.winRate ?? user.winRate;
-  const lastClaim = cloudProfile?.last_daily_claim ?? cloudProfile?.lastDailyClaim ?? user.lastDailyClaim ?? 0;
-  const currentUsername = cloudProfile?.username ?? user.username;
-  const currentDisplayName = cloudProfile?.display_name ?? cloudProfile?.displayName ?? user.displayName;
-
-  const bonusReady = Date.now() - lastClaim >= DAY_MS;
-  const hoursLeft = Math.max(
-    1,
-    Math.ceil((DAY_MS - (Date.now() - lastClaim)) / (60 * 60 * 1000))
-  );
+  const isBonusReady = (Date.now() - (user.lastDailyClaim || 0) >= DAY_MS) && !localClaimed;
+  const hoursLeft = Math.max(1, Math.ceil((DAY_MS - (Date.now() - (user.lastDailyClaim || 0))) / (60 * 60 * 1000)));
 
   const handleDailyBonus = async () => {
-    if (!bonusReady) return;
-    
+    if (!isBonusReady) return;
     const ok = await claimDailyBonus();
     if (ok) {
-      // Re-fetch instantly from database to trigger lock state across context boundaries
-      const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-      if (data) setCloudProfile(data);
-
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-      
-      if (Platform.OS === "web") {
-        window.alert("Daily bonus claimed! +100 points added to your bankroll.");
-      } else {
-        Alert.alert("Daily bonus claimed", "+100 points added to your bankroll.");
-      }
+      setLocalClaimed(true);
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS === "web") window.alert("Daily bonus claimed! +100 points added to your bankroll.");
+      else Alert.alert("Daily bonus claimed", "+100 points added to your bankroll.");
     }
   };
 
   const handleBailout = async () => {
     const ok = await claimBailout();
     if (ok) {
-      const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-      if (data) setCloudProfile(data);
-
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-
-      if (Platform.OS === "web") {
-        window.alert("Bailout claimed! +100 emergency points.");
-      } else {
-        Alert.alert("Bailout claimed", "+100 emergency points.");
-      }
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS === "web") window.alert("Bailout claimed! +100 emergency points.");
+      else Alert.alert("Bailout claimed", "+100 emergency points.");
     }
   };
 
   const statsData = [
-    { label: "Win Rate", value: `${currentWinRate}%` },
-    { label: "Points", value: currentPoints.toLocaleString() },
+    { label: "Win Rate", value: `${user.winRate}%` },
+    { label: "Points", value: user.points.toLocaleString() },
     { label: "Picks", value: wagers.length.toLocaleString() },
   ];
 
@@ -179,60 +131,30 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80),
-        }}
-      >
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}>
         <View style={styles.heroSection}>
-          <Avatar
-            color={user.avatarColor}
-            username={currentUsername || user.email}
-            size={80}
-            highlight={(user.currentStreak ?? 0) >= 3}
-          />
+          <Avatar color={user.avatarColor} username={user.username || user.email} size={80} highlight={(user.currentStreak ?? 0) >= 3} />
           <View style={styles.heroText}>
-            <Text style={[styles.displayName, { color: colors.foreground }]}>
-              {currentDisplayName || user.email}
-            </Text>
-            <Text style={[styles.handle, { color: colors.mutedForeground }]}>
-              @{currentUsername || "—"}
-            </Text>
+            <Text style={[styles.displayName, { color: colors.foreground }]}>{user.displayName || user.email}</Text>
+            <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{user.username || "—"}</Text>
             <View style={styles.perfRow}>
-              <PerformanceTitleBadge winRate={currentWinRate} />
-              {(user.currentStreak ?? 0) >= 3 && (
-                <Text style={[styles.streakText, { color: colors.mutedForeground }]}>
-                  {user.currentStreak}-streak heater
-                </Text>
-              )}
+              <PerformanceTitleBadge winRate={user.winRate} />
+              {(user.currentStreak ?? 0) >= 3 && <Text style={[styles.streakText, { color: colors.mutedForeground }]}>{user.currentStreak}-streak heater</Text>}
             </View>
-            {!!user.dob && (
-              <Text style={[styles.dob, { color: colors.mutedForeground }]}>
-                Born {user.dob}
-              </Text>
-            )}
+            {!!user.dob && <Text style={[styles.dob, { color: colors.mutedForeground }]}>Born {user.dob}</Text>}
           </View>
         </View>
 
         {user.isBankrupt && (
           <View style={[styles.bankruptBanner, { borderColor: palette.light.crimson }]}>
             <Text style={[styles.bankruptTag, { color: palette.light.crimson }]}>BANKRUPT</Text>
-            <Text style={[styles.bankruptSub, { color: colors.mutedForeground }]}>
-              Rebuild past 500 pts to clear this status.
-            </Text>
+            <Text style={[styles.bankruptSub, { color: colors.mutedForeground }]}>Rebuild past 500 pts to clear this status.</Text>
           </View>
         )}
 
         <View style={[styles.statsRow, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
           {statsData.map((stat, i) => (
-            <View
-              key={stat.label}
-              style={[
-                styles.statItem,
-                i < statsData.length - 1 && { borderRightColor: colors.border, borderRightWidth: 1 },
-              ]}
-            >
+            <View key={stat.label} style={[styles.statItem, i < statsData.length - 1 && { borderRightColor: colors.border, borderRightWidth: 1 }]}>
               <Text style={[styles.statValue, { color: colors.foreground }]}>{stat.value}</Text>
               <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{stat.label}</Text>
             </View>
@@ -242,65 +164,30 @@ export default function ProfileScreen() {
         <View style={styles.economyRow}>
           <Pressable
             onPress={handleDailyBonus}
-            disabled={!bonusReady}
+            disabled={!isBonusReady}
             style={({ pressed }) => [
               styles.economyBtn,
-              {
-                borderColor: bonusReady ? colors.border : "#D1D1D6",
-                backgroundColor: bonusReady ? colors.background : "#E5E5EA",
-                opacity: !bonusReady ? 0.5 : (pressed ? 0.7 : 1),
-              },
+              { borderColor: isBonusReady ? colors.border : "#E5E5EA", backgroundColor: isBonusReady ? colors.background : "#E5E5EA", opacity: !isBonusReady ? 0.6 : (pressed ? 0.7 : 1) },
             ]}
           >
-            <Feather
-              name="gift"
-              size={16}
-              color={bonusReady ? colors.foreground : "#8E8E93"}
-            />
-            <Text
-              style={[
-                styles.economyBtnText,
-                { color: bonusReady ? colors.foreground : "#8E8E93" },
-              ]}
-            >
-              {bonusReady ? "Claim Daily Bonus" : `Bonus in ${hoursLeft}h`}
+            <Feather name="gift" size={16} color={isBonusReady ? colors.foreground : "#8E8E93"} />
+            <Text style={[styles.economyBtnText, { color: isBonusReady ? colors.foreground : "#8E8E93" }]}>
+              {isBonusReady ? "Claim Daily Bonus" : "Bonus Claimed"}
             </Text>
           </Pressable>
 
-          {currentPoints <= 0 && (
-            <Pressable
-              onPress={handleBailout}
-              style={({ pressed }) => [
-                styles.economyBtnSolid,
-                { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
-              ]}
-            >
+          {user.points <= 0 && (
+            <Pressable onPress={handleBailout} style={({ pressed }) => [styles.economyBtnSolid, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
               <Feather name="life-buoy" size={16} color={colors.primaryForeground} />
-              <Text style={[styles.economyBtnText, { color: colors.primaryForeground }]}>
-                Claim Daily Bailout
-              </Text>
+              <Text style={[styles.economyBtnText, { color: colors.primaryForeground }]}>Claim Daily Bailout</Text>
             </Pressable>
           )}
         </View>
 
         <View style={[styles.tabRow, { borderBottomColor: colors.border }]}>
           {(["stats", "wagers"] as const).map((t) => (
-            <Pressable
-              key={t}
-              onPress={() => setTab(t)}
-              style={[
-                styles.tabBtn,
-                tab === t && { borderBottomColor: colors.foreground, borderBottomWidth: 2 },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tabLabel,
-                  { color: tab === t ? colors.foreground : colors.mutedForeground },
-                ]}
-              >
-                {t === "stats" ? "Stats" : "Picks"}
-              </Text>
+            <Pressable key={t} onPress={() => setTab(t)} style={[styles.tabBtn, tab === t && { borderBottomColor: colors.foreground, borderBottomWidth: 2 }]}>
+              <Text style={[styles.tabLabel, { color: tab === t ? colors.foreground : colors.mutedForeground }]}>{t === "stats" ? "Stats" : "Picks"}</Text>
             </Pressable>
           ))}
         </View>
@@ -316,7 +203,7 @@ export default function ProfileScreen() {
                 </View>
                 <View style={styles.settingsRow}>
                   <Feather name="at-sign" size={18} color={colors.foreground} />
-                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>@{currentUsername || "—"}</Text>
+                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>@{user.username || "—"}</Text>
                 </View>
               </View>
             </View>
@@ -341,65 +228,22 @@ export default function ProfileScreen() {
           <View style={styles.wagersSection}>
             <Text style={[styles.wagersHeading, { color: colors.foreground }]}>Recent Picks</Text>
             {wagersLoaded && wagers.length === 0 ? (
-              <Text style={[styles.wagersEmpty, { color: colors.mutedForeground }]}>
-                No picks placed yet. Go make a call on the Predict tab.
-              </Text>
+              <Text style={[styles.wagersEmpty, { color: colors.mutedForeground }]}>No picks placed yet. Go make a call on the Predict tab.</Text>
             ) : (
               wagers.map((w, i) => {
                 const completed = w.status === "won" || w.status === "lost";
                 const won = w.status === "won";
-                const pick = w.prediction || w.choice;
                 return (
-                  <Pressable
-                    key={w.id}
-                    onPress={
-                      completed
-                        ? () => {
-                            if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setReceiptWager(w);
-                          }
-                        : undefined
-                    }
-                    style={({ pressed }) => [
-                      styles.wagerRow,
-                      { borderBottomColor: colors.border },
-                      i === wagers.length - 1 && { borderBottomWidth: 0 },
-                      { opacity: pressed && completed ? 0.6 : 1 },
-                    ]}
-                  >
+                  <Pressable key={w.id} onPress={completed ? () => { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setReceiptWager(w); } : undefined} style={({ pressed }) => [styles.wagerRow, { borderBottomColor: colors.border }, i === wagers.length - 1 && { borderBottomWidth: 0 }, { opacity: pressed && completed ? 0.6 : 1 }]}>
                     <View style={styles.wagerLeft}>
-                      <Text style={[styles.wagerTeam, { color: colors.foreground }]}>
-                        {w.amount} pts on {pick}
-                      </Text>
-                      <Text style={[styles.wagerFixture, { color: colors.mutedForeground }]}>
-                        {w.question}
-                      </Text>
+                      <Text style={[styles.wagerTeam, { color: colors.foreground }]}>{w.amount} pts on {w.prediction || w.choice}</Text>
+                      <Text style={[styles.wagerFixture, { color: colors.mutedForeground }]}>{w.question}</Text>
                     </View>
                     <View style={styles.wagerRight}>
-                      <View
-                        style={[
-                          styles.wagerBadge,
-                          { backgroundColor: won ? colors.primary : colors.secondary },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.wagerStatus,
-                            {
-                              color: won
-                                ? colors.primaryForeground
-                                : w.status === "lost"
-                                ? colors.mutedForeground
-                                : colors.foreground,
-                            },
-                          ]}
-                        >
-                          {statusLabel(w.status)}
-                        </Text>
+                      <View style={[styles.wagerBadge, { backgroundColor: won ? colors.primary : colors.secondary }]}>
+                        <Text style={[styles.wagerStatus, { color: won ? colors.primaryForeground : w.status === "lost" ? colors.mutedForeground : colors.foreground }]}>{statusLabel(w.status)}</Text>
                       </View>
-                      {completed && (
-                        <Feather name="share" size={15} color={colors.mutedForeground} />
-                      )}
+                      {completed && <Feather name="share" size={15} color={colors.mutedForeground} />}
                     </View>
                   </Pressable>
                 );
@@ -415,29 +259,17 @@ export default function ProfileScreen() {
           <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
             <View style={styles.modalHead}>
               <Text style={[styles.modalTitle, { color: colors.foreground }]}>User Agreement</Text>
-              <Pressable onPress={() => setAgreementOpen(false)}>
-                <Feather name="x" size={22} color={colors.foreground} />
-              </Pressable>
+              <Pressable onPress={() => setAgreementOpen(false)}><Feather name="x" size={22} color={colors.foreground} /></Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} style={styles.agreementScroll}>
               <Text style={[styles.agreementHeading, { color: colors.foreground }]}>1. User-Generated Content</Text>
-              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
-                You are solely responsible for the posts, predictions, and messages you share on Huddle. Content must not be unlawful, abusive, or harassing.
-              </Text>
+              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>You are solely responsible for the posts, predictions, and messages you share on Huddle.</Text>
             </ScrollView>
           </View>
         </View>
       </Modal>
 
-      <ReceiptModal
-        visible={!!receiptWager}
-        onClose={() => setReceiptWager(null)}
-        question={receiptWager?.question ?? ""}
-        finalResult={receiptWager?.status === "won" ? receiptWager.prediction || receiptWager.choice : "—"}
-        prediction={receiptWager?.prediction || receiptWager?.choice || ""}
-        points={receiptWager?.status === "won" ? receiptWager.payout : receiptWager?.amount ?? 0}
-        won={receiptWager?.status === "won"}
-      />
+      <ReceiptModal visible={!!receiptWager} onClose={() => setReceiptWager(null)} question={receiptWager?.question ?? ""} finalResult={receiptWager?.status === "won" ? receiptWager.prediction || receiptWager.choice : "—"} prediction={receiptWager?.prediction || receiptWager?.choice || ""} points={receiptWager?.status === "won" ? receiptWager.payout : receiptWager?.amount ?? 0} won={receiptWager?.status === "won"} />
     </View>
   );
 }
@@ -490,4 +322,6 @@ const styles = StyleSheet.create({
   modalHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   modalTitle: { fontFamily: "Inter_700Bold", fontSize: 20, letterSpacing: -0.3 },
   agreementScroll: { flexGrow: 0 },
+  agreementHeading: { fontFamily: "Inter_600SemiBold", fontSize: 15, marginBottom: 6, marginTop: 14 },
+  agreementText: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 21 },
 });
