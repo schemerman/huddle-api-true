@@ -16,7 +16,7 @@ import { HuddleButton } from "@/components/HuddleButton";
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
-  const { signUp } = useAuth(); 
+  const { register } = useAuth();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,7 +42,7 @@ export default function RegisterScreen() {
     setError("");
     
     try {
-      const result = await signUp(email.trim(), password);
+      const result = await register(email.trim(), password);
       
       if (result.error) {
         if (result.error.toLowerCase().includes("already registered") || result.error.toLowerCase().includes("already exists")) {
