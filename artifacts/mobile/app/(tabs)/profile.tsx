@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   Modal,
@@ -13,7 +13,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import palette from "@/constants/colors";
 import { PerformanceTitleBadge } from "@/components/PerformanceTitleBadge";
@@ -41,16 +40,11 @@ export default function ProfileScreen() {
   const [receiptWager, setReceiptWager] = useState<any | null>(null);
   const [wagers, setWagers] = useState<any[]>([]);
   const [wagersLoaded, setWagersLoaded] = useState(false);
-  const [cloudProfile, setCloudProfile] = useState<any>(null);
-  const [localClaimTimestamp, setLocalClaimTimestamp] = useState<number>(0);
+  
+  // Instant local lock for the button
+  const [localClaimed, setLocalClaimed] = useState(false);
 
-  // Load the ironclad local button lock
-  useEffect(() => {
-    AsyncStorage.getItem('huddle_last_claim').then((val) => {
-      if (val) setLocalClaimTimestamp(parseInt(val, 10));
-    });
-  }, []);
-
+  // Safe fetch that only runs ONCE when you open the tab (No more network spam!)
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
@@ -58,15 +52,13 @@ export default function ProfileScreen() {
 
       const fetchFreshData = async () => {
         try {
-          const [wagersRes, profileRes] = await Promise.all([
-            supabase.from("wagers").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-            supabase.from("profiles").select("*").eq("id", user.id).single()
-          ]);
+          const { data } = await supabase
+            .from("wagers")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false });
             
-          if (isMounted) {
-            if (wagersRes.data) setWagers(wagersRes.data);
-            if (profileRes.data) setCloudProfile(profileRes.data);
-          }
+          if (isMounted && data) setWagers(data);
         } catch {
           // Silent catch
         } finally {
@@ -75,11 +67,9 @@ export default function ProfileScreen() {
       };
 
       fetchFreshData();
-      const interval = setInterval(fetchFreshData, 3000);
 
       return () => {
         isMounted = false;
-        clearInterval(interval);
       };
     }, [user?.id])
   );
@@ -109,31 +99,27 @@ export default function ProfileScreen() {
   const safeDisplayName = user.displayName || safeEmail;
   const safeWagersCount = wagers?.length || 0;
 
-  // The ultimate date check - handles DB strings, numbers, AND local storage
-  const dbTimestamp = cloudProfile?.last_daily_claim || user.lastDailyClaim;
-  const parsedDbTime = typeof dbTimestamp === 'string' ? new Date(dbTimestamp).getTime() : (Number(dbTimestamp) || 0);
-  const latestClaimTime = Math.max(parsedDbTime, localClaimTimestamp);
-
-  const isBonusReady = Date.now() - latestClaimTime >= DAY_MS;
+  // Bulletproof Date Math - handles both database timestamps and raw numbers
+  const lastClaimMs = new Date(user.lastDailyClaim || 0).getTime() || 0;
+  const timeSinceClaim = Date.now() - lastClaimMs;
+  
+  // It is ready if 24 hours have passed AND they haven't clicked it in this session
+  const isBonusReady = (timeSinceClaim >= DAY_MS) && !localClaimed;
 
   const handleDailyBonus = async () => {
     if (!isBonusReady) return;
     
+    // INSTANTLY lock the UI to grey so it can't fail
+    setLocalClaimed(true);
+    
     const ok = await claimDailyBonus();
     if (ok) {
-      // Instantly lock the button and save to device memory
-      const now = Date.now();
-      setLocalClaimTimestamp(now);
-      AsyncStorage.setItem('huddle_last_claim', now.toString());
-
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-      if (Platform.OS === "web") {
-        window.alert("Daily bonus claimed! +100 points added to your bankroll.");
-      } else {
-        Alert.alert("Daily bonus claimed", "+100 points added to your bankroll.");
-      }
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS === "web") window.alert("Daily bonus claimed! +100 points.");
+      else Alert.alert("Daily bonus claimed", "+100 points.");
+    } else {
+      // If the database fails, unlock the button so they can try again
+      setLocalClaimed(false); 
     }
   };
 
