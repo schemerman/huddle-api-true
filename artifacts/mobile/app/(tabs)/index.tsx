@@ -1,40 +1,32 @@
-import { router } from "expo-router";
-import { useEffect } from "react";
-import { View } from "react-native";
+import { useEffect, useState } from "react";
+import { View, ActivityIndicator } from "react-native";
+import { Redirect } from "expo-router";
 import { supabase } from "@/lib/supabase";
-import { useColors } from "@/hooks/useColors";
 
-export default function Index() {
-  const colors = useColors();
+export default function HomeIndex() {
+  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState(null);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const routeUser = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!isMounted) return;
-
-        if (session) {
-          router.replace("/(tabs)");
-        } else {
-          // Adjust this path if your login screen is just "/login"
-          router.replace("/(auth)/login"); 
-        }
-      } catch (error) {
-        if (isMounted) router.replace("/(auth)/login");
-      }
-    };
-
-    routeUser();
-
-    return () => {
-      isMounted = false;
-    };
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
   }, []);
 
-  // An entirely silent, invisible background that perfectly matches your app theme. 
-  // No spinners, no loading text, no white-screen crashes.
-  return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  // If no session, redirect to login; otherwise, show your home feed
+  return session ? <HomeFeed /> : <Redirect href="/(auth)/login" />;
+}
+
+function HomeFeed() {
+  // Your existing Home Feed code goes here...
+  return <View />;
 }

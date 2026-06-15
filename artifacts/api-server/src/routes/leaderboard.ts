@@ -21,16 +21,17 @@ function toEntry(u: DbUser, rank: number) {
   };
 }
 
+// GLOBAL LEADERBOARD: Shows everyone, no filters
 router.get("/leaderboard", async (_req, res): Promise<void> => {
   const rows = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.profileComplete, true))
-    .orderBy(desc(usersTable.points));
+    .orderBy(desc(usersTable.points)); // Filter removed: Everyone shows up!
 
   res.json(GetLeaderboardResponse.parse(rows.map((u, i) => toEntry(u, i + 1))));
 });
 
+// MEMBER LEADERBOARD: Only shows users who are in the group (IDs provided in body)
 router.post("/leaderboard/members", async (req, res): Promise<void> => {
   const parsed = GetMemberLeaderboardBody.safeParse(req.body);
   if (!parsed.success) {
@@ -44,12 +45,11 @@ router.post("/leaderboard/members", async (req, res): Promise<void> => {
     return;
   }
 
+  // Still filters by ID, which is exactly what you want for specific groups
   const rows = await db
     .select()
     .from(usersTable)
-    .where(
-      and(eq(usersTable.profileComplete, true), inArray(usersTable.id, ids)),
-    )
+    .where(inArray(usersTable.id, ids)) // Keep this filter: Only group members
     .orderBy(desc(usersTable.points));
 
   res.json(
