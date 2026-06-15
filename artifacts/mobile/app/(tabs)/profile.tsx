@@ -40,8 +40,6 @@ export default function ProfileScreen() {
   const [wagers, setWagers] = useState<Wager[]>([]);
   const [wagersLoaded, setWagersLoaded] = useState(false);
 
-  // Drop any prior account's wagers immediately when the user changes (or logs out)
-  // so a different user's history can never flash before the refetch resolves.
   useEffect(() => {
     setWagers([]);
     setWagersLoaded(false);
@@ -68,19 +66,27 @@ export default function ProfileScreen() {
     }, [user?.id]),
   );
 
-  const handleLogout = () => {
-    Alert.alert("Sign out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign out",
-        style: "destructive",
-        onPress: async () => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          await logout();
-          router.replace("/(auth)/register");
+  const handleLogout = async () => {
+    if (Platform.OS === "web") {
+      const confirmLogout = window.confirm("Are you sure you want to sign out?");
+      if (confirmLogout) {
+        await logout();
+        router.replace("/login");
+      }
+    } else {
+      Alert.alert("Sign out", "Are you sure you want to sign out?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign out",
+          style: "destructive",
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            await logout();
+            router.replace("/login");
+          },
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   if (!user) return null;
@@ -94,16 +100,30 @@ export default function ProfileScreen() {
   const handleDailyBonus = async () => {
     const ok = await claimDailyBonus();
     if (ok) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Daily bonus claimed", "+100 points added to your bankroll.");
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      
+      if (Platform.OS === "web") {
+        window.alert("Daily bonus claimed! +100 points added to your bankroll.");
+      } else {
+        Alert.alert("Daily bonus claimed", "+100 points added to your bankroll.");
+      }
     }
   };
 
   const handleBailout = async () => {
     const ok = await claimBailout();
     if (ok) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Bailout claimed", "+100 emergency points. Spend them wisely.");
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+
+      if (Platform.OS === "web") {
+        window.alert("Bailout claimed! +100 emergency points. Spend them wisely.");
+      } else {
+        Alert.alert("Bailout claimed", "+100 emergency points. Spend them wisely.");
+      }
     }
   };
 
@@ -128,7 +148,6 @@ export default function ProfileScreen() {
           paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80),
         }}
       >
-        {/* Hero */}
         <View style={styles.heroSection}>
           <Avatar
             color={user.avatarColor}
@@ -159,7 +178,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Bankrupt badge */}
         {user.isBankrupt && (
           <View style={[styles.bankruptBanner, { borderColor: palette.light.crimson }]}>
             <Text style={[styles.bankruptTag, { color: palette.light.crimson }]}>BANKRUPT</Text>
@@ -169,7 +187,6 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Stats bar */}
         <View style={[styles.statsRow, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
           {statsData.map((stat, i) => (
             <View
@@ -185,7 +202,6 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        {/* Economy actions */}
         <View style={styles.economyRow}>
           <Pressable
             onPress={handleDailyBonus}
@@ -230,7 +246,6 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Tab toggle */}
         <View style={[styles.tabRow, { borderBottomColor: colors.border }]}>
           {(["stats", "wagers"] as const).map((t) => (
             <Pressable
@@ -303,7 +318,7 @@ export default function ProfileScreen() {
                     onPress={
                       completed
                         ? () => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                             setReceiptWager(w);
                           }
                         : undefined
@@ -357,7 +372,6 @@ export default function ProfileScreen() {
         )}
       </ScrollView>
 
-      {/* User Agreement modal */}
       <Modal visible={agreementOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <Pressable style={styles.modalDismiss} onPress={() => setAgreementOpen(false)} />
