@@ -12,4 +12,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: false,
   },
+  // 🚨 Add this global header to ensure mobile requests are treated equally
+  global: {
+    headers: { 'x-client-info': 'huddle-mobile' },
+  },
 });
