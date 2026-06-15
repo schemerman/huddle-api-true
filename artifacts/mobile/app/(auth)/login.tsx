@@ -23,7 +23,6 @@ export default function LoginScreen() {
   const [error, setError] = useState("");
   const [showIosInstall, setShowIosInstall] = useState(false);
 
-  // Detect if user is on an iPhone Safari browser but hasn't installed the app yet
   useEffect(() => {
     if (Platform.OS === "web") {
       const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -42,6 +41,7 @@ export default function LoginScreen() {
       setError("Please fill in all fields.");
       return;
     }
+    
     setLoading(true);
     setError("");
     
@@ -57,11 +57,10 @@ export default function LoginScreen() {
         return;
       }
 
-      // Check if they have set a username in the database
       if (result.user?.username) {
-        router.replace("/(tabs)");
+        router.replace("/(tabs)"); 
       } else {
-        router.replace("/complete-profile");
+        router.replace("/complete-profile"); 
       }
       
     } catch {
@@ -97,7 +96,7 @@ export default function LoginScreen() {
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
-              placeholder="you@kent.ac.uk"
+              placeholder="you@email.com"
               placeholderTextColor="#ABABAB"
               value={email}
               onChangeText={setEmail}
@@ -131,7 +130,6 @@ export default function LoginScreen() {
           </Link>
         </View>
 
-        {/* Custom Apple iOS Installation Banner */}
         {showIosInstall && (
           <View style={styles.iosBanner}>
             <Text style={styles.iosBannerTitle}>Install HUDDLE</Text>

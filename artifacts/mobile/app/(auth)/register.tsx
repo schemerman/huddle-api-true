@@ -16,8 +16,6 @@ import { HuddleButton } from "@/components/HuddleButton";
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
-  
-  // Notice we are pulling 'signUp' from the new AuthContext now!
   const { signUp } = useAuth(); 
   
   const [email, setEmail] = useState("");
@@ -29,10 +27,6 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     if (!email.trim() || !password.trim() || !confirm.trim()) {
       setError("Please fill in all fields.");
-      return;
-    }
-    if (!email.trim().toLowerCase().endsWith("@kent.ac.uk")) {
-      setError("An exclusive @kent.ac.uk email is required to join Huddle.");
       return;
     }
     if (password !== confirm) {
@@ -48,20 +42,18 @@ export default function RegisterScreen() {
     setError("");
     
     try {
-      // We wait for the result from our new Supabase Auth function
       const result = await signUp(email.trim(), password);
       
-      // If Supabase blocked it, display the specific reason to the user
       if (result.error) {
         if (result.error.toLowerCase().includes("already registered") || result.error.toLowerCase().includes("already exists")) {
           setError("This email is already in use. Please sign in instead.");
         } else {
-          setError(result.error); // Show whatever specific error Supabase returned
+          setError(result.error); 
         }
-        return; // Stop the function so it doesn't redirect
+        return; 
       }
 
-      // If there is no error, it succeeded! Send them to pick a username.
+      // Zero friction: Send them straight to pick a username!
       router.replace("/(auth)/complete-profile");
       
     } catch {
@@ -97,7 +89,7 @@ export default function RegisterScreen() {
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
-              placeholder="you@kent.ac.uk"
+              placeholder="you@email.com"
               placeholderTextColor="#ABABAB"
               value={email}
               onChangeText={setEmail}
