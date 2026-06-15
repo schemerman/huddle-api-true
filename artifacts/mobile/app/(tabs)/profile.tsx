@@ -40,11 +40,9 @@ export default function ProfileScreen() {
   const [receiptWager, setReceiptWager] = useState<any | null>(null);
   const [wagers, setWagers] = useState<any[]>([]);
   const [wagersLoaded, setWagersLoaded] = useState(false);
-  
-  // Local state to instantly lock the button when pressed
+  const [cloudProfile, setCloudProfile] = useState<any>(null);
   const [localClaimed, setLocalClaimed] = useState(false);
 
-  // Safe auto-refreshing logic for Profile screen
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
@@ -52,13 +50,16 @@ export default function ProfileScreen() {
 
       const fetchFreshData = async () => {
         try {
-          const { data } = await supabase
-            .from("wagers")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false });
+          // Fetch BOTH wagers and live profile timestamp simultaneously
+          const [wagersRes, profileRes] = await Promise.all([
+            supabase.from("wagers").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+            supabase.from("profiles").select("*").eq("id", user.id).single()
+          ]);
             
-          if (isMounted && data) setWagers(data);
+          if (isMounted) {
+            if (wagersRes.data) setWagers(wagersRes.data);
+            if (profileRes.data) setCloudProfile(profileRes.data);
+          }
         } catch {
           // Silent catch
         } finally {
@@ -93,8 +94,11 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
-  // The logic that determines if the button is active
-  const isBonusReady = (Date.now() - (user.lastDailyClaim || 0) >= DAY_MS) && !localClaimed;
+  // Pull the live timestamp from the cloud database, fallback to local user cache
+  const liveLastClaim = cloudProfile?.last_daily_claim || cloudProfile?.lastDailyClaim || user.lastDailyClaim || 0;
+  
+  // Logic evaluating if it should be greyed out
+  const isBonusReady = (Date.now() - liveLastClaim >= DAY_MS) && !localClaimed;
 
   const handleDailyBonus = async () => {
     if (!isBonusReady) return;
@@ -160,7 +164,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* The 100% Unmistakable Greyed-Out Button */}
         <Pressable
           onPress={handleDailyBonus}
           disabled={!isBonusReady}
@@ -285,7 +288,6 @@ const styles = StyleSheet.create({
   statValue: { fontFamily: "Inter_700Bold", fontSize: 24, letterSpacing: -1 },
   statLabel: { fontFamily: "Inter_400Regular", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
   
-  // Custom button styles that will not fail
   bonusBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 15, marginHorizontal: 16, marginTop: 20, marginBottom: 8, borderRadius: 999, borderWidth: 1, borderColor: '#E5E5EA', backgroundColor: '#FFFFFF' },
   bonusBtnDisabled: { backgroundColor: '#F4F4F5', borderColor: '#F4F4F5' },
   bonusText: { fontFamily: "Inter_600SemiBold", fontSize: 15, marginLeft: 8, color: '#000000' },
