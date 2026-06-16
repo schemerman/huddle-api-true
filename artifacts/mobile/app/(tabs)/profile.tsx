@@ -117,8 +117,19 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
-  const safeWinRate = user.winRate || 0;
-  const safeStreak = user.currentStreak || 0;
+  // 1. Calculate Win Rate Dynamically
+  const completedWagers = wagers.filter(w => w.status === "won" || w.status === "lost");
+  const wonWagers = completedWagers.filter(w => w.status === "won");
+  const safeWinRate = completedWagers.length > 0 
+    ? Math.round((wonWagers.length / completedWagers.length) * 100) 
+    : 0;
+
+  // 2. Calculate Streak Dynamically (Counting backwards from newest wager)
+  let safeStreak = 0;
+  for (const w of wagers) {
+    if (w.status === "won") safeStreak++;
+    else if (w.status === "lost") break; // Streak broken!
+  }
   const safeEmail = user.email || "No Email";
   const safeUsername = user.username || safeEmail;
   const safeDisplayName = user.displayName || safeEmail;
