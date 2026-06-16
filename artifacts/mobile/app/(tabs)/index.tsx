@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, ActivityIndicator, FlatList, Text, StyleSheet, RefreshControl, Platform } from "react-native";
+import { View, ActivityIndicator, FlatList, Text, StyleSheet, RefreshControl, Platform, TextInput, Pressable, Keyboard } from "react-native";
 import { Redirect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
@@ -25,11 +25,10 @@ export default function HomeIndex() {
     );
   }
 
-  // Safely redirect if logged out, otherwise show the feed
-  return session ? <HomeFeed /> : <Redirect href="/(auth)/login" />;
+  return session ? <HomeFeed session={session} /> : <Redirect href="/(auth)/login" />;
 }
 
-function HomeFeed() {
+function HomeFeed({ session }: { session: any }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -37,13 +36,16 @@ function HomeFeed() {
   const [posts, setPosts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // New Post State
+  const [newPostText, setNewPostText] = useState("");
+  const [isPosting, setIsPosting] = useState(false);
 
   const fetchPosts = async () => {
     try {
-      // Grabbing all posts from the database
       const { data, error } = await supabase
         .from("posts")
-        .select("*")
+        .select("*, user:users(*)") // Fetches the post and the attached user info
         .order("created_at", { ascending: false })
         .limit(50);
 
@@ -67,7 +69,39 @@ function HomeFeed() {
     fetchPosts();
   }, []);
 
-  // THE FIX: Defensive rendering to prevent white screen crashes
+  // Function to create a new post
+  const handleCreatePost = async () => {
+    if (!newPostText.trim() || !session?.user?.id) return;
+    
+    setIsPosting(true);
+    Keyboard.dismiss();
+
+    try {
+      const { error } = await supabase
+        .from("posts")
+        .insert([
+          { 
+            user_id: session.user.id, 
+            content: newPostText.trim() 
+          }
+        ]);
+
+      if (error) throw error;
+
+      // Clear the box and refresh the feed to show the new post instantly
+      setNewPostText("");
+      await fetchPosts();
+
+    } catch (error: any) {
+      console.error("Error creating post:", error);
+      if (Platform.OS === "web") {
+        window.alert("Could not create post. Please try again.");
+      }
+    } finally {
+      setIsPosting(false);
+    }
+  };
+
   const renderPost = ({ item }: { item: any }) => {
     const safeUsername = item?.user?.username || item?.username || "Anonymous";
     const safeContent = item?.content || item?.text || "No content available.";
@@ -92,6 +126,34 @@ function HomeFeed() {
         <Text style={[styles.title, { color: colors.foreground }]}>Home</Text>
       </View>
 
+      {/* Compose Box UI */}
+      <View style={[styles.composeContainer, { borderBottomColor: colors.border }]}>
+        <TextInput
+          style={[styles.input, { color: colors.foreground }]}
+          placeholder="What's your latest prediction?"
+          placeholderTextColor={colors.mutedForeground}
+          value={newPostText}
+          onChangeText={setNewPostText}
+          multiline
+          maxLength={280}
+        />
+        <View style={styles.composeFooter}>
+          <Pressable 
+            onPress={handleCreatePost} 
+            disabled={!newPostText.trim() || isPosting}
+            style={[
+              styles.postButton, 
+              { backgroundColor: colors.primary },
+              (!newPostText.trim() || isPosting) && styles.postButtonDisabled
+            ]}
+          >
+            <Text style={[styles.postButtonText, { color: colors.primaryForeground }]}>
+              {isPosting ? "Posting..." : "Post"}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
       {isLoading ? (
          <View style={styles.center}>
            <ActivityIndicator size="large" color={colors.primary} />
@@ -106,7 +168,7 @@ function HomeFeed() {
           ListEmptyComponent={
             <View style={styles.centerEmpty}>
               <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                No posts yet. The feed is looking a little quiet!
+                No posts yet. Be the first to start the conversation!
               </Text>
             </View>
           }
@@ -119,9 +181,15 @@ function HomeFeed() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  centerEmpty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 100, paddingHorizontal: 20 },
+  centerEmpty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60, paddingHorizontal: 20 },
   topBar: { paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
   title: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: -0.5 },
+  composeContainer: { padding: 16, borderBottomWidth: 1 },
+  input: { fontFamily: "Inter_400Regular", fontSize: 16, minHeight: 60, textAlignVertical: "top" },
+  composeFooter: { flexDirection: "row", justifyContent: "flex-end", marginTop: 12 },
+  postButton: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 999 },
+  postButtonDisabled: { opacity: 0.5 },
+  postButtonText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
   postCard: { padding: 16, borderBottomWidth: 1 },
   postHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
   headerText: { marginLeft: 12, justifyContent: "center" },
