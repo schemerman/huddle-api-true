@@ -77,25 +77,31 @@ function HomeFeed({ session }: { session: any }) {
     Keyboard.dismiss();
 
     try {
-      const { error } = await supabase
+      // 1. Try saving with camelCase (common for Drizzle)
+      let { error } = await supabase
         .from("posts")
-        .insert([
-          { 
-            user_id: session.user.id, 
-            content: newPostText.trim() 
-          }
-        ]);
+        .insert([{ userId: session.user.id, content: newPostText.trim() }]);
 
+      // 2. If the database complains about the column name, fallback to snake_case
+      if (error && error.message.includes("column")) {
+        const fallback = await supabase
+          .from("posts")
+          .insert([{ user_id: session.user.id, content: newPostText.trim() }]);
+        error = fallback.error;
+      }
+
+      // 3. If there is still an error (like Row Level Security), throw it
       if (error) throw error;
 
-      // Clear the box and refresh the feed to show the new post instantly
+      // Success! Clear the box and refresh the feed
       setNewPostText("");
       await fetchPosts();
 
     } catch (error: any) {
       console.error("Error creating post:", error);
       if (Platform.OS === "web") {
-        window.alert("Could not create post. Please try again.");
+        // Show the EXACT error message on screen so you know why it failed
+        window.alert(`Database Error: ${error.message}`); 
       }
     } finally {
       setIsPosting(false);
