@@ -1,25 +1,19 @@
 import { Redirect } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
-import { ActivityIndicator, View } from "react-native";
+import { View } from "react-native";
 
 export default function Index() {
   const { user, loading } = useAuth();
 
-  // 1. Give the app a split second to pull your secure session from the database
+  // The app stops here and waits for Supabase to finish checking local storage
   if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FFFFFF" }}>
-        <ActivityIndicator size="large" color="#000000" />
-      </View>
-    );
+    return <View style={{ flex: 1, backgroundColor: "#FFFFFF" }} />;
   }
 
-  // 2. If they are not logged in at all, bounce them to the login screen
+  // Once Supabase is done, it properly sends you to the right place
   if (!user) {
     return <Redirect href="/(auth)/login" />;
   }
 
-  // 3. If they are logged in, send them straight into the action!
-  // No more forced profile checks.
   return <Redirect href="/(tabs)" />;
 }
