@@ -77,10 +77,14 @@ function HomeFeed({ session }: { session: any }) {
     Keyboard.dismiss();
 
     try {
+      // Create a totally unique ID for the database
+      const generatedId = `post_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+
       const { error } = await supabase
         .from("posts")
         .insert([
           { 
+            id: generatedId,
             user_id: session.user.id, 
             text: newPostText.trim() 
           }
