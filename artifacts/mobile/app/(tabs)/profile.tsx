@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Alert,
   Modal,
@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import palette from "@/constants/colors";
 import { PerformanceTitleBadge } from "@/components/PerformanceTitleBadge";
@@ -41,10 +42,32 @@ export default function ProfileScreen() {
   const [wagers, setWagers] = useState<any[]>([]);
   const [wagersLoaded, setWagersLoaded] = useState(false);
   
-  // Instant local lock for the button
-  const [localClaimed, setLocalClaimed] = useState(false);
+  // Bulletproof Local Lock State
+  const [isBonusLocked, setIsBonusLocked] = useState(true);
 
-  // Safe fetch that only runs ONCE when you open the tab (No more network spam!)
+  // Check local storage on mount to see if 24 hours have passed
+  useEffect(() => {
+    const checkLock = async () => {
+      try {
+        const lastClaim = await AsyncStorage.getItem('last_bonus_claim_time');
+        if (lastClaim) {
+          const timePassed = Date.now() - parseInt(lastClaim, 10);
+          if (timePassed < DAY_MS) {
+            setIsBonusLocked(true); // Still locked
+          } else {
+            setIsBonusLocked(false); // 24 hours passed, unlock!
+            await AsyncStorage.removeItem('last_bonus_claim_time');
+          }
+        } else {
+          setIsBonusLocked(false); // Never claimed, keep unlocked
+        }
+      } catch (e) {
+        setIsBonusLocked(false);
+      }
+    };
+    checkLock();
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
@@ -94,23 +117,17 @@ export default function ProfileScreen() {
   const safePoints = user.points || 0;
   const safeWinRate = user.winRate || 0;
   const safeStreak = user.currentStreak || 0;
-  const safeEmail = user.email || "—";
+  const safeEmail = user.email || "No Email";
   const safeUsername = user.username || safeEmail;
   const safeDisplayName = user.displayName || safeEmail;
   const safeWagersCount = wagers?.length || 0;
 
-  // Bulletproof Date Math - handles both database timestamps and raw numbers
-  const lastClaimMs = new Date(user.lastDailyClaim || 0).getTime() || 0;
-  const timeSinceClaim = Date.now() - lastClaimMs;
-  
-  // It is ready if 24 hours have passed AND they haven't clicked it in this session
-  const isBonusReady = (timeSinceClaim >= DAY_MS) && !localClaimed;
-
   const handleDailyBonus = async () => {
-    if (!isBonusReady) return;
+    if (isBonusLocked) return;
     
-    // INSTANTLY lock the UI to grey so it can't fail
-    setLocalClaimed(true);
+    // Instantly lock UI and save the exact millisecond to local storage
+    setIsBonusLocked(true);
+    await AsyncStorage.setItem('last_bonus_claim_time', Date.now().toString());
     
     const ok = await claimDailyBonus();
     if (ok) {
@@ -118,8 +135,9 @@ export default function ProfileScreen() {
       if (Platform.OS === "web") window.alert("Daily bonus claimed! +100 points.");
       else Alert.alert("Daily bonus claimed", "+100 points.");
     } else {
-      // If the database fails, unlock the button so they can try again
-      setLocalClaimed(false); 
+      // If server fails, unlock so they can try again
+      setIsBonusLocked(false);
+      await AsyncStorage.removeItem('last_bonus_claim_time');
     }
   };
 
@@ -138,7 +156,7 @@ export default function ProfileScreen() {
           <Avatar color={user.avatarColor} username={safeUsername} size={80} highlight={safeStreak >= 3} />
           <View style={styles.heroText}>
             <Text style={[styles.displayName, { color: colors.foreground }]}>{safeDisplayName}</Text>
-            <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{user.username || "—"}</Text>
+            <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{user.username || "Anonymous"}</Text>
             <View style={styles.perfRow}>
               <PerformanceTitleBadge winRate={safeWinRate} />
               {safeStreak >= 3 && <Text style={[styles.streakText, { color: colors.mutedForeground }]}>{safeStreak}-streak heater</Text>}
@@ -169,10 +187,10 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* 100% Unbreakable Hardcoded Grey Button */}
+        {/* 100% Unbreakable Local Grey Button */}
         <Pressable
           onPress={handleDailyBonus}
-          disabled={!isBonusReady}
+          disabled={isBonusLocked}
           style={({ pressed }) => ({
             flexDirection: 'row',
             justifyContent: 'center',
@@ -183,14 +201,14 @@ export default function ProfileScreen() {
             marginBottom: 8,
             borderRadius: 999,
             borderWidth: 1,
-            backgroundColor: isBonusReady ? "#FFFFFF" : "#F4F4F5",
-            borderColor: isBonusReady ? "#E5E5EA" : "#E5E5EA",
-            opacity: !isBonusReady ? 0.6 : (pressed ? 0.7 : 1),
+            backgroundColor: !isBonusLocked ? "#FFFFFF" : "#F4F4F5",
+            borderColor: !isBonusLocked ? "#E5E5EA" : "#E5E5EA",
+            opacity: isBonusLocked ? 0.6 : (pressed ? 0.7 : 1),
           })}
         >
-          <Feather name="gift" size={16} color={isBonusReady ? colors.foreground : "#8E8E93"} />
-          <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 15, marginLeft: 8, color: isBonusReady ? colors.foreground : "#8E8E93" }}>
-            {isBonusReady ? "Claim Daily Bonus" : "Bonus Claimed"}
+          <Feather name="gift" size={16} color={!isBonusLocked ? colors.foreground : "#8E8E93"} />
+          <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 15, marginLeft: 8, color: !isBonusLocked ? colors.foreground : "#8E8E93" }}>
+            {!isBonusLocked ? "Claim Daily Bonus" : "Bonus Claimed"}
           </Text>
         </Pressable>
 
@@ -213,7 +231,7 @@ export default function ProfileScreen() {
                 </View>
                 <View style={styles.settingsRow}>
                   <Feather name="at-sign" size={18} color={colors.foreground} />
-                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>@{user.username || "—"}</Text>
+                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>@{user.username || "Anonymous"}</Text>
                 </View>
               </View>
             </View>

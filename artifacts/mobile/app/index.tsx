@@ -1,19 +1,33 @@
 import { Redirect } from "expo-router";
-import { useAuth } from "@/context/AuthContext";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
+import { supabase } from "@/lib/supabase";
 
 export default function Index() {
-  const { user, loading } = useAuth();
+  const [session, setSession] = useState<any>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
 
-  // The app stops here and waits for Supabase to finish checking local storage
-  if (loading) {
+  useEffect(() => {
+    // Check local storage for the session first
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsInitializing(false);
+    });
+
+    // Listen for any changes (like logging in or out)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setIsInitializing(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Show an empty screen while Supabase checks the browser storage
+  if (isInitializing) {
     return <View style={{ flex: 1, backgroundColor: "#FFFFFF" }} />;
   }
 
-  // Once Supabase is done, it properly sends you to the right place
-  if (!user) {
-    return <Redirect href="/(auth)/login" />;
-  }
-
-  return <Redirect href="/(tabs)" />;
+  // Route safely once we know the truth
+  return session ? <Redirect href="/(tabs)" /> : <Redirect href="/(auth)/login" />;
 }
