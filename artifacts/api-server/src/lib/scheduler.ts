@@ -1,7 +1,9 @@
 import { refreshFixtures } from "./apiFootball";
 import { logger } from "./logger";
+import { settleFinishedMatches } from "./settlement";
 
-const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+// Changed to 2 hours to keep users happy without blowing up API limits
+const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
 let running = false;
 
@@ -12,9 +14,12 @@ async function runRefresh(): Promise<void> {
   }
   running = true;
   try {
+    // 1. Fetch the latest scores/odds
     await refreshFixtures();
+    // 2. Immediately pay out any games that just finished
+    await settleFinishedMatches();
   } catch (err) {
-    logger.error({ err }, "Fixtures refresh failed");
+    logger.error({ err }, "Fixtures refresh or settlement failed");
   } finally {
     running = false;
   }
@@ -22,12 +27,12 @@ async function runRefresh(): Promise<void> {
 
 /**
  * Start the background fixtures refresh: run once on boot to warm the cache,
- * then every 12 hours. The interval is unref'd so it never keeps the process
+ * then every 2 hours. The interval is unref'd so it never keeps the process
  * alive on its own.
  */
 export function startFixturesScheduler(): void {
   void runRefresh();
-  const timer = setInterval(() => void runRefresh(), TWELVE_HOURS_MS);
+  const timer = setInterval(() => void runRefresh(), TWO_HOURS_MS);
   timer.unref?.();
-  logger.info({ intervalHours: 12 }, "Fixtures scheduler started");
+  logger.info({ intervalHours: 2 }, "Fixtures scheduler started");
 }
