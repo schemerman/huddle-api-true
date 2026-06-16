@@ -77,22 +77,18 @@ function HomeFeed({ session }: { session: any }) {
     Keyboard.dismiss();
 
     try {
-      // Sending it to the 'text' column instead of 'content'
-      let { error } = await supabase
+      const { error } = await supabase
         .from("posts")
-        .insert([{ user_id: session.user.id, text: newPostText.trim() }]);
-
-      // Fallback for Drizzle ORM camelCase if needed
-      if (error && error.message.includes("column")) {
-        const fallback = await supabase
-          .from("posts")
-          .insert([{ userId: session.user.id, text: newPostText.trim() }]);
-        error = fallback.error;
-      }
+        .insert([
+          { 
+            user_id: session.user.id, 
+            text: newPostText.trim() 
+          }
+        ]);
 
       if (error) throw error;
 
-      // Success!
+      // Success! Clear the box and refresh the feed to show the new post instantly
       setNewPostText("");
       await fetchPosts();
 
