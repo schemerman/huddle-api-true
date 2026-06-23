@@ -63,13 +63,18 @@ router.post("/users/sync", async (req, res): Promise<void> => {
 
   let user: DbUser;
   if (!existing) {
+    // FIX: Respect the provided username, fallback to email split only if missing
+    const fallbackName = input.email ? input.email.split("@")[0] : "";
+    const chosenUsername = input.username && input.username.trim() !== "" ? input.username : fallbackName;
+    const chosenDisplayName = input.displayName && input.displayName.trim() !== "" ? input.displayName : chosenUsername;
+
     [user] = await db
       .insert(usersTable)
       .values({
         id: input.id,
         email: input.email,
-        username: input.username ?? "",
-        displayName: input.displayName ?? "",
+        username: chosenUsername,
+        displayName: chosenDisplayName,
         dob: input.dob ?? "",
         ...(input.avatarColor ? { avatarColor: input.avatarColor } : {}),
         points: STARTING_BANKROLL,
@@ -77,12 +82,13 @@ router.post("/users/sync", async (req, res): Promise<void> => {
       })
       .returning();
   } else {
+    // FIX: Ensure updates actually overwrite the existing name
     [user] = await db
       .update(usersTable)
       .set({
         email: input.email,
-        ...(input.username != null ? { username: input.username } : {}),
-        ...(input.displayName != null ? { displayName: input.displayName } : {}),
+        ...(input.username && input.username.trim() !== "" ? { username: input.username } : {}),
+        ...(input.displayName && input.displayName.trim() !== "" ? { displayName: input.displayName } : {}),
         ...(input.dob != null ? { dob: input.dob } : {}),
         ...(input.avatarColor != null ? { avatarColor: input.avatarColor } : {}),
         ...(input.profileComplete != null
@@ -264,12 +270,18 @@ router.post(
 
       const payout = won ? wager.potentialPayout : 0;
       const newPoints = user.points + payout;
+      
+      // FIX: Update the tracking columns for the leaderboard win rate math
+      const currentTotalPicks = (user as any).totalPicks || 0;
+      const currentWonPicks = (user as any).wonPicks || 0;
 
       const [updatedUser] = await tx
         .update(usersTable)
         .set({
           points: newPoints,
           isBankrupt: nextBankrupt(user.isBankrupt, newPoints),
+          totalPicks: currentTotalPicks + 1,
+          wonPicks: won ? currentWonPicks + 1 : currentWonPicks,
         })
         .where(eq(usersTable.id, id))
         .returning();

@@ -23,6 +23,12 @@ export const usersTable = pgTable(
     points: integer("points").notNull().default(1000),
     isBankrupt: boolean("is_bankrupt").notNull().default(false),
     previousWagers: integer("previous_wagers").notNull().default(0),
+    
+    // 👇 NEW COLUMNS ADDED HERE 👇
+    totalPicks: integer("total_picks").notNull().default(0),
+    wonPicks: integer("won_picks").notNull().default(0),
+    // 👆 ---------------------- 👆
+
     lastDailyClaim: timestamp("last_daily_claim", { withTimezone: true }),
     profileComplete: boolean("profile_complete").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
