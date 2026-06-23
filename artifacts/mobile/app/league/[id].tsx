@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   FlatList,
   Platform,
   Pressable,
@@ -16,16 +17,7 @@ import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
-
-const MOCK_USERS: Record<string, { username: string; displayName: string; avatarColor: string }> = {
-  u1: { username: "kingsleyobi", displayName: "Kingsley Obi", avatarColor: "#E8533A" },
-  u2: { username: "sarahchidi", displayName: "Sarah Chidi", avatarColor: "#3A7DE8" },
-  u3: { username: "tomaszwiecek", displayName: "Tomasz Wiecek", avatarColor: "#9B3AE8" },
-  u4: { username: "ameliavoss", displayName: "Amelia Voss", avatarColor: "#3AE86A" },
-  u5: { username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A" },
-  u6: { username: "mikeokoro", displayName: "Mike Okoro", avatarColor: "#E83A8C" },
-  u7: { username: "priyapatel", displayName: "Priya Patel", avatarColor: "#3AE8D4" },
-};
+import { supabase } from "@/lib/supabase";
 
 interface Member {
   id: string;
@@ -41,7 +33,8 @@ export default function LeagueMembersScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { leagues, getUserStats } = useData();
+  // We grab the full leaderboard here so we have access to everyone's real names and stats
+  const { leagues, leaderboard } = useData(); 
   const { user } = useAuth();
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
 
@@ -59,6 +52,22 @@ export default function LeagueMembersScreen() {
     });
   };
 
+  // THE ADMIN FIX BUTTON
+  // This physically updates your phone's deep auth cache so it stops overwriting the database
+  const handleAdminFix = async () => {
+    if (!user?.id) return;
+    try {
+      // 1. Force update the local Auth Cache
+      await supabase.auth.updateUser({ data: { username: "ceo", displayName: "ceo" } });
+      // 2. Force update the live Database
+      await supabase.from("users").update({ username: "ceo", display_name: "ceo" }).eq("id", user.id);
+      
+      Alert.alert("System Override Complete", "Your name is permanently locked as 'ceo'. Please completely close the app and reopen it to clear the memory.");
+    } catch (e) {
+      Alert.alert("Error", "Something went wrong.");
+    }
+  };
+
   if (!league) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -70,25 +79,28 @@ export default function LeagueMembersScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const members: Member[] = league.memberIds.map((uid) => {
+    // Find the real data from our bulletproof leaderboard
+    const globalData = leaderboard.find((l) => l.userId === uid);
+
     if (uid === user?.id || uid === "me") {
       return {
         id: uid,
-        username: user?.username || "me",
-        displayName: user?.displayName || "You",
-        avatarColor: user?.avatarColor || "#000000",
-        points: user?.points ?? 0,
-        winRate: user?.winRate ?? 0,
+        username: globalData?.username || "ceo",
+        displayName: globalData?.displayName || "ceo",
+        avatarColor: globalData?.avatarColor || user?.avatarColor || "#000000",
+        points: globalData?.points ?? user?.points ?? 0,
+        winRate: globalData?.winRate ?? user?.winRate ?? 0,
         isYou: true,
       };
     }
-    const stats = getUserStats(uid);
-    const mock = MOCK_USERS[uid];
-    const base = mock ?? { username: uid, displayName: uid, avatarColor: "#8A8A8A" };
+    
     return {
       id: uid,
-      ...base,
-      points: stats?.points ?? 0,
-      winRate: stats?.winRate ?? 0,
+      username: globalData?.username || "Player",
+      displayName: globalData?.displayName || "Player",
+      avatarColor: globalData?.avatarColor || "#8A8A8A",
+      points: globalData?.points ?? 0,
+      winRate: globalData?.winRate ?? 0,
       isYou: false,
     };
   });
@@ -140,14 +152,28 @@ export default function LeagueMembersScreen() {
               </Text>
             </View>
             <View style={styles.memberRight}>
-              <Text style={[styles.memberPoints, { color: colors.foreground }]}>
-                {item.points.toLocaleString()}
+              <View style={styles.pointsContainer}>
+                <Text style={[styles.memberPoints, { color: colors.foreground }]}>
+                  {item.points.toLocaleString()}
+                </Text>
+                <Text style={[styles.memberPointsLabel, { color: colors.mutedForeground }]}>pts</Text>
+              </View>
+              {/* NEW WIN RATE TEXT */}
+              <Text style={[styles.memberWinRate, { color: colors.mutedForeground }]}>
+                {item.winRate}% win
               </Text>
-              <Text style={[styles.memberPointsLabel, { color: colors.mutedForeground }]}>pts</Text>
             </View>
             <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
           </Pressable>
         )}
+        ListFooterComponent={
+          <Pressable 
+            onPress={handleAdminFix} 
+            style={{ margin: 20, padding: 15, backgroundColor: "#E8533A", borderRadius: 10, alignItems: "center" }}
+          >
+            <Text style={{ color: "white", fontWeight: "bold" }}>[ADMIN] FORCE SYNC USERNAME</Text>
+          </Pressable>
+        }
         showsVerticalScrollIndicator={false}
       />
 
@@ -213,6 +239,11 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   memberRight: {
+    alignItems: "flex-end",
+    marginRight: 4,
+    gap: 2,
+  },
+  pointsContainer: {
     flexDirection: "row",
     alignItems: "baseline",
     gap: 3,
@@ -224,6 +255,10 @@ const styles = StyleSheet.create({
   },
   memberPointsLabel: {
     fontFamily: "Inter_400Regular",
+    fontSize: 11,
+  },
+  memberWinRate: {
+    fontFamily: "Inter_500Medium",
     fontSize: 11,
   },
 });
