@@ -48,6 +48,11 @@ export async function settleFinishedMatches(): Promise<{ settled: number }> {
         const homeScore = parseInt(homeScoreObj.score);
         const awayScore = parseInt(awayScoreObj.score);
 
+        // Determine the actual winning team for the receipt cards
+        let actualWinner = "Draw";
+        if (homeScore > awayScore) actualWinner = match.homeTeam;
+        if (homeScore < awayScore) actualWinner = match.awayTeam;
+
         // Update the fixture to show the final score and close it
         await db.update(fixturesTable)
           .set({
@@ -75,26 +80,28 @@ export async function settleFinishedMatches(): Promise<{ settled: number }> {
           if (homeScore === awayScore && wager.choice === "D") won = true;
           if (homeScore < awayScore && wager.choice === "B") won = true;
 
-          if (won) {
-            // Calculate payout (wager amount * the odds they locked in)
-            const payout = Math.floor(wager.amount * wager.odds);
-            
-            // Mark wager as won
-            await db.update(wagersTable)
-              .set({ status: "won", payout })
-              .where(eq(wagersTable.id, wager.id));
+          const payout = won ? Math.floor(wager.amount * wager.odds) : 0;
 
-            // Deposit the winnings directly into the user's balance
-            await db.update(usersTable)
-              .set({ points: sql`${usersTable.points} + ${payout}` })
-              .where(eq(usersTable.id, wager.userId));
-              
+          // Execute a raw SQL update to guarantee the new actual_result column saves perfectly
+          await db.execute(sql`
+            UPDATE wagers 
+            SET status = ${won ? "won" : "lost"}, 
+                payout = ${payout}, 
+                actual_result = ${actualWinner} 
+            WHERE id = ${wager.id}
+          `);
+
+          // Execute a raw SQL update to deposit points AND increment the win rate counters
+          await db.execute(sql`
+            UPDATE users 
+            SET points = points + ${payout},
+                total_picks = COALESCE(total_picks, 0) + 1,
+                won_picks = COALESCE(won_picks, 0) + ${won ? 1 : 0}
+            WHERE id = ${wager.userId}
+          `);
+
+          if (won) {
             logger.info(`Paid ${payout} pts to user ${wager.userId} for picking correctly!`);
-          } else {
-            // Mark wager as lost (zero payout)
-            await db.update(wagersTable)
-              .set({ status: "lost", payout: 0 })
-              .where(eq(wagersTable.id, wager.id));
           }
         }
         settledCount++;

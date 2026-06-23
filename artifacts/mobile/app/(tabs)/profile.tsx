@@ -341,7 +341,7 @@ export default function ProfileScreen() {
         visible={!!receiptWager} 
         onClose={() => setReceiptWager(null)} 
         question={receiptWager?.question ?? ""} 
-        finalResult={receiptWager?.status === "won" ? (receiptWager.prediction || receiptWager.choice) : "Incorrect Pick"} 
+        finalResult={receiptWager?.actual_result || (receiptWager?.status === "won" ? (receiptWager.prediction || receiptWager.choice) : "Pending")} 
         prediction={receiptWager?.prediction || receiptWager?.choice || ""} 
         points={receiptWager?.status === "won" ? receiptWager.payout : receiptWager?.amount ?? 0} 
         won={receiptWager?.status === "won"} 
