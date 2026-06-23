@@ -52,21 +52,6 @@ export default function LeagueMembersScreen() {
     });
   };
 
-  // THE ADMIN FIX BUTTON
-  // This physically updates your phone's deep auth cache so it stops overwriting the database
-  const handleAdminFix = async () => {
-    if (!user?.id) return;
-    try {
-      // 1. Force update the local Auth Cache
-      await supabase.auth.updateUser({ data: { username: "ceo", displayName: "ceo" } });
-      // 2. Force update the live Database
-      await supabase.from("users").update({ username: "ceo", display_name: "ceo" }).eq("id", user.id);
-      
-      Alert.alert("System Override Complete", "Your name is permanently locked as 'ceo'. Please completely close the app and reopen it to clear the memory.");
-    } catch (e) {
-      Alert.alert("Error", "Something went wrong.");
-    }
-  };
 
   if (!league) {
     return (
@@ -166,14 +151,7 @@ export default function LeagueMembersScreen() {
             <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
           </Pressable>
         )}
-        ListFooterComponent={
-          <Pressable 
-            onPress={handleAdminFix} 
-            style={{ margin: 20, padding: 15, backgroundColor: "#E8533A", borderRadius: 10, alignItems: "center" }}
-          >
-            <Text style={{ color: "white", fontWeight: "bold" }}>[ADMIN] FORCE SYNC USERNAME</Text>
-          </Pressable>
-        }
+  
         showsVerticalScrollIndicator={false}
       />
 
