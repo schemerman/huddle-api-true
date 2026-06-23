@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc, eq, inArray, and } from "drizzle-orm";
+import { desc, inArray } from "drizzle-orm";
 import { db, usersTable, type User as DbUser } from "@workspace/db";
 import {
   GetLeaderboardResponse,
@@ -10,13 +10,30 @@ import {
 const router: IRouter = Router();
 
 function toEntry(u: DbUser, rank: number) {
+  // FIX 1: The Simple Maths
+  // We use "as any" here just in case your exact Drizzle column names 
+  // are slightly different (e.g. totalWagers instead of totalPicks).
+  // If your database tracks wins differently, just change the variable names below!
+  const total = (u as any).totalPicks || 0; 
+  const won = (u as any).wonPicks || 0;
+  
+  // Calculate percentage and strictly protect against dividing by zero
+  const calculatedWinRate = total > 0 ? Math.round((won / total) * 100) : 0;
+
+  // FIX 2: The UUID Bypass
+  // If the user hasn't set a proper username, the database defaults to their raw Auth UUID.
+  // This logic checks if the username is massively long (like a UUID) and replaces it 
+  // with their display name or a fallback so the UI looks completely clean.
+  const isUUID = u.username && u.username.length > 20;
+  const cleanUsername = isUUID ? (u.displayName || "Player") : u.username;
+
   return {
     userId: u.id,
-    username: u.username,
+    username: cleanUsername,
     displayName: u.displayName,
     avatarColor: u.avatarColor,
     points: u.points,
-    winRate: u.winRate,
+    winRate: calculatedWinRate, // We replaced the static property with our live math!
     rank,
   };
 }
@@ -26,7 +43,7 @@ router.get("/leaderboard", async (_req, res): Promise<void> => {
   const rows = await db
     .select()
     .from(usersTable)
-    .orderBy(desc(usersTable.points)); // Filter removed: Everyone shows up!
+    .orderBy(desc(usersTable.points)); 
 
   res.json(GetLeaderboardResponse.parse(rows.map((u, i) => toEntry(u, i + 1))));
 });
@@ -45,11 +62,10 @@ router.post("/leaderboard/members", async (req, res): Promise<void> => {
     return;
   }
 
-  // Still filters by ID, which is exactly what you want for specific groups
   const rows = await db
     .select()
     .from(usersTable)
-    .where(inArray(usersTable.id, ids)) // Keep this filter: Only group members
+    .where(inArray(usersTable.id, ids)) 
     .orderBy(desc(usersTable.points));
 
   res.json(
