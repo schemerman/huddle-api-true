@@ -48,6 +48,14 @@ export default function ProfileScreen() {
   // Instant visual points so the UI responds immediately
   const [visualPoints, setVisualPoints] = useState(user?.points || 0);
 
+  // FIX: Anti-Flicker Sync Loop
+  // Constantly watches the database and locks the true points value in so it never drops to 0
+  useEffect(() => {
+    if (user?.points !== undefined) {
+      setVisualPoints(user.points);
+    }
+  }, [user?.points]);
+
   // Check local storage on mount to see if 24 hours have passed
   useEffect(() => {
     const checkLock = async () => {
@@ -130,9 +138,20 @@ export default function ProfileScreen() {
     if (w.status === "won") safeStreak++;
     else if (w.status === "lost") break; // Streak broken!
   }
+
+  // FIX: Strict Privacy Filters
+  // Blocks emails and UUID strings from showing up on the public profile header
+  const isEmail = (str: string) => str?.includes("@");
+  const isUUID = (str: string) => str?.length > 20;
+
   const safeEmail = user.email || "No Email";
-  const safeUsername = user.username || safeEmail;
-  const safeDisplayName = user.displayName || safeEmail;
+  const safeUsername = (user.username && !isEmail(user.username) && !isUUID(user.username)) 
+    ? user.username 
+    : "player";
+  const safeDisplayName = (user.displayName && !isEmail(user.displayName) && !isUUID(user.displayName)) 
+    ? user.displayName 
+    : "Player";
+
   const safeWagersCount = wagers?.length || 0;
 
   const handleDailyBonus = async () => {
@@ -177,7 +196,7 @@ export default function ProfileScreen() {
           <Avatar color={user.avatarColor} username={safeUsername} size={80} highlight={safeStreak >= 3} />
           <View style={styles.heroText}>
             <Text style={[styles.displayName, { color: colors.foreground }]}>{safeDisplayName}</Text>
-            <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{user.username || "Anonymous"}</Text>
+            <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{safeUsername}</Text>
             <View style={styles.perfRow}>
               <PerformanceTitleBadge winRate={safeWinRate} />
               {safeStreak >= 3 && <Text style={[styles.streakText, { color: colors.mutedForeground }]}>{safeStreak}-streak heater</Text>}
@@ -199,7 +218,6 @@ export default function ProfileScreen() {
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>WIN RATE</Text>
           </View>
           <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1 }]}>
-            {/* Visual Points Rendered Here */}
             <Text style={[styles.statValue, { color: colors.foreground }]}>{visualPoints.toLocaleString()}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>POINTS</Text>
           </View>
@@ -209,7 +227,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* 100% Unbreakable Local Grey Button */}
         <Pressable
           onPress={handleDailyBonus}
           disabled={isBonusLocked}
@@ -253,7 +270,7 @@ export default function ProfileScreen() {
                 </View>
                 <View style={styles.settingsRow}>
                   <Feather name="at-sign" size={18} color={colors.foreground} />
-                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>@{user.username || "Anonymous"}</Text>
+                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>@{safeUsername}</Text>
                 </View>
               </View>
             </View>
@@ -319,7 +336,16 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      <ReceiptModal visible={!!receiptWager} onClose={() => setReceiptWager(null)} question={receiptWager?.question ?? ""} finalResult={receiptWager?.status === "won" ? receiptWager.prediction || receiptWager.choice : "—"} prediction={receiptWager?.prediction || receiptWager?.choice || ""} points={receiptWager?.status === "won" ? receiptWager.payout : receiptWager?.amount ?? 0} won={receiptWager?.status === "won"} />
+      {/* FIX: Replaced empty line with actual feedback on lost wagers */}
+      <ReceiptModal 
+        visible={!!receiptWager} 
+        onClose={() => setReceiptWager(null)} 
+        question={receiptWager?.question ?? ""} 
+        finalResult={receiptWager?.status === "won" ? (receiptWager.prediction || receiptWager.choice) : "Incorrect Pick"} 
+        prediction={receiptWager?.prediction || receiptWager?.choice || ""} 
+        points={receiptWager?.status === "won" ? receiptWager.payout : receiptWager?.amount ?? 0} 
+        won={receiptWager?.status === "won"} 
+      />
     </View>
   );
 }

@@ -83,12 +83,22 @@ function formatRelative(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+// FIX: Global Data Sanitizer
+// Strips emails and UUIDs out of the data stream before they reach the UI
 function toPost(api: ApiPost): Post {
+  const isEmail = api.username?.includes("@");
+  const isUUID = api.username?.length && api.username.length > 20;
+  const cleanUsername = (isEmail || isUUID) ? "player" : api.username;
+
+  const isDisplayNameEmail = api.displayName?.includes("@");
+  const isDisplayNameUUID = api.displayName?.length && api.displayName.length > 20;
+  const cleanDisplayName = (isDisplayNameEmail || isDisplayNameUUID) ? "Player" : api.displayName;
+
   return {
     id: api.id,
     userId: api.userId,
-    username: api.username,
-    displayName: api.displayName,
+    username: cleanUsername,
+    displayName: cleanDisplayName,
     avatarColor: api.avatarColor,
     text: api.text,
     likes: 0,
@@ -99,10 +109,18 @@ function toPost(api: ApiPost): Post {
 }
 
 function toLeaderboardEntry(api: ApiLeaderboardEntry): LeaderboardEntry {
+  const isEmail = api.username?.includes("@");
+  const isUUID = api.username?.length && api.username.length > 20;
+  const cleanUsername = (isEmail || isUUID) ? "player" : api.username;
+
+  const isDisplayNameEmail = api.displayName?.includes("@");
+  const isDisplayNameUUID = api.displayName?.length && api.displayName.length > 20;
+  const cleanDisplayName = (isDisplayNameEmail || isDisplayNameUUID) ? "Player" : api.displayName;
+
   return {
     userId: api.userId,
-    username: api.username,
-    displayName: api.displayName,
+    username: cleanUsername,
+    displayName: cleanDisplayName,
     avatarColor: api.avatarColor,
     points: api.points,
     winRate: api.winRate,
@@ -222,7 +240,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       id: generateId(),
       leagueId,
       userId: user.id,
-      username: user.username || "me",
+      username: user.username?.includes("@") ? "player" : (user.username || "me"),
       avatarColor: user.avatarColor,
       text,
       createdAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),

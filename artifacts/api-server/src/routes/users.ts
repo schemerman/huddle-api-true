@@ -30,15 +30,25 @@ import {
 
 const router: IRouter = Router();
 
+// 👇 THE FIX: THIS FUNCTION CONTROLS WHAT EVERY PAGE SEES 👇
 function serializeUser(u: DbUser) {
+  // 1. Dynamic Win Rate Math 
+  const total = Number((u as any).totalPicks || (u as any).total_picks || 0);
+  const won = Number((u as any).wonPicks || (u as any).won_picks || 0);
+  const calculatedWinRate = total > 0 ? Math.round((won / total) * 100) : 0;
+
+  // 2. UUID Bypass Logic
+  const isUUID = u.username && u.username.length > 20;
+  const cleanUsername = isUUID ? (u.displayName || "Player") : u.username;
+
   return {
     id: u.id,
     email: u.email,
-    username: u.username,
+    username: cleanUsername,       // Instantly hides the UUID across the whole app
     displayName: u.displayName,
     dob: u.dob,
     avatarColor: u.avatarColor,
-    winRate: u.winRate,
+    winRate: calculatedWinRate,    // Injects the 45% and 100% math!
     currentStreak: u.currentStreak,
     points: u.points,
     isBankrupt: u.isBankrupt,
@@ -47,6 +57,7 @@ function serializeUser(u: DbUser) {
     profileComplete: u.profileComplete,
   };
 }
+// 👆 -------------------------------------------------------- 👆
 
 router.post("/users/sync", async (req, res): Promise<void> => {
   const parsed = SyncUserBody.safeParse(req.body);
@@ -63,7 +74,6 @@ router.post("/users/sync", async (req, res): Promise<void> => {
 
   let user: DbUser;
   if (!existing) {
-    // FIX: Respect the provided username, fallback to email split only if missing
     const fallbackName = input.email ? input.email.split("@")[0] : "";
     const chosenUsername = input.username && input.username.trim() !== "" ? input.username : fallbackName;
     const chosenDisplayName = input.displayName && input.displayName.trim() !== "" ? input.displayName : chosenUsername;
@@ -82,7 +92,6 @@ router.post("/users/sync", async (req, res): Promise<void> => {
       })
       .returning();
   } else {
-    // FIX: Ensure updates actually overwrite the existing name
     [user] = await db
       .update(usersTable)
       .set({
@@ -271,7 +280,6 @@ router.post(
       const payout = won ? wager.potentialPayout : 0;
       const newPoints = user.points + payout;
       
-      // FIX: Update the tracking columns for the leaderboard win rate math
       const currentTotalPicks = (user as any).totalPicks || 0;
       const currentWonPicks = (user as any).wonPicks || 0;
 
