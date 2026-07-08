@@ -129,5 +129,5 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     alignItems: "center",
   },
-  receiptCloseText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  receiptCloseText: { fontFamily: "Inter_600SemiBold", fontSize: 14 }, 
 });

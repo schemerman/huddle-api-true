@@ -9,18 +9,18 @@ router.get("/fixtures", async (_req, res): Promise<void> => {
   // Grab the exact current time
   const now = new Date();
 
-  // Create a boundary for the end of the current day (11:59 PM)
-  const endOfDay = new Date();
-  endOfDay.setHours(23, 59, 59, 999);
+  // Create a 7-day boundary so upcoming Quarter and Semi-finals show up early!
+  const futureWindow = new Date();
+  futureWindow.setDate(futureWindow.getDate() + 7);
 
-  // Fetch matches happening strictly between NOW and MIDNIGHT
+  // Fetch matches happening strictly between NOW and 7 days from now
   const rows = await db
     .select()
     .from(fixturesTable)
     .where(
       and(
         gte(fixturesTable.startTime, now),
-        lte(fixturesTable.startTime, endOfDay)
+        lte(fixturesTable.startTime, futureWindow)
       )
     )
     .orderBy(asc(fixturesTable.startTime));

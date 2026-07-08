@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, usersTable, wagersTable, type User as DbUser } from "@workspace/db";
+// 👇 Added fixturesTable to the imports 👇
+import { db, usersTable, wagersTable, fixturesTable, type User as DbUser } from "@workspace/db";
 import {
   SyncUserBody,
   GetUserParams,
@@ -30,7 +31,6 @@ import {
 
 const router: IRouter = Router();
 
-// 👇 THE FIX: THIS FUNCTION CONTROLS WHAT EVERY PAGE SEES 👇
 function serializeUser(u: DbUser) {
   // 1. Dynamic Win Rate Math 
   const total = Number((u as any).totalPicks || (u as any).total_picks || 0);
@@ -44,11 +44,11 @@ function serializeUser(u: DbUser) {
   return {
     id: u.id,
     email: u.email,
-    username: cleanUsername,       // Instantly hides the UUID across the whole app
+    username: cleanUsername,
     displayName: u.displayName,
     dob: u.dob,
     avatarColor: u.avatarColor,
-    winRate: calculatedWinRate,    // Injects the 45% and 100% math!
+    winRate: calculatedWinRate,
     currentStreak: u.currentStreak,
     points: u.points,
     isBankrupt: u.isBankrupt,
@@ -57,7 +57,6 @@ function serializeUser(u: DbUser) {
     profileComplete: u.profileComplete,
   };
 }
-// 👆 -------------------------------------------------------- 👆
 
 router.post("/users/sync", async (req, res): Promise<void> => {
   const parsed = SyncUserBody.safeParse(req.body);
@@ -131,6 +130,7 @@ router.get("/users/:id", async (req, res): Promise<void> => {
   res.json(GetUserResponse.parse(serializeUser(user)));
 });
 
+// 👇 THE FIX: JOINING THE FIXTURES TABLE TO GET THE SCORES 👇
 router.get("/users/:id/wagers", async (req, res): Promise<void> => {
   const params = ListWagersParams.safeParse(req.params);
   if (!params.success) {
@@ -148,22 +148,40 @@ router.get("/users/:id/wagers", async (req, res): Promise<void> => {
     return;
   }
 
+  // Use a leftJoin to grab the matching fixture data for every wager
   const rows = await db
-    .select()
+    .select({
+      wager: wagersTable,
+      fixture: fixturesTable,
+    })
     .from(wagersTable)
+    .leftJoin(fixturesTable, eq(wagersTable.fixtureId, fixturesTable.id))
     .where(eq(wagersTable.userId, id))
     .orderBy(desc(wagersTable.createdAt));
 
-  res.json(
-    ListWagersResponse.parse(
-      rows.map((w) => ({
-        ...w,
-        createdAt: w.createdAt.toISOString(),
-        settledAt: w.settledAt ? w.settledAt.toISOString() : null,
-      })),
-    ),
+  // Parse the base wager through the official API schema
+  const parsedResponse = ListWagersResponse.parse(
+    rows.map((row) => ({
+      ...row.wager,
+      createdAt: row.wager.createdAt.toISOString(),
+      settledAt: row.wager.settledAt ? row.wager.settledAt.toISOString() : null,
+    })),
   );
+
+  // Safely re-attach the new scores and actual winner to bypass strict schema strippers
+  const payload = parsedResponse.map((w, index) => ({
+    ...w,
+    homeScore: rows[index].fixture?.homeScore,
+    awayScore: rows[index].fixture?.awayScore,
+    homeTeam: rows[index].fixture?.homeTeam,
+    awayTeam: rows[index].fixture?.awayTeam,
+    actual_result: (rows[index].wager as any).actual_result,
+  }));
+
+  // Cast to any to send the extended payload to the phone
+  res.json(payload as any);
 });
+// 👆 ---------------------------------------------------- 👆
 
 router.post("/users/:id/wagers", async (req, res): Promise<void> => {
   const params = PlaceWagerParams.safeParse(req.params);

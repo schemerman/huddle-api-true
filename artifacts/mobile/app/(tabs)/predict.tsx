@@ -47,6 +47,21 @@ interface FixtureOverlay {
   userWager: number;
 }
 
+const getFlag = (team: string) => {
+  const flags: Record<string, string> = {
+    "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
+    "Canada": "🇨🇦", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    "France": "🇫🇷", "Ghana": "🇬🇭", "Morocco": "🇲🇦", "Norway": "🇳🇴",
+    "Panama": "🇵🇦", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+    "Senegal": "🇸🇳", "Spain": "🇪🇸", "Switzerland": "🇨🇭", "USA": "🇺🇸",
+    "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
+    "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
+    "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
+    "Czech Republic": "🇨🇿"
+  };
+  return flags[team] || "🏳️";
+};
+
 function formatKickoff(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
@@ -95,10 +110,13 @@ function FixtureCard({ fixture, onOpenWager }: { fixture: Fixture; onOpenWager: 
         <Text style={[styles.competition, { color: colors.mutedForeground }]}>{fixture.competition}</Text>
         <Text style={[styles.kickoff, { color: colors.mutedForeground }]}>{fixture.kickoff}</Text>
       </View>
-      <Text style={[styles.question, { color: colors.foreground }]}>{fixture.question}</Text>
+      <Text style={[styles.question, { color: colors.foreground }]}>
+        Who will win: {getFlag(fixture.teamA)} {fixture.teamA} or {getFlag(fixture.teamB)} {fixture.teamB}?
+      </Text>
       <View style={styles.optionsCol}>
         {options.map(({ choice, label, odds }) => {
           const isSelected = fixture.userVote === choice;
+          const displayLabel = label === "Draw" ? "⚖️ Draw" : `${getFlag(label)} ${label}`;
           return (
             <Pressable
               key={choice}
@@ -108,7 +126,7 @@ function FixtureCard({ fixture, onOpenWager }: { fixture: Fixture; onOpenWager: 
                 { backgroundColor: isSelected ? colors.primary : colors.secondary, borderColor: colors.border, opacity: pressed && !voted ? 0.7 : 1 },
               ]}
             >
-              <Text style={[styles.optionLabel, { color: isSelected ? colors.primaryForeground : colors.foreground }]} numberOfLines={1}>{label}</Text>
+              <Text style={[styles.optionLabel, { color: isSelected ? colors.primaryForeground : colors.foreground }]} numberOfLines={1}>{displayLabel}</Text>
               <Text style={[styles.optionOdds, { color: isSelected ? colors.primaryForeground : colors.mutedForeground }]}>{odds}x</Text>
             </Pressable>
           );
@@ -163,7 +181,6 @@ export default function PredictScreen() {
     });
   };
 
-  // Safe auto-refreshing logic for Predict screen
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
@@ -190,7 +207,6 @@ export default function PredictScreen() {
 
           if (isMounted) setFixtures(apiFixtures.map((f) => toFixture(f, cloudOverlay)));
         } catch {
-          // Silent catch
         } finally {
           if (isMounted) setLoading(false);
         }
@@ -244,7 +260,8 @@ export default function PredictScreen() {
   };
 
   const chosenOdds = wagerTarget ? (wagerTarget.choice === "A" ? wagerTarget.fixture.oddsA : wagerTarget.choice === "D" ? wagerTarget.fixture.oddsD : wagerTarget.fixture.oddsB) : 1;
-  const chosenLabel = wagerTarget ? (wagerTarget.choice === "A" ? wagerTarget.fixture.teamA : wagerTarget.choice === "D" ? "Draw" : wagerTarget.fixture.teamB) : "";
+  const chosenLabelRaw = wagerTarget ? (wagerTarget.choice === "A" ? wagerTarget.fixture.teamA : wagerTarget.choice === "D" ? "Draw" : wagerTarget.fixture.teamB) : "";
+  const chosenLabelDisplay = chosenLabelRaw === "Draw" ? "⚖️ Draw" : `${getFlag(chosenLabelRaw)} ${chosenLabelRaw}`;
   const parsedAmount = parseInt(wagerAmount, 10);
   const canConfirm = !isNaN(parsedAmount) && parsedAmount > 0 && parsedAmount <= (user?.points ?? 0);
   const potentialPayout = canConfirm ? Math.floor(parsedAmount * chosenOdds) : null;
@@ -286,9 +303,11 @@ export default function PredictScreen() {
           <Animated.View style={[styles.modalSheet, { backgroundColor: colors.background, transform: [{ translateY }] }]}>
             <View style={styles.handleWrap} {...panResponder.panHandlers}><View style={[styles.modalHandle, { backgroundColor: colors.border }]} /></View>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Place a Pick</Text>
-            <Text style={[styles.modalPick, { color: colors.mutedForeground }]}>{wagerTarget?.fixture.question}</Text>
+            <Text style={[styles.modalPick, { color: colors.mutedForeground }]}>
+              Who will win: {getFlag(wagerTarget?.fixture.teamA || "")} {wagerTarget?.fixture.teamA} or {getFlag(wagerTarget?.fixture.teamB || "")} {wagerTarget?.fixture.teamB}?
+            </Text>
             <View style={styles.teamOddsRow}>
-              <View style={[styles.chosenTeamBadge, { backgroundColor: colors.primary }]}><Text style={[styles.chosenTeamText, { color: colors.primaryForeground }]}>{chosenLabel}</Text></View>
+              <View style={[styles.chosenTeamBadge, { backgroundColor: colors.primary }]}><Text style={[styles.chosenTeamText, { color: colors.primaryForeground }]}>{chosenLabelDisplay}</Text></View>
               <Text style={[styles.oddsTag, { color: colors.mutedForeground }]}>{chosenOdds}x multiplier</Text>
             </View>
             <Text style={[styles.wagerLabel, { color: colors.foreground }]}>How many points for your pick?</Text>

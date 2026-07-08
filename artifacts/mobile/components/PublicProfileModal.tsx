@@ -27,6 +27,22 @@ function statusLabel(status: string): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+// Helper function to map country names to emoji flags
+const getFlag = (team: string) => {
+  const flags: Record<string, string> = {
+    "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
+    "Canada": "🇨🇦", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    "France": "🇫🇷", "Ghana": "🇬🇭", "Morocco": "🇲🇦", "Norway": "🇳🇴",
+    "Panama": "🇵🇦", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+    "Senegal": "🇸🇳", "Spain": "🇪🇸", "Switzerland": "🇨🇭", "USA": "🇺🇸",
+    "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
+    "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
+    "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
+    "Czech Republic": "🇨🇿", "Draw": "⚖️"
+  };
+  return flags[team] || "🏳️"; // Fallback flag if country isn't found
+};
+
 interface Props {
   user: PublicProfileUser | null;
   onClose: () => void;
@@ -118,7 +134,6 @@ export function PublicProfileModal({ user, onClose }: Props) {
             { backgroundColor: colors.background, transform: [{ translateY }] },
           ]}
         >
-          {/* Drag handle */}
           <Pressable onPress={() => {}} style={styles.sheetInner}>
             <View style={styles.handleWrap} {...panResponder.panHandlers}>
               <View style={[styles.handle, { backgroundColor: colors.border }]} />
@@ -164,7 +179,6 @@ export function PublicProfileModal({ user, onClose }: Props) {
               </View>
             </View>
 
-            {/* Recent Picks */}
             <View style={styles.wagersSection}>
               <Text style={[styles.wagersTitle, { color: colors.foreground }]}>Recent Picks</Text>
               {loaded && wagers.length === 0 ? (
@@ -181,6 +195,28 @@ export function PublicProfileModal({ user, onClose }: Props) {
                   {wagers.map((w, i) => {
                     const won = w.status === "won";
                     const pick = w.prediction || w.choice;
+                    
+                    // Format the matchup display
+                    let matchText = w.question || "";
+                    let actualResultText = null;
+
+                    if (matchText.includes(" or ")) {
+                      const teamsStr = matchText.replace("Who will win: ", "").replace("?", "");
+                      const [teamA, teamB] = teamsStr.split(" or ");
+                      matchText = `${getFlag(teamA)} ${teamA} vs ${getFlag(teamB)} ${teamB}`;
+                      
+                      // If the match is finished, display the real winner
+                      if (w.status !== "pending") {
+                        // Cast to any to bypass strict type checking for the new actual_result column
+                        const finalWinner = (w as any).actual_result; 
+                        if (finalWinner) {
+                          actualResultText = `Final Result: ${getFlag(finalWinner)} ${finalWinner}`;
+                        } else {
+                          actualResultText = "Match Finished";
+                        }
+                      }
+                    }
+
                     return (
                       <View
                         key={w.id}
@@ -191,9 +227,17 @@ export function PublicProfileModal({ user, onClose }: Props) {
                         ]}
                       >
                         <View style={styles.wagerLeft}>
-                          <Text style={[styles.wagerTeam, { color: colors.foreground }]}>
-                            {w.amount} pts on {pick}
+                          <Text style={[styles.wagerTeam, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                            {matchText}
                           </Text>
+                          <Text style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 4 }}>
+                            Picked: {getFlag(pick)} {pick} ({w.amount} pts)
+                          </Text>
+                          {actualResultText && (
+                            <Text style={{ color: won ? colors.primary : colors.foreground, fontSize: 13, marginTop: 4, fontFamily: "Inter_700Bold" }}>
+                              {actualResultText}
+                            </Text>
+                          )}
                         </View>
                         <View
                           style={[
@@ -317,7 +361,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   wagersList: {
-    maxHeight: 200,
+    maxHeight: 250, // Slightly taller to fit the new text
   },
   wagersEmpty: {
     fontFamily: "Inter_400Regular",
@@ -328,13 +372,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 11,
+    paddingVertical: 14, // Given a bit more breathing room
     borderBottomWidth: 1,
   },
-  wagerLeft: { flex: 1 },
+  wagerLeft: { flex: 1, paddingRight: 12 },
   wagerTeam: {
     fontFamily: "Inter_400Regular",
-    fontSize: 14,
+    fontSize: 15, // Bumped up slightly for readability
   },
   wagerBadge: {
     paddingHorizontal: 10,
