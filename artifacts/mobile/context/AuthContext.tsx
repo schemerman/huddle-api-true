@@ -52,7 +52,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<HuddleUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Automatically track real login sessions
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) fetchUserProfile(session.user.id);
@@ -82,7 +81,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message, user: null };
     
-    // Fetch profile to see if they have a username yet
     const { data: profile } = await supabase.from("users").select("*").eq("id", data.user.id).single();
     return { error: null, user: profile as HuddleUser };
   };
@@ -96,26 +94,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const completeProfile = async (username: string, dob: string, avatarColor: string) => {
     if (!user) return;
     
-    // FIXED: Removed underscores to perfectly match the database schema
     const { error } = await supabase.from("users").update({
       username: username,
-      displayName: username,
+      display_name: username,
       dob: dob,
-      avatarColor: avatarColor,
-      profileComplete: true
+      avatar_color: avatarColor,
+      profile_complete: true
     }).eq("id", user.id);
     
-    if (!error) {
-      await fetchUserProfile(user.id);
-    } else {
-      console.error("Profile update failed:", error);
+    if (error) {
+      throw new Error(error.message); 
     }
+    
+    await fetchUserProfile(user.id);
   };
 
   const placeWager = async (details: WagerDetails) => {
     if (!user) throw new Error("Not signed in");
     await apiPlaceWager(user.id, details);
-    await fetchUserProfile(user.id); // Refresh stats dynamically
+    await fetchUserProfile(user.id);
   };
 
   const claimDailyBonus = async (): Promise<boolean> => {

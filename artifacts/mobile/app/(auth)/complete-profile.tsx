@@ -77,8 +77,8 @@ export default function CompleteProfileScreen() {
     try {
       await completeProfile(username.trim().toLowerCase(), dob, selectedColor);
       router.replace("/(tabs)");
-    } catch {
-      setError("Something went wrong.");
+    } catch (err: any) {
+      setError(err.message || "Something went wrong saving your profile.");
     } finally {
       setLoading(false);
     }

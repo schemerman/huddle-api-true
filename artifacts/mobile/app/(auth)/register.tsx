@@ -14,6 +14,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { HuddleButton } from "@/components/HuddleButton";
 
+const isValidEmail = (email: string) => {
+  const basicRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!basicRegex.test(email)) return false;
+  
+  const lower = email.toLowerCase();
+  if (lower.endsWith("@gmail.co") || lower.endsWith("@yahoo.co") || lower.endsWith("@hotmail.co")) {
+    return false;
+  }
+  
+  return true;
+};
+
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { register } = useAuth();
@@ -29,6 +41,12 @@ export default function RegisterScreen() {
       setError("Please fill in all fields.");
       return;
     }
+    
+    if (!isValidEmail(email.trim())) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
     if (password !== confirm) {
       setError("Passwords don't match.");
       return;
@@ -53,7 +71,6 @@ export default function RegisterScreen() {
         return; 
       }
 
-      // Zero friction: Send them straight to pick a username!
       router.replace("/(auth)/complete-profile");
       
     } catch {
