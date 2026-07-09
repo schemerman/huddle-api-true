@@ -3,6 +3,22 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
 
+// The same flag dictionary so the modal knows how to draw them!
+const getFlag = (team: string) => {
+  const flags: Record<string, string> = {
+    "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
+    "Canada": "🇨🇦", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    "France": "🇫🇷", "Ghana": "🇬🇭", "Morocco": "🇲🇦", "Norway": "🇳🇴",
+    "Panama": "🇵🇦", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+    "Senegal": "🇸🇳", "Spain": "🇪🇸", "Switzerland": "🇨🇭", "USA": "🇺🇸",
+    "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
+    "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
+    "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
+    "Czech Republic": "🇨🇿", "Draw": "⚖️"
+  };
+  return flags[team] || "🏳️";
+};
+
 interface ReceiptModalProps {
   visible: boolean;
   onClose: () => void;
@@ -25,6 +41,21 @@ export function ReceiptModal({
   const colors = useColors();
   const { user } = useAuth();
 
+  // Clean up the question text to include flags
+  let displayQuestion = question;
+  if (question.includes(" or ")) {
+    const teamsStr = question.replace("Who will win: ", "").replace("?", "");
+    const [teamA, teamB] = teamsStr.split(" or ");
+    displayQuestion = `Who will win:\n${getFlag(teamA)} ${teamA} vs ${getFlag(teamB)} ${teamB}?`;
+  }
+
+  // Add flags to the results and predictions if they are country names
+  const displayFinalResult = finalResult === "Pending" || finalResult === "Incorrect Pick" || finalResult.includes("-") 
+    ? finalResult 
+    : `${getFlag(finalResult)} ${finalResult}`;
+    
+  const displayPrediction = prediction === "Draw" ? "⚖️ Draw" : `${getFlag(prediction)} ${prediction}`;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.receiptOverlay}>
@@ -32,17 +63,17 @@ export function ReceiptModal({
           <Text style={[styles.receiptBrand, { color: colors.foreground }]}>HUDDLE</Text>
           <View style={[styles.receiptRule, { backgroundColor: colors.border }]} />
           <Text style={[styles.receiptKicker, { color: colors.mutedForeground }]}>PREDICTION RECEIPT</Text>
-          <Text style={[styles.receiptQuestion, { color: colors.foreground }]}>{question}</Text>
+          <Text style={[styles.receiptQuestion, { color: colors.foreground }]}>{displayQuestion}</Text>
 
           <View style={styles.receiptBlock}>
             <Text style={[styles.receiptBlockLabel, { color: colors.mutedForeground }]}>FINAL RESULT</Text>
-            <Text style={[styles.receiptBlockValue, { color: colors.foreground }]}>{finalResult}</Text>
+            <Text style={[styles.receiptBlockValue, { color: colors.foreground }]}>{displayFinalResult}</Text>
           </View>
           <View style={styles.receiptBlock}>
             <Text style={[styles.receiptBlockLabel, { color: colors.mutedForeground }]}>
               @{user?.username || "you"} predicted
             </Text>
-            <Text style={[styles.receiptBlockValue, { color: colors.foreground }]}>{prediction}</Text>
+            <Text style={[styles.receiptBlockValue, { color: colors.foreground }]}>{displayPrediction}</Text>
           </View>
 
           <Text style={[styles.receiptPoints, { color: colors.foreground }]}>
@@ -129,5 +160,5 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     alignItems: "center",
   },
-  receiptCloseText: { fontFamily: "Inter_600SemiBold", fontSize: 14 }, 
+  receiptCloseText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
 });
