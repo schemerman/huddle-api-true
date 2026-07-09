@@ -95,15 +95,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const completeProfile = async (username: string, dob: string, avatarColor: string) => {
     if (!user) return;
+    
+    // FIXED: Removed underscores to perfectly match the database schema
     const { error } = await supabase.from("users").update({
-      username,
-      display_name: username,
-      dob,
-      avatar_color: avatarColor,
+      username: username,
+      displayName: username,
+      dob: dob,
+      avatarColor: avatarColor,
       profileComplete: true
     }).eq("id", user.id);
     
-    if (!error) await fetchUserProfile(user.id);
+    if (!error) {
+      await fetchUserProfile(user.id);
+    } else {
+      console.error("Profile update failed:", error);
+    }
   };
 
   const placeWager = async (details: WagerDetails) => {
