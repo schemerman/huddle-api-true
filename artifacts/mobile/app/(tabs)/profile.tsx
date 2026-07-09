@@ -30,6 +30,48 @@ function statusLabel(status: string): string {
   return "Pending";
 }
 
+const getFlag = (team: string) => {
+  const flags: Record<string, string> = {
+    "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
+    "Canada": "🇨🇦", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    "France": "🇫🇷", "Ghana": "🇬🇭", "Morocco": "🇲🇦", "Norway": "🇳🇴",
+    "Panama": "🇵🇦", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+    "Senegal": "🇸🇳", "Spain": "🇪🇸", "Switzerland": "🇨🇭", "USA": "🇺🇸",
+    "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
+    "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
+    "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
+    "Czech Republic": "🇨🇿", "Draw": "⚖️"
+  };
+  return flags[team] || "🏳️";
+};
+
+const getFinalResult = (wager: any) => {
+  if (!wager) return "Unknown";
+  if (wager.status === "pending") return "Pending";
+  
+  if (wager.homeScore !== undefined && wager.awayScore !== undefined && wager.homeTeam && wager.awayTeam) {
+      return `${getFlag(wager.homeTeam)} ${wager.homeTeam} ${wager.homeScore} - ${wager.awayScore} ${wager.awayTeam} ${getFlag(wager.awayTeam)}`;
+  }
+
+  const finalWinner = wager.actual_result;
+  if (finalWinner) return `${getFlag(finalWinner)} ${finalWinner}`;
+
+  try {
+    const q = wager.question || "";
+    if (q.includes(" or ")) {
+      const teamsStr = q.replace("Who will win: ", "").replace("?", "");
+      const [teamA, teamB] = teamsStr.split(" or ");
+      const guess = wager.prediction || wager.choice;
+
+      if (guess === teamA) return `${getFlag(teamB)} ${teamB}`;
+      if (guess === teamB) return `${getFlag(teamA)} ${teamA}`;
+      if (guess === "Draw") return "Winner Decided";
+    }
+  } catch (e) {}
+  
+  return "Incorrect Pick";
+};
+
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -42,21 +84,15 @@ export default function ProfileScreen() {
   const [wagers, setWagers] = useState<any[]>([]);
   const [wagersLoaded, setWagersLoaded] = useState(false);
   
-  // Bulletproof Local Lock State
   const [isBonusLocked, setIsBonusLocked] = useState(true);
-  
-  // Instant visual points so the UI responds immediately
   const [visualPoints, setVisualPoints] = useState(user?.points || 0);
 
-  // FIX: Anti-Flicker Sync Loop
-  // Constantly watches the database and locks the true points value in so it never drops to 0
   useEffect(() => {
     if (user?.points !== undefined) {
       setVisualPoints(user.points);
     }
   }, [user?.points]);
 
-  // Check local storage on mount to see if 24 hours have passed
   useEffect(() => {
     const checkLock = async () => {
       try {
@@ -64,13 +100,13 @@ export default function ProfileScreen() {
         if (lastClaim) {
           const timePassed = Date.now() - parseInt(lastClaim, 10);
           if (timePassed < DAY_MS) {
-            setIsBonusLocked(true); // Still locked
+            setIsBonusLocked(true);
           } else {
-            setIsBonusLocked(false); // 24 hours passed, unlock!
+            setIsBonusLocked(false);
             await AsyncStorage.removeItem('last_bonus_claim_time');
           }
         } else {
-          setIsBonusLocked(false); // Never claimed, keep unlocked
+          setIsBonusLocked(false);
         }
       } catch (e) {
         setIsBonusLocked(false);
@@ -94,7 +130,6 @@ export default function ProfileScreen() {
             
           if (isMounted && data) setWagers(data);
         } catch {
-          // Silent catch
         } finally {
           if (isMounted) setWagersLoaded(true);
         }
@@ -125,22 +160,18 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
-  // 1. Calculate Win Rate Dynamically
   const completedWagers = wagers.filter(w => w.status === "won" || w.status === "lost");
   const wonWagers = completedWagers.filter(w => w.status === "won");
   const safeWinRate = completedWagers.length > 0 
     ? Math.round((wonWagers.length / completedWagers.length) * 100) 
     : 0;
 
-  // 2. Calculate Streak Dynamically (Counting backwards from newest wager)
   let safeStreak = 0;
   for (const w of wagers) {
     if (w.status === "won") safeStreak++;
-    else if (w.status === "lost") break; // Streak broken!
+    else if (w.status === "lost") break;
   }
 
-  // FIX: Strict Privacy Filters
-  // Blocks emails and UUID strings from showing up on the public profile header
   const isEmail = (str: string) => str?.includes("@");
   const isUUID = (str: string) => str?.length > 20;
 
@@ -157,23 +188,17 @@ export default function ProfileScreen() {
   const handleDailyBonus = async () => {
     if (isBonusLocked) return;
     
-    // 1. Instantly lock UI so they cannot spam it
     setIsBonusLocked(true);
-    
-    // 2. Instantly give them 100 points visually for immediate feedback
     setVisualPoints((prev: number) => prev + 100);
     
-    // 3. Save the exact millisecond to local storage to start the 24-hour timer
     await AsyncStorage.setItem('last_bonus_claim_time', Date.now().toString());
     
-    // 4. Trigger the success notification
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
       window.alert("Daily bonus claimed! +100 points.");
     }
 
-    // 5. Tell the backend to update quietly in the background
     try {
       await claimDailyBonus();
     } catch (error) {
@@ -300,11 +325,19 @@ export default function ProfileScreen() {
               wagers.map((w, i) => {
                 const completed = w.status === "won" || w.status === "lost";
                 const won = w.status === "won";
+                
+                let displayQuestion = w.question || "";
+                if (displayQuestion.includes(" or ")) {
+                  const teamsStr = displayQuestion.replace("Who will win: ", "").replace("?", "");
+                  const [teamA, teamB] = teamsStr.split(" or ");
+                  displayQuestion = `${getFlag(teamA)} ${teamA} vs ${getFlag(teamB)} ${teamB}`;
+                }
+
                 return (
                   <Pressable key={w.id} onPress={completed ? () => { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setReceiptWager(w); } : undefined} style={({ pressed }) => [styles.wagerRow, { borderBottomColor: colors.border }, i === wagers.length - 1 && { borderBottomWidth: 0 }, { opacity: pressed && completed ? 0.6 : 1 }]}>
                     <View style={styles.wagerLeft}>
                       <Text style={[styles.wagerTeam, { color: colors.foreground }]}>{w.amount} pts on {w.prediction || w.choice}</Text>
-                      <Text style={[styles.wagerFixture, { color: colors.mutedForeground }]}>{w.question}</Text>
+                      <Text style={[styles.wagerFixture, { color: colors.mutedForeground }]}>{displayQuestion}</Text>
                     </View>
                     <View style={styles.wagerRight}>
                       <View style={[styles.wagerBadge, { backgroundColor: won ? colors.primary : colors.secondary }]}>
@@ -336,12 +369,11 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      {/* FIX: Replaced empty line with actual feedback on lost wagers */}
       <ReceiptModal 
         visible={!!receiptWager} 
         onClose={() => setReceiptWager(null)} 
         question={receiptWager?.question ?? ""} 
-        finalResult={receiptWager?.actual_result || (receiptWager?.status === "won" ? (receiptWager.prediction || receiptWager.choice) : "Pending")} 
+        finalResult={getFinalResult(receiptWager)} 
         prediction={receiptWager?.prediction || receiptWager?.choice || ""} 
         points={receiptWager?.status === "won" ? receiptWager.payout : receiptWager?.amount ?? 0} 
         won={receiptWager?.status === "won"} 

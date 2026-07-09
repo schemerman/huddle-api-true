@@ -27,7 +27,6 @@ function statusLabel(status: string): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-// Helper function to map country names to emoji flags
 const getFlag = (team: string) => {
   const flags: Record<string, string> = {
     "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
@@ -40,7 +39,7 @@ const getFlag = (team: string) => {
     "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
     "Czech Republic": "🇨🇿", "Draw": "⚖️"
   };
-  return flags[team] || "🏳️"; // Fallback flag if country isn't found
+  return flags[team] || "🏳️";
 };
 
 interface Props {
@@ -196,7 +195,6 @@ export function PublicProfileModal({ user, onClose }: Props) {
                     const won = w.status === "won";
                     const pick = w.prediction || w.choice;
                     
-                    // Format the matchup display
                     let matchText = w.question || "";
                     let actualResultText = null;
 
@@ -205,11 +203,16 @@ export function PublicProfileModal({ user, onClose }: Props) {
                       const [teamA, teamB] = teamsStr.split(" or ");
                       matchText = `${getFlag(teamA)} ${teamA} vs ${getFlag(teamB)} ${teamB}`;
                       
-                      // If the match is finished, display the real winner
                       if (w.status !== "pending") {
-                        // Cast to any to bypass strict type checking for the new actual_result column
                         const finalWinner = (w as any).actual_result; 
-                        if (finalWinner) {
+                        const hScore = (w as any).homeScore;
+                        const aScore = (w as any).awayScore;
+                        const hTeam = (w as any).homeTeam;
+                        const aTeam = (w as any).awayTeam;
+
+                        if (hScore !== undefined && aScore !== undefined && hTeam && aTeam) {
+                          actualResultText = `Final Score: ${getFlag(hTeam)} ${hTeam} ${hScore} - ${aScore} ${aTeam} ${getFlag(aTeam)}`;
+                        } else if (finalWinner) {
                           actualResultText = `Final Result: ${getFlag(finalWinner)} ${finalWinner}`;
                         } else {
                           actualResultText = "Match Finished";
@@ -284,117 +287,28 @@ export function PublicProfileModal({ user, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: "90%",
-  },
-  sheetInner: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    alignItems: "center",
-  },
-  handleWrap: {
-    alignSelf: "stretch",
-    alignItems: "center",
-    paddingTop: 12,
-    paddingBottom: 20,
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-  },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "90%" },
+  sheetInner: { paddingHorizontal: 24, paddingBottom: 40, alignItems: "center" },
+  handleWrap: { alignSelf: "stretch", alignItems: "center", paddingTop: 12, paddingBottom: 20 },
+  handle: { width: 36, height: 4, borderRadius: 2 },
   avatarWrap: { marginBottom: 16 },
-  displayName: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 20,
-    letterSpacing: -0.3,
-    marginBottom: 4,
-  },
-  username: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    marginBottom: 6,
-  },
-  perfBadge: {
-    alignSelf: "center",
-    marginBottom: 24,
-  },
-  statsRow: {
-    flexDirection: "row",
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    width: "100%",
-    marginBottom: 24,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 16,
-    gap: 4,
-  },
-  statValue: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 24,
-    letterSpacing: -0.8,
-  },
-  statLabel: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  wagersSection: {
-    width: "100%",
-    marginBottom: 20,
-  },
-  wagersTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 16,
-    letterSpacing: -0.2,
-    marginBottom: 12,
-  },
-  wagersList: {
-    maxHeight: 250, // Slightly taller to fit the new text
-  },
-  wagersEmpty: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    paddingVertical: 8,
-  },
-  wagerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 14, // Given a bit more breathing room
-    borderBottomWidth: 1,
-  },
+  displayName: { fontFamily: "Inter_700Bold", fontSize: 20, letterSpacing: -0.3, marginBottom: 4 },
+  username: { fontFamily: "Inter_400Regular", fontSize: 14, marginBottom: 6 },
+  perfBadge: { alignSelf: "center", marginBottom: 24 },
+  statsRow: { flexDirection: "row", borderTopWidth: 1, borderBottomWidth: 1, width: "100%", marginBottom: 24 },
+  statItem: { flex: 1, alignItems: "center", paddingVertical: 16, gap: 4 },
+  statValue: { fontFamily: "Inter_700Bold", fontSize: 24, letterSpacing: -0.8 },
+  statLabel: { fontFamily: "Inter_400Regular", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 },
+  wagersSection: { width: "100%", marginBottom: 20 },
+  wagersTitle: { fontFamily: "Inter_700Bold", fontSize: 16, letterSpacing: -0.2, marginBottom: 12 },
+  wagersList: { maxHeight: 250 },
+  wagersEmpty: { fontFamily: "Inter_400Regular", fontSize: 14, paddingVertical: 8 },
+  wagerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, borderBottomWidth: 1 },
   wagerLeft: { flex: 1, paddingRight: 12 },
-  wagerTeam: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 15, // Bumped up slightly for readability
-  },
-  wagerBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    marginLeft: 10,
-  },
-  wagerStatus: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 11,
-  },
-  closeBtn: {
-    width: "100%",
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignItems: "center",
-  },
+  wagerTeam: { fontFamily: "Inter_400Regular", fontSize: 15 },
+  wagerBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, marginLeft: 10 },
+  wagerStatus: { fontFamily: "Inter_600SemiBold", fontSize: 11 },
+  closeBtn: { width: "100%", paddingVertical: 14, borderRadius: 999, alignItems: "center" },
   closeBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
 });
