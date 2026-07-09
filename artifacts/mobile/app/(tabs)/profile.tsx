@@ -20,7 +20,7 @@ import { PerformanceTitleBadge } from "@/components/PerformanceTitleBadge";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { ReceiptModal } from "@/components/ReceiptModal";
-import { supabase } from "@/lib/supabase";
+import { listWagers } from "@workspace/api-client-react";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -42,7 +42,7 @@ const getFlag = (team: string) => {
     "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
     "Czech Republic": "🇨🇿", "Draw": "⚖️"
   };
-  return flags[team] || "🏳️";
+  return flags[team] || "";
 };
 
 const getFinalResult = (wager: any) => {
@@ -50,26 +50,18 @@ const getFinalResult = (wager: any) => {
   if (wager.status === "pending") return "Pending";
   
   if (wager.homeScore !== undefined && wager.awayScore !== undefined && wager.homeTeam && wager.awayTeam) {
-      return `${getFlag(wager.homeTeam)} ${wager.homeTeam} ${wager.homeScore} - ${wager.awayScore} ${wager.awayTeam} ${getFlag(wager.awayTeam)}`;
+      const hFlag = getFlag(wager.homeTeam);
+      const aFlag = getFlag(wager.awayTeam);
+      return `${hFlag ? hFlag + " " : ""}${wager.homeTeam} ${wager.homeScore} - ${wager.awayScore} ${wager.awayTeam}${aFlag ? " " + aFlag : ""}`;
   }
 
   const finalWinner = wager.actual_result;
-  if (finalWinner) return `${getFlag(finalWinner)} ${finalWinner}`;
+  if (finalWinner) {
+      const fFlag = getFlag(finalWinner);
+      return `${fFlag ? fFlag + " " : ""}${finalWinner}`;
+  }
 
-  try {
-    const q = wager.question || "";
-    if (q.includes(" or ")) {
-      const teamsStr = q.replace("Who will win: ", "").replace("?", "");
-      const [teamA, teamB] = teamsStr.split(" or ");
-      const guess = wager.prediction || wager.choice;
-
-      if (guess === teamA) return `${getFlag(teamB)} ${teamB}`;
-      if (guess === teamB) return `${getFlag(teamA)} ${teamA}`;
-      if (guess === "Draw") return "Winner Decided";
-    }
-  } catch (e) {}
-  
-  return "Incorrect Pick";
+  return "Match Finished";
 };
 
 export default function ProfileScreen() {
@@ -122,12 +114,7 @@ export default function ProfileScreen() {
 
       const fetchFreshData = async () => {
         try {
-          const { data } = await supabase
-            .from("wagers")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false });
-            
+          const data = await listWagers(user.id);
           if (isMounted && data) setWagers(data);
         } catch {
         } finally {
@@ -330,7 +317,9 @@ export default function ProfileScreen() {
                 if (displayQuestion.includes(" or ")) {
                   const teamsStr = displayQuestion.replace("Who will win: ", "").replace("?", "");
                   const [teamA, teamB] = teamsStr.split(" or ");
-                  displayQuestion = `${getFlag(teamA)} ${teamA} vs ${getFlag(teamB)} ${teamB}`;
+                  const fA = getFlag(teamA);
+                  const fB = getFlag(teamB);
+                  displayQuestion = `${fA ? fA + " " : ""}${teamA} vs ${fB ? fB + " " : ""}${teamB}`;
                 }
 
                 return (

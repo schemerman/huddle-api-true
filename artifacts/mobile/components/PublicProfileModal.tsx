@@ -39,7 +39,7 @@ const getFlag = (team: string) => {
     "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
     "Czech Republic": "🇨🇿", "Draw": "⚖️"
   };
-  return flags[team] || "🏳️";
+  return flags[team] || "";
 };
 
 interface Props {
@@ -201,7 +201,10 @@ export function PublicProfileModal({ user, onClose }: Props) {
                     if (matchText.includes(" or ")) {
                       const teamsStr = matchText.replace("Who will win: ", "").replace("?", "");
                       const [teamA, teamB] = teamsStr.split(" or ");
-                      matchText = `${getFlag(teamA)} ${teamA} vs ${getFlag(teamB)} ${teamB}`;
+                      const flagA = getFlag(teamA);
+                      const flagB = getFlag(teamB);
+                      
+                      matchText = `${flagA ? flagA + " " : ""}${teamA} vs ${flagB ? flagB + " " : ""}${teamB}`;
                       
                       if (w.status !== "pending") {
                         const finalWinner = (w as any).actual_result; 
@@ -211,14 +214,19 @@ export function PublicProfileModal({ user, onClose }: Props) {
                         const aTeam = (w as any).awayTeam;
 
                         if (hScore !== undefined && aScore !== undefined && hTeam && aTeam) {
-                          actualResultText = `Final Score: ${getFlag(hTeam)} ${hTeam} ${hScore} - ${aScore} ${aTeam} ${getFlag(aTeam)}`;
+                          const fH = getFlag(hTeam);
+                          const fA = getFlag(aTeam);
+                          actualResultText = `Final Score: ${fH ? fH + " " : ""}${hTeam} ${hScore} - ${aScore} ${aTeam}${fA ? " " + fA : ""}`;
                         } else if (finalWinner) {
-                          actualResultText = `Final Result: ${getFlag(finalWinner)} ${finalWinner}`;
+                          const fW = getFlag(finalWinner);
+                          actualResultText = `Final Result: ${fW ? fW + " " : ""}${finalWinner}`;
                         } else {
                           actualResultText = "Match Finished";
                         }
                       }
                     }
+
+                    const pickFlag = getFlag(pick);
 
                     return (
                       <View
@@ -234,7 +242,7 @@ export function PublicProfileModal({ user, onClose }: Props) {
                             {matchText}
                           </Text>
                           <Text style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 4 }}>
-                            Picked: {getFlag(pick)} {pick} ({w.amount} pts)
+                            Picked: {pickFlag ? pickFlag + " " : ""}{pick} ({w.amount} pts)
                           </Text>
                           {actualResultText && (
                             <Text style={{ color: won ? colors.primary : colors.foreground, fontSize: 13, marginTop: 4, fontFamily: "Inter_700Bold" }}>
