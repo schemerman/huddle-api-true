@@ -12,7 +12,7 @@ import {
 import { useColors } from "@/hooks/useColors";
 import { PerformanceTitleBadge } from "./PerformanceTitleBadge";
 import { Avatar } from "./Avatar";
-import { listWagers, type Wager } from "@workspace/api-client-react";
+import { supabase } from "@/lib/supabase";
 
 export interface PublicProfileUser {
   userId: string;
@@ -39,7 +39,7 @@ const getFlag = (team: string) => {
     "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
     "Czech Republic": "🇨🇿", "Draw": "⚖️"
   };
-  return flags[team] || "";
+  return flags[team] || ""; 
 };
 
 interface Props {
@@ -80,7 +80,7 @@ export function PublicProfileModal({ user, onClose }: Props) {
     })
   ).current;
 
-  const [wagers, setWagers] = useState<Wager[]>([]);
+  const [wagers, setWagers] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -92,16 +92,54 @@ export function PublicProfileModal({ user, onClose }: Props) {
     }
     let active = true;
     setLoaded(false);
-    listWagers(id)
-      .then((rows) => {
-        if (active) setWagers(rows);
-      })
-      .catch(() => {
+
+    const fetchPublicData = async () => {
+      try {
+        const { data: wagersData, error } = await supabase
+          .from("wagers")
+          .select("*")
+          .eq("user_id", id)
+          .order("created_at", { ascending: false });
+
+        if (error || !wagersData) throw error;
+
+        const fixtureIds = wagersData.map((w: any) => w.fixture_id || w.fixtureId).filter(Boolean);
+        let fixturesMap: Record<string, any> = {};
+
+        if (fixtureIds.length > 0) {
+          const { data: fixturesData } = await supabase
+            .from("fixtures")
+            .select("*")
+            .in("id", fixtureIds);
+
+          if (fixturesData) {
+            fixturesData.forEach((f: any) => {
+              fixturesMap[f.id] = f;
+            });
+          }
+        }
+
+        const merged = wagersData.map((w: any) => {
+          const f = fixturesMap[w.fixture_id || w.fixtureId];
+          return {
+            ...w,
+            homeScore: f?.homeScore ?? f?.home_score,
+            awayScore: f?.awayScore ?? f?.away_score,
+            homeTeam: f?.homeTeam ?? f?.home_team,
+            awayTeam: f?.awayTeam ?? f?.away_team,
+          };
+        });
+
+        if (active) setWagers(merged);
+      } catch (err) {
         if (active) setWagers([]);
-      })
-      .finally(() => {
+      } finally {
         if (active) setLoaded(true);
-      });
+      }
+    };
+
+    fetchPublicData();
+
     return () => {
       active = false;
     };
@@ -207,19 +245,32 @@ export function PublicProfileModal({ user, onClose }: Props) {
                       matchText = `${flagA ? flagA + " " : ""}${teamA} vs ${flagB ? flagB + " " : ""}${teamB}`;
                       
                       if (w.status !== "pending") {
-                        const finalWinner = (w as any).actual_result; 
-                        const hScore = (w as any).homeScore;
-                        const aScore = (w as any).awayScore;
-                        const hTeam = (w as any).homeTeam;
-                        const aTeam = (w as any).awayTeam;
+                        const finalWinner = w.actual_result; 
+                        const hScore = w.homeScore;
+                        const aScore = w.awayScore;
+                        const hTeam = w.homeTeam;
+                        const aTeam = w.awayTeam;
 
-                        if (hScore !== undefined && aScore !== undefined && hTeam && aTeam) {
-                          const fH = getFlag(hTeam);
-                          const fA = getFlag(aTeam);
-                          actualResultText = `Final Score: ${fH ? fH + " " : ""}${hTeam} ${hScore} - ${aScore} ${aTeam}${fA ? " " + fA : ""}`;
+                        // Use the exact new logic to format the score
+                        if (hScore !== undefined && hScore !== null && aScore !== undefined && aScore !== null && hTeam && aTeam) {
+                          const hFlag = getFlag(hTeam);
+                          const aFlag = getFlag(aTeam);
+                          const scoreLine = `${hScore} - ${aScore}`;
+
+                          if (hScore === aScore) {
+                            actualResultText = `⚖️ Draw (${scoreLine})`;
+                          } else if (hScore > aScore) {
+                            actualResultText = `${hFlag ? hFlag + " " : ""}${hTeam} Won (${scoreLine})`;
+                          } else {
+                            actualResultText = `${aFlag ? aFlag + " " : ""}${aTeam} Won (${scoreLine})`;
+                          }
                         } else if (finalWinner) {
-                          const fW = getFlag(finalWinner);
-                          actualResultText = `Final Result: ${fW ? fW + " " : ""}${finalWinner}`;
+                          if (finalWinner.toLowerCase() === "draw") {
+                            actualResultText = "⚖️ Draw";
+                          } else {
+                            const fFlag = getFlag(finalWinner);
+                            actualResultText = `${fFlag ? fFlag + " " : ""}${finalWinner} Won`;
+                          }
                         } else {
                           actualResultText = "Match Finished";
                         }

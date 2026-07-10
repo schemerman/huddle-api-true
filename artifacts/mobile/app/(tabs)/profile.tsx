@@ -20,7 +20,7 @@ import { PerformanceTitleBadge } from "@/components/PerformanceTitleBadge";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { ReceiptModal } from "@/components/ReceiptModal";
-import { listWagers } from "@workspace/api-client-react";
+import { supabase } from "@/lib/supabase";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -42,23 +42,39 @@ const getFlag = (team: string) => {
     "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
     "Czech Republic": "🇨🇿", "Draw": "⚖️"
   };
-  return flags[team] || "";
+  return flags[team] || ""; 
 };
 
 const getFinalResult = (wager: any) => {
   if (!wager) return "Unknown";
   if (wager.status === "pending") return "Pending";
   
-  if (wager.homeScore !== undefined && wager.awayScore !== undefined && wager.homeTeam && wager.awayTeam) {
+  // 1. If we have the exact scores from the database
+  if (wager.homeScore !== undefined && wager.homeScore !== null && wager.awayScore !== undefined && wager.awayScore !== null) {
       const hFlag = getFlag(wager.homeTeam);
       const aFlag = getFlag(wager.awayTeam);
-      return `${hFlag ? hFlag + " " : ""}${wager.homeTeam} ${wager.homeScore} - ${wager.awayScore} ${wager.awayTeam}${aFlag ? " " + aFlag : ""}`;
+      const scoreLine = `${wager.homeScore} - ${wager.awayScore}`;
+
+      // Explicitly announce Draws!
+      if (wager.homeScore === wager.awayScore) {
+          return `⚖️ Draw (${scoreLine})`;
+      } 
+      // Explicitly announce the Home Winner
+      else if (wager.homeScore > wager.awayScore) {
+          return `${hFlag ? hFlag + " " : ""}${wager.homeTeam} Won (${scoreLine})`;
+      } 
+      // Explicitly announce the Away Winner
+      else {
+          return `${aFlag ? aFlag + " " : ""}${wager.awayTeam} Won (${scoreLine})`;
+      }
   }
 
+  // 2. Fallback for older legacy matches
   const finalWinner = wager.actual_result;
   if (finalWinner) {
+      if (finalWinner.toLowerCase() === "draw") return "⚖️ Draw";
       const fFlag = getFlag(finalWinner);
-      return `${fFlag ? fFlag + " " : ""}${finalWinner}`;
+      return `${fFlag ? fFlag + " " : ""}${finalWinner} Won`;
   }
 
   return "Match Finished";
@@ -114,8 +130,42 @@ export default function ProfileScreen() {
 
       const fetchFreshData = async () => {
         try {
-          const data = await listWagers(user.id);
-          if (isMounted && data) setWagers(data);
+          const { data: wagersData, error } = await supabase
+            .from("wagers")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false });
+            
+          if (error || !wagersData) throw error;
+
+          const fixtureIds = wagersData.map((w: any) => w.fixture_id || w.fixtureId).filter(Boolean);
+          let fixturesMap: Record<string, any> = {};
+
+          if (fixtureIds.length > 0) {
+            const { data: fixturesData } = await supabase
+              .from("fixtures")
+              .select("*")
+              .in("id", fixtureIds);
+
+            if (fixturesData) {
+              fixturesData.forEach((f: any) => {
+                fixturesMap[f.id] = f;
+              });
+            }
+          }
+
+          const mergedWagers = wagersData.map((w: any) => {
+            const f = fixturesMap[w.fixture_id || w.fixtureId];
+            return {
+              ...w,
+              homeScore: f?.homeScore ?? f?.home_score,
+              awayScore: f?.awayScore ?? f?.away_score,
+              homeTeam: f?.homeTeam ?? f?.home_team,
+              awayTeam: f?.awayTeam ?? f?.away_team,
+            };
+          });
+
+          if (isMounted) setWagers(mergedWagers);
         } catch {
         } finally {
           if (isMounted) setWagersLoaded(true);
