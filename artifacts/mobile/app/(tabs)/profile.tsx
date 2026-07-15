@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Linking, // Added Linking for the email button
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -340,9 +341,18 @@ export default function ProfileScreen() {
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>APP</Text>
               <View style={[styles.settingsGroup, { borderColor: colors.border }]}>
-                <Pressable onPress={() => setAgreementOpen(true)} style={styles.settingsRow}>
+                <Pressable onPress={() => setAgreementOpen(true)} style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
                   <Feather name="file-text" size={18} color={colors.foreground} />
                   <Text style={[styles.settingsLabel, { color: colors.foreground }]}>Privacy Policy</Text>
+                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </Pressable>
+                {/* NEW GIVE FEEDBACK BUTTON */}
+                <Pressable 
+                  onPress={() => Linking.openURL('mailto:huddleappsupport@gmail.com?subject=Huddle App Feedback')} 
+                  style={styles.settingsRow}
+                >
+                  <Feather name="message-square" size={18} color={colors.foreground} />
+                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>Give Feedback</Text>
                   <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
                 </Pressable>
               </View>
@@ -392,17 +402,44 @@ export default function ProfileScreen() {
         )}
       </ScrollView>
 
+      {/* NEW APP STORE COMPLIANT MODAL */}
       <Modal visible={agreementOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <Pressable style={styles.modalDismiss} onPress={() => setAgreementOpen(false)} />
-          <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.background, maxHeight: "90%" }]}>
             <View style={styles.modalHead}>
-              <Text style={[styles.modalTitle, { color: colors.foreground }]}>User Agreement</Text>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Terms & Privacy</Text>
               <Pressable onPress={() => setAgreementOpen(false)}><Feather name="x" size={22} color={colors.foreground} /></Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} style={styles.agreementScroll}>
-              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>1. User-Generated Content</Text>
-              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>You are solely responsible for the posts, predictions, and messages you share on Huddle. Content must not be unlawful, abusive, or harassing.</Text>
+              
+              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>1. No Real Money Gambling</Text>
+              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
+                Huddle is a strictly free-to-play sports prediction simulator. The "Points" used within this application have absolutely no real-world cash value, cannot be purchased with real money, and cannot be redeemed, withdrawn, or exchanged for cash, prizes, or goods of any kind. 
+              </Text>
+
+              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>2. User-Generated Content (UGC)</Text>
+              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
+                By posting on the Home feed, you agree to treat the community with respect. We have a zero-tolerance policy for objectionable content. You may not post content that is unlawful, defamatory, harassing, abusive, fraudulent, obscenely offensive, or contains hate speech. Violating these terms will result in an immediate and permanent account ban.
+              </Text>
+
+              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>3. Virtual Economy & Bankrolls</Text>
+              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
+                Huddle reserves the right to modify, wipe, reset, or balance the virtual points economy at any time without prior notice to ensure a fair competitive environment for all users. Exploiting bugs to generate points is strictly prohibited.
+              </Text>
+
+              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>4. Data Privacy</Text>
+              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
+                We collect basic account information (such as your email and username) strictly for authentication and account recovery purposes. Your prediction history and public posts are visible to other users. We do not sell your personal data to third parties. 
+              </Text>
+
+              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>5. Account Termination</Text>
+              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>
+                We reserve the right to suspend or terminate your access to the app at our sole discretion, at any time, and without notice, including if we believe you have violated this Agreement.
+              </Text>
+              
+              {/* Added a little extra padding at the bottom for comfortable scrolling */}
+              <View style={{ height: 40 }} />
             </ScrollView>
           </View>
         </View>
@@ -416,6 +453,7 @@ export default function ProfileScreen() {
         prediction={receiptWager?.prediction || receiptWager?.choice || ""} 
         points={receiptWager?.status === "won" ? receiptWager.payout : receiptWager?.amount ?? 0} 
         won={receiptWager?.status === "won"} 
+        wagerId={receiptWager?.id} // Add this line right here!
       />
     </View>
   );
