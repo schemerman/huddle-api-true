@@ -51,14 +51,12 @@ export default function HomeScreen() {
 
   const fetchPosts = async () => {
     try {
-      // THE TRIPWIRE: Try the complex join
       const { data: postsData, error } = await supabase
         .from("posts")
         .select(`*, users (*), post_likes (user_id)`)
         .order("created_at", { ascending: false });
 
       if (error) {
-        // IF IT FAILS, YELL AT US AND FALL BACK TO BASIC DATA!
         Alert.alert("Join Error", `Database rejected the user link: ${error.message}`);
         
         const { data: backupData, error: backupErr } = await supabase
@@ -173,7 +171,6 @@ export default function HomeScreen() {
   };
 
   const submitPost = async () => {
-    // TRIPWIRE 2: Check if user is magically missing
     if (!user) {
       Alert.alert("Auth Error", "We cannot find your user ID. Are you logged in?");
       return;
@@ -205,8 +202,6 @@ export default function HomeScreen() {
 
   const renderPost = useCallback(({ item }: { item: any }) => {
     const isLit = item.fire_count > 0;
-    
-    // SAFE FALLBACK: If the join failed, it won't crash the app, it will just use a fallback avatar
     const author = item.users || { username: user?.username || "player", display_name: "Anonymous", avatar_color: colors.primary };
     
     const likesCount = item.post_likes?.length || 0;
@@ -249,7 +244,6 @@ export default function HomeScreen() {
           <Text style={[styles.postText, { color: colors.foreground }]}>{item.content}</Text>
           {miniReceipt}
           
-          {/* THE FULL ACTION BAR IS BACK */}
           <View style={styles.actionRow}>
             <Pressable style={styles.actionButton} onPress={() => handleLike(item.id, hasLiked)}>
               <Feather name="heart" size={18} color={hasLiked ? "#FF3B30" : colors.mutedForeground} />
@@ -274,7 +268,6 @@ export default function HomeScreen() {
       <View style={[styles.topBar, { paddingTop: topPad }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Home</Text>
         
-        {/* BIG REFRESH BUTTON FOR PWA CACHE BREAKING */}
         <Pressable onPress={() => fetchPosts()} style={{ backgroundColor: colors.foreground, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }}>
           <Text style={{ color: colors.background, fontFamily: "Inter_600SemiBold" }}>Force Refresh</Text>
         </Pressable>
@@ -374,7 +367,6 @@ export default function HomeScreen() {
         </Modal>
       )}
 
-      {/* FIRE MODAL */}
       <Modal visible={fireModalOpen} animationType="fade" transparent>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayCenter}>
           <View style={[styles.fireModalCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -385,7 +377,8 @@ export default function HomeScreen() {
                 <Pressable key={val} style={[styles.fireQuickBtn, fireAmount === val ? { backgroundColor: "#FF6B00", borderColor: "#FF6B00" } : { borderColor: colors.border }]} onPress={() => setFireAmount(val)}>
                   <Text style={[styles.fireQuickText, { color: fireAmount === val ? "#FFF" : colors.foreground }]}>{val}</Text>
                 </Pressable>
-              </View>
+              ))}
+            </View>
             <TextInput style={[styles.fireInput, { color: colors.foreground, borderColor: colors.border }]} keyboardType="number-pad" maxLength={2} value={fireAmount} onChangeText={setFireAmount} placeholder="Custom 1-50" placeholderTextColor={colors.mutedForeground} />
             <View style={styles.fireModalActions}>
               <Pressable style={styles.fireCancelBtn} onPress={() => setFireModalOpen(false)}><Text style={[styles.fireCancelText, { color: colors.mutedForeground }]}>Cancel</Text></Pressable>
