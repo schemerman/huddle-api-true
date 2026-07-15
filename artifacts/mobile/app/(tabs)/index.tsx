@@ -10,6 +10,8 @@ import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 
+const isWeb = Platform.OS === "web";
+
 const getFlag = (team: string) => {
   const flags: Record<string, string> = {
     "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
@@ -31,35 +33,38 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const inputRef = useRef<TextInput>(null);
   
-  // THE NEW RESPONSIVE CHECK: Is the screen wide like a computer?
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768; 
-  
-  const topPad = Platform.OS === "web" ? 20 : insets.top;
+  const topPad = isWeb ? 20 : insets.top;
 
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
-  // Unified Compose State
   const [composeOpen, setComposeOpen] = useState(false);
   const [newPostText, setNewPostText] = useState("");
   const [attachedWagerId, setAttachedWagerId] = useState<string | null>(null);
 
-  // Fire Award State
   const [fireModalOpen, setFireModalOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any>(null);
   const [fireAmount, setFireAmount] = useState<string>("50");
 
-  const fetchPosts = async () => {
+  const fetchPosts = async (showDiagnostic = false) => {
     try {
-      // 1. We changed "users (...)" to "users (*)" to stop missing-column crashes!
       const { data: postsData, error } = await supabase
         .from("posts")
         .select(`*, users (*), post_likes (user_id)`)
         .order("created_at", { ascending: false });
 
-      if (error) throw error; // If this fails, it jumps straight to the Alert below
+      if (error) {
+        Alert.alert("Supabase Error", error.message);
+        throw error;
+      }
+
+      // DIAGNOSTIC CHECK: Prove exactly what the API is seeing
+      if (showDiagnostic) {
+         Alert.alert("Diagnostic", `The API successfully pulled ${postsData?.length || 0} posts from Supabase.`);
+      }
 
       const wagerIds = postsData?.map(p => p.wager_id).filter(Boolean) || [];
 
@@ -84,10 +89,8 @@ export default function HomeScreen() {
       } else {
         setPosts(postsData || []);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.log("Error fetching posts:", error);
-      // 2. THE ALARM BELL: This forces the app to scream the exact error at you!
-      Alert.alert("Database Error", error.message || "Failed to load posts.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -96,7 +99,7 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchPosts();
+    fetchPosts(true); // Show the alert when you pull to refresh so we can debug!
   }, []);
 
   useFocusEffect(
@@ -111,7 +114,6 @@ export default function HomeScreen() {
     if (pendingShare) {
       setAttachedWagerId(pendingShare);
       await AsyncStorage.removeItem("pending_share_wager");
-      
       if (isDesktop) {
         setTimeout(() => inputRef.current?.focus(), 500);
       } else {
@@ -184,8 +186,8 @@ export default function HomeScreen() {
       setAttachedWagerId(null);
       setComposeOpen(false);
       fetchPosts(); 
-    } catch (error) {
-      Alert.alert("Error", "Could not create post.");
+    } catch (error: any) {
+      Alert.alert("Insert Error", error.message || "Could not create post.");
     }
   };
 
@@ -260,7 +262,6 @@ export default function HomeScreen() {
         <FlatList
           data={posts}
           keyExtractor={(item) => item.id}
-          // INLINED JSX STOPS THE KEYBOARD BUG!
           ListHeaderComponent={
             isDesktop ? (
               <View style={[styles.composeContainer, { borderBottomColor: colors.border }]}>
@@ -304,17 +305,12 @@ export default function HomeScreen() {
         />
       </KeyboardAvoidingView>
 
-      {/* MOBILE ONLY: THE BULLETPROOF FLOATING BUTTON */}
       {!isDesktop && (
-        <Pressable 
-          style={[styles.fab, { backgroundColor: colors.foreground }]} 
-          onPress={() => setComposeOpen(true)}
-        >
+        <Pressable style={[styles.fab, { backgroundColor: colors.foreground }]} onPress={() => setComposeOpen(true)}>
           <Feather name="plus" size={26} color={colors.background} />
         </Pressable>
       )}
 
-      {/* MOBILE ONLY: THE COMPOSE MODAL */}
       {!isDesktop && (
         <Modal visible={composeOpen} animationType="slide" transparent>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayBottom}>
@@ -356,7 +352,6 @@ export default function HomeScreen() {
         </Modal>
       )}
 
-      {/* FIRE MODAL */}
       <Modal visible={fireModalOpen} animationType="fade" transparent>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayCenter}>
           <View style={[styles.fireModalCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -377,7 +372,6 @@ export default function HomeScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
     </View>
   );
 }
@@ -386,28 +380,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, width: "100%", height: "100%" },
   topBar: { paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.05)" },
   title: { fontFamily: "Inter_700Bold", fontSize: 24, letterSpacing: -0.5 },
-  
   composeContainer: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   composeFooter: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center" },
   emptyText: { textAlign: "center", marginTop: 60, fontFamily: "Inter_400Regular", fontSize: 16 },
-  
-  fab: { 
-    position: "absolute", 
-    bottom: 90, 
-    right: 20, 
-    width: 60, 
-    height: 60, 
-    borderRadius: 30, 
-    alignItems: "center", 
-    justifyContent: "center", 
-    shadowColor: "#000", 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.35, 
-    shadowRadius: 6, 
-    elevation: 8,
-    zIndex: 99999,
-  },
-  
+  fab: { position: "absolute", bottom: 90, right: 20, width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 6, elevation: 8, zIndex: 99999 },
   postContainer: { flexDirection: "row", padding: 16, borderBottomWidth: 1, gap: 12 },
   postLit: { backgroundColor: "rgba(255, 107, 0, 0.04)" },
   postContent: { flex: 1 },
@@ -418,7 +394,6 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 40 },
   actionButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
   actionText: { fontFamily: "Inter_500Medium", fontSize: 13 },
-  
   modalOverlayBottom: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { height: "85%", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
@@ -426,10 +401,8 @@ const styles = StyleSheet.create({
   postBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 999 },
   postBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
   composeInput: { fontFamily: "Inter_400Regular", fontSize: 18, minHeight: 120, textAlignVertical: "top" },
-  
   attachmentBadge: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, marginBottom: 16, gap: 8 },
   attachmentText: { flex: 1, fontFamily: "Inter_500Medium", fontSize: 14, color: "#3B7BE5" },
-
   modalOverlayCenter: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 20 },
   fireModalCard: { width: "100%", maxWidth: 340, borderRadius: 16, padding: 24, borderWidth: 1 },
   fireModalTitle: { fontFamily: "Inter_700Bold", fontSize: 20, textAlign: "center", marginBottom: 8 },
@@ -443,7 +416,6 @@ const styles = StyleSheet.create({
   fireCancelText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
   fireSubmitBtn: { flex: 1, paddingVertical: 14, backgroundColor: "#FF6B00", borderRadius: 999, alignItems: "center", justifyContent: "center" },
   fireSubmitText: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: "#FFF" },
-
   miniReceipt: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
   miniReceiptTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   miniReceiptLabel: { fontFamily: "Inter_500Medium", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
