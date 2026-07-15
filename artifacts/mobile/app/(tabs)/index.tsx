@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { View, Text, StyleSheet, FlatList, Pressable, Platform, Alert, TextInput, Modal, KeyboardAvoidingView, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
@@ -9,6 +9,8 @@ import { useColors } from "@/hooks/useColors";
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+
+const isWeb = Platform.OS === "web";
 
 const getFlag = (team: string) => {
   const flags: Record<string, string> = {
@@ -28,14 +30,15 @@ const getFlag = (team: string) => {
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const topPad = Platform.OS === "web" ? 20 : insets.top;
+  const topPad = isWeb ? 20 : insets.top;
   const { user } = useAuth();
+  const inputRef = useRef<TextInput>(null);
 
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
-  // Modal Compose State
+  // Unified Compose State
   const [composeOpen, setComposeOpen] = useState(false);
   const [newPostText, setNewPostText] = useState("");
   const [attachedWagerId, setAttachedWagerId] = useState<string | null>(null);
@@ -102,14 +105,19 @@ export default function HomeScreen() {
     if (pendingShare) {
       setAttachedWagerId(pendingShare);
       await AsyncStorage.removeItem("pending_share_wager");
-      // Open the compose modal automatically!
-      setComposeOpen(true);
+      
+      // If Web, focus the top box. If Mobile, open the floating modal.
+      if (isWeb) {
+        setTimeout(() => inputRef.current?.focus(), 500);
+      } else {
+        setComposeOpen(true);
+      }
     }
   };
 
   const handleLike = async (postId: string, hasLiked: boolean) => {
     if (!user) return;
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!isWeb) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     setPosts(current => current.map(p => {
       if (p.id === postId) {
@@ -132,7 +140,7 @@ export default function HomeScreen() {
       Alert.alert("Hold up", "You cannot give a Fire award to your own post!");
       return;
     }
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!isWeb) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedPost(post);
     setFireAmount("50");
     setFireModalOpen(true);
@@ -148,7 +156,7 @@ export default function HomeScreen() {
       if (error) throw error;
 
       setPosts(current => current.map(p => p.id === selectedPost.id ? { ...p, fire_count: p.fire_count + 1 } : p));
-      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (!isWeb) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Award Sent!", `You tipped ${amount} pts. The house took 20%.`);
     } catch (err: any) {
       Alert.alert("Error", err.message || "Could not process award.");
@@ -174,6 +182,44 @@ export default function HomeScreen() {
     } catch (error) {
       Alert.alert("Error", "Could not create post.");
     }
+  };
+
+  // WEB ONLY: The inline Compose UI
+  const renderWebComposeHeader = () => {
+    if (!isWeb) return null;
+    return (
+      <View style={[styles.composeContainer, { borderBottomColor: colors.border }]}>
+        <TextInput
+          ref={inputRef}
+          style={[styles.composeInput, { color: colors.foreground }]}
+          placeholder="What's your latest prediction?"
+          placeholderTextColor={colors.mutedForeground}
+          multiline
+          value={newPostText}
+          onChangeText={setNewPostText}
+        />
+        
+        {attachedWagerId && (
+          <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
+            <Feather name="paperclip" size={14} color="#3B7BE5" />
+            <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
+            <Pressable onPress={() => setAttachedWagerId(null)}>
+              <Feather name="x" size={16} color="#3B7BE5" />
+            </Pressable>
+          </View>
+        )}
+
+        <View style={styles.composeFooter}>
+          <Pressable 
+            style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} 
+            onPress={submitPost} 
+            disabled={!newPostText.trim() && !attachedWagerId}
+          >
+            <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
   };
 
   const renderPost = ({ item }: { item: any }) => {
@@ -243,64 +289,70 @@ export default function HomeScreen() {
         <Text style={[styles.title, { color: colors.foreground }]}>Home</Text>
       </View>
 
-      <FlatList
-        data={posts}
-        keyExtractor={(item) => item.id}
-        renderItem={renderPost}
-        contentContainerStyle={{ paddingBottom: 120 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />}
-        ListEmptyComponent={!loading ? <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No posts yet. Tap the + button to start the conversation!</Text> : null}
-      />
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        <FlatList
+          data={posts}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderWebComposeHeader}
+          renderItem={renderPost}
+          contentContainerStyle={{ paddingBottom: 120 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />}
+          ListEmptyComponent={!loading ? <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No posts yet. Start the conversation!</Text> : null}
+        />
+      </KeyboardAvoidingView>
 
-      {/* THE BULLETPROOF FLOATING BUTTON */}
-      <Pressable 
-        style={[styles.fab, { backgroundColor: colors.foreground }]} 
-        onPress={() => setComposeOpen(true)}
-      >
-        <Feather name="plus" size={26} color={colors.background} />
-      </Pressable>
+      {/* MOBILE ONLY: THE BULLETPROOF FLOATING BUTTON */}
+      {!isWeb && (
+        <Pressable 
+          style={[styles.fab, { backgroundColor: colors.foreground }]} 
+          onPress={() => setComposeOpen(true)}
+        >
+          <Feather name="plus" size={26} color={colors.background} />
+        </Pressable>
+      )}
 
-      {/* THE COMPOSE MODAL */}
-      <Modal visible={composeOpen} animationType="slide" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayBottom}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHeader}>
-              <Pressable onPress={() => { setComposeOpen(false); setAttachedWagerId(null); }}>
-                <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancel</Text>
-              </Pressable>
-              <Pressable 
-                style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} 
-                onPress={submitPost} 
-                disabled={!newPostText.trim() && !attachedWagerId}
-              >
-                <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
-              </Pressable>
-            </View>
-
-            {/* ATTACHMENT BADGE (Shows up when you Share to Home) */}
-            {attachedWagerId && (
-              <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
-                <Feather name="paperclip" size={14} color="#3B7BE5" />
-                <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
-                <Pressable onPress={() => setAttachedWagerId(null)}>
-                  <Feather name="x" size={16} color="#3B7BE5" />
+      {/* MOBILE ONLY: THE COMPOSE MODAL */}
+      {!isWeb && (
+        <Modal visible={composeOpen} animationType="slide" transparent>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayBottom}>
+            <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+              <View style={styles.modalHeader}>
+                <Pressable onPress={() => { setComposeOpen(false); setAttachedWagerId(null); }}>
+                  <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancel</Text>
+                </Pressable>
+                <Pressable 
+                  style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} 
+                  onPress={submitPost} 
+                  disabled={!newPostText.trim() && !attachedWagerId}
+                >
+                  <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
                 </Pressable>
               </View>
-            )}
 
-            <TextInput
-              style={[styles.composeInput, { color: colors.foreground }]}
-              placeholder="What's your latest prediction?"
-              placeholderTextColor={colors.mutedForeground}
-              multiline
-              autoFocus
-              value={newPostText}
-              onChangeText={setNewPostText}
-            />
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+              {attachedWagerId && (
+                <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
+                  <Feather name="paperclip" size={14} color="#3B7BE5" />
+                  <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
+                  <Pressable onPress={() => setAttachedWagerId(null)}>
+                    <Feather name="x" size={16} color="#3B7BE5" />
+                  </Pressable>
+                </View>
+              )}
+
+              <TextInput
+                style={[styles.composeInput, { color: colors.foreground }]}
+                placeholder="What's your latest prediction?"
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                autoFocus
+                value={newPostText}
+                onChangeText={setNewPostText}
+              />
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
 
       {/* FIRE MODAL REMAINS THE SAME */}
       <Modal visible={fireModalOpen} animationType="fade" transparent>
@@ -332,26 +384,27 @@ const styles = StyleSheet.create({
   container: { flex: 1, width: "100%", height: "100%" },
   topBar: { paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.05)" },
   title: { fontFamily: "Inter_700Bold", fontSize: 24, letterSpacing: -0.5 },
+  
+  composeContainer: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
+  composeFooter: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center" },
   emptyText: { textAlign: "center", marginTop: 60, fontFamily: "Inter_400Regular", fontSize: 16 },
   
-  /* THE BULLETPROOF FLOATING BUTTON */
+  /* FIXED FAB: Pushed way up to 90 to completely clear the bottom navigation tab bar */
   fab: { 
     position: "absolute", 
-    bottom: Platform.OS === "web" ? 40 : 24, 
-    right: Platform.OS === "web" ? 40 : 20, 
-    width: 64, 
-    height: 64, 
-    borderRadius: 32, 
+    bottom: 90, 
+    right: 20, 
+    width: 60, 
+    height: 60, 
+    borderRadius: 30, 
     alignItems: "center", 
     justifyContent: "center", 
     shadowColor: "#000", 
-    shadowOffset: { width: 0, height: 6 }, 
+    shadowOffset: { width: 0, height: 4 }, 
     shadowOpacity: 0.35, 
-    shadowRadius: 8, 
+    shadowRadius: 6, 
     elevation: 8,
-    zIndex: 99999, // Super high so it's never covered
-    //@ts-ignore - for web cursor
-    cursor: "pointer",
+    zIndex: 99999,
   },
   
   postContainer: { flexDirection: "row", padding: 16, borderBottomWidth: 1, gap: 12 },
