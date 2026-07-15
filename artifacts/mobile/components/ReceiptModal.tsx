@@ -1,9 +1,10 @@
-import React, { useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View, TextInput, Alert, ActivityIndicator } from "react-native";
+import React from "react";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
 import { Feather } from "@expo/vector-icons";
-import { supabase } from "@/lib/supabase";
+import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const getFlag = (team: string) => {
   const flags: Record<string, string> = {
@@ -28,7 +29,7 @@ interface ReceiptModalProps {
   prediction: string;
   points: number;
   won: boolean;
-  wagerId?: string; // NEW: Added so we can link the post to the wager!
+  wagerId?: string; 
 }
 
 export function ReceiptModal({
@@ -43,11 +44,6 @@ export function ReceiptModal({
 }: ReceiptModalProps) {
   const colors = useColors();
   const { user } = useAuth();
-  
-  // New state for the sharing flow
-  const [isSharing, setIsSharing] = useState(false);
-  const [caption, setCaption] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   let displayQuestion = question;
   if (question.includes(" or ")) {
@@ -62,37 +58,19 @@ export function ReceiptModal({
     
   const displayPrediction = prediction === "Draw" ? "⚖️ Draw" : `${getFlag(prediction)} ${prediction}`;
 
-  const handleClose = () => {
-    // Reset state when closing so it's fresh for the next time
-    setIsSharing(false);
-    setCaption("");
+  // THE NEW SHARE LOGIC
+  const handleShareToHome = async () => {
+    if (!wagerId) return;
+    // 1. Save the ID to local storage so the Home tab can grab it
+    await AsyncStorage.setItem("pending_share_wager", wagerId);
+    // 2. Close the modal
     onClose();
-  };
-
-  const submitShare = async () => {
-    if (!user || !wagerId) return;
-    setIsSubmitting(true);
-
-    try {
-      const { error } = await supabase.from("posts").insert({
-        user_id: user.id,
-        content: caption.trim() || (won ? "Easiest points of my life! 💰" : "Can't believe this happened... 🤦‍♂️"),
-        wager_id: wagerId
-      });
-
-      if (error) throw error;
-
-      Alert.alert("Posted!", "Your receipt is now on the Home feed.");
-      handleClose();
-    } catch (error) {
-      Alert.alert("Error", "Could not share this receipt. Try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
+    // 3. Jump to the Home tab
+    router.push("/(tabs)/index");
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.receiptOverlay}>
         <View style={[styles.receiptCard, { backgroundColor: colors.background, borderColor: colors.foreground }]}>
           <Text style={[styles.receiptBrand, { color: colors.foreground }]}>HUDDLE</Text>
@@ -128,60 +106,28 @@ export function ReceiptModal({
             </Text>
           </View>
 
-          {/* THE NEW SHARING UI */}
-          {isSharing ? (
-            <View style={styles.shareContainer}>
-              <TextInput
-                style={[styles.captionInput, { color: colors.foreground, borderColor: colors.border }]}
-                placeholder="Add a caption..."
-                placeholderTextColor={colors.mutedForeground}
-                value={caption}
-                onChangeText={setCaption}
-                maxLength={120}
-                autoFocus
-              />
-              <View style={styles.shareActionRow}>
-                <Pressable onPress={() => setIsSharing(false)} style={styles.shareCancelBtn}>
-                  <Text style={[styles.shareCancelText, { color: colors.mutedForeground }]}>Cancel</Text>
-                </Pressable>
-                <Pressable 
-                  onPress={submitShare} 
-                  disabled={isSubmitting}
-                  style={[styles.shareSubmitBtn, { backgroundColor: colors.foreground }]}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator size="small" color={colors.background} />
-                  ) : (
-                    <Text style={[styles.shareSubmitText, { color: colors.background }]}>Post to Home</Text>
-                  )}
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.defaultActionContainer}>
-              {wagerId && (
-                <Pressable
-                  onPress={() => setIsSharing(true)}
-                  style={[styles.receiptShareBtn, { backgroundColor: colors.foreground }]}
-                >
-                  <Feather name="send" size={16} color={colors.background} />
-                  <Text style={[styles.receiptShareText, { color: colors.background }]}>Share to Home</Text>
-                </Pressable>
-              )}
-              
+          <View style={styles.defaultActionContainer}>
+            {wagerId && (
               <Pressable
-                onPress={handleClose}
-                style={({ pressed }) => [
-                  styles.receiptClose,
-                  { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-                  !wagerId && { marginTop: 12 }
-                ]}
+                onPress={handleShareToHome}
+                style={[styles.receiptShareBtn, { backgroundColor: colors.foreground }]}
               >
-                <Text style={[styles.receiptCloseText, { color: colors.foreground }]}>Close</Text>
+                <Feather name="send" size={16} color={colors.background} />
+                <Text style={[styles.receiptShareText, { color: colors.background }]}>Share to Home</Text>
               </Pressable>
-            </View>
-          )}
-
+            )}
+            
+            <Pressable
+              onPress={onClose}
+              style={({ pressed }) => [
+                styles.receiptClose,
+                { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                !wagerId && { marginTop: 12 }
+              ]}
+            >
+              <Text style={[styles.receiptCloseText, { color: colors.foreground }]}>Close</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </Modal>
@@ -201,18 +147,9 @@ const styles = StyleSheet.create({
   receiptPoints: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: 1, marginTop: 2, marginBottom: 12 },
   receiptStamp: { borderWidth: 2, borderRadius: 999, paddingHorizontal: 28, paddingVertical: 10, marginTop: 6, marginBottom: 18 },
   receiptStampText: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: 3 },
-  
   defaultActionContainer: { width: "100%", gap: 10, marginTop: 10 },
   receiptShareBtn: { flexDirection: "row", borderRadius: 999, paddingVertical: 12, alignItems: "center", justifyContent: "center", gap: 8 },
   receiptShareText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
   receiptClose: { borderWidth: 1, borderRadius: 999, paddingVertical: 12, alignItems: "center" },
   receiptCloseText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
-
-  shareContainer: { width: "100%", marginTop: 10 },
-  captionInput: { borderWidth: 1, borderRadius: 12, padding: 14, fontFamily: "Inter_400Regular", fontSize: 15, marginBottom: 12 },
-  shareActionRow: { flexDirection: "row", gap: 10 },
-  shareCancelBtn: { flex: 1, paddingVertical: 12, alignItems: "center", justifyContent: "center" },
-  shareCancelText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
-  shareSubmitBtn: { flex: 1.5, borderRadius: 999, paddingVertical: 12, alignItems: "center", justifyContent: "center" },
-  shareSubmitText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
 });

@@ -1,15 +1,15 @@
 import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, Platform, Alert, TextInput, Modal, KeyboardAvoidingView } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, Alert, TextInput, Modal, KeyboardAvoidingView, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 
-// Helper functions to draw the flags on the home feed!
 const getFlag = (team: string) => {
   const flags: Record<string, string> = {
     "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
@@ -33,69 +33,46 @@ export default function HomeScreen() {
 
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Compose State
   const [composeOpen, setComposeOpen] = useState(false);
   const [newPostText, setNewPostText] = useState("");
+  const [attachedWagerId, setAttachedWagerId] = useState<string | null>(null);
 
+  // Fire Award State
   const [fireModalOpen, setFireModalOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any>(null);
   const [fireAmount, setFireAmount] = useState<string>("50");
 
   const fetchPosts = async () => {
     try {
-      // 1. Fetch the posts
       const { data: postsData, error } = await supabase
         .from("posts")
-        .select(`
-          *,
-          users (username, display_name, avatar_color),
-          post_likes (user_id)
-        `)
+        .select(`*, users (username, display_name, avatar_color), post_likes (user_id)`)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      // 2. Look for any wager IDs attached to these posts
       const wagerIds = postsData?.map(p => p.wager_id).filter(Boolean) || [];
 
       if (wagerIds.length > 0) {
-        // 3. Fetch the linked wagers
-        const { data: wagersData } = await supabase
-          .from("wagers")
-          .select("*")
-          .in("id", wagerIds);
-
-        // 4. Fetch the linked fixtures to get the scores/teams
+        const { data: wagersData } = await supabase.from("wagers").select("*").in("id", wagerIds);
         const fixtureIds = wagersData?.map(w => w.fixture_id || w.fixtureId).filter(Boolean) || [];
-        let fixturesMap: Record<string, any> = {};
         
+        let fixturesMap: Record<string, any> = {};
         if (fixtureIds.length > 0) {
-          const { data: fixturesData } = await supabase
-            .from("fixtures")
-            .select("*")
-            .in("id", fixtureIds);
-            
+          const { data: fixturesData } = await supabase.from("fixtures").select("*").in("id", fixtureIds);
           fixturesData?.forEach(f => fixturesMap[f.id] = f);
         }
 
-        // 5. Merge the Wager and Fixture data together
         const wagersMap: Record<string, any> = {};
         wagersData?.forEach(w => {
           const f = fixturesMap[w.fixture_id || w.fixtureId];
-          wagersMap[w.id] = {
-            ...w,
-            homeScore: f?.homeScore ?? f?.home_score,
-            awayScore: f?.awayScore ?? f?.away_score,
-            homeTeam: f?.homeTeam ?? f?.home_team,
-            awayTeam: f?.awayTeam ?? f?.away_team,
-          };
+          wagersMap[w.id] = { ...w, homeScore: f?.homeScore ?? f?.home_score, awayScore: f?.awayScore ?? f?.away_score, homeTeam: f?.homeTeam ?? f?.home_team, awayTeam: f?.awayTeam ?? f?.away_team };
         });
 
-        // 6. Attach the fully built wager to the post!
-        const finalPosts = postsData?.map(p => ({
-          ...p,
-          wager: p.wager_id ? wagersMap[p.wager_id] : null
-        }));
-
+        const finalPosts = postsData?.map(p => ({ ...p, wager: p.wager_id ? wagersMap[p.wager_id] : null }));
         setPosts(finalPosts || []);
       } else {
         setPosts(postsData || []);
@@ -104,14 +81,31 @@ export default function HomeScreen() {
       console.log("Error fetching posts:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchPosts();
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       fetchPosts();
+      checkPendingShares();
     }, [])
   );
+
+  // THIS CATCHES THE WAGER FROM THE PROFILE SCREEN
+  const checkPendingShares = async () => {
+    const pendingShare = await AsyncStorage.getItem("pending_share_wager");
+    if (pendingShare) {
+      setAttachedWagerId(pendingShare);
+      setComposeOpen(true);
+      await AsyncStorage.removeItem("pending_share_wager"); // Clear it so it doesn't open twice
+    }
+  };
 
   const handleLike = async (postId: string, hasLiked: boolean) => {
     if (!user) return;
@@ -119,9 +113,7 @@ export default function HomeScreen() {
 
     setPosts(current => current.map(p => {
       if (p.id === postId) {
-        const newLikes = hasLiked 
-          ? p.post_likes.filter((l: any) => l.user_id !== user.id)
-          : [...p.post_likes, { user_id: user.id }];
+        const newLikes = hasLiked ? p.post_likes.filter((l: any) => l.user_id !== user.id) : [...p.post_likes, { user_id: user.id }];
         return { ...p, post_likes: newLikes };
       }
       return p;
@@ -148,30 +140,16 @@ export default function HomeScreen() {
 
   const submitFireAward = async () => {
     const amount = parseInt(fireAmount, 10);
-    if (isNaN(amount) || amount < 1 || amount > 50) {
-      Alert.alert("Invalid Amount", "Please enter a number between 1 and 50.");
-      return;
-    }
-
+    if (isNaN(amount) || amount < 1 || amount > 50) return Alert.alert("Invalid Amount", "Please enter a number between 1 and 50.");
     setFireModalOpen(false);
 
     try {
-      const { error } = await supabase.rpc('award_fire', {
-        post_id_param: selectedPost.id,
-        giver_id_param: user?.id,
-        author_id_param: selectedPost.user_id,
-        tip_amount: amount
-      });
-
+      const { error } = await supabase.rpc('award_fire', { post_id_param: selectedPost.id, giver_id_param: user?.id, author_id_param: selectedPost.user_id, tip_amount: amount });
       if (error) throw error;
 
-      setPosts(current => current.map(p => 
-        p.id === selectedPost.id ? { ...p, fire_count: p.fire_count + 1 } : p
-      ));
-      
+      setPosts(current => current.map(p => p.id === selectedPost.id ? { ...p, fire_count: p.fire_count + 1 } : p));
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Award Sent!", `You tipped ${amount} pts. The house took 20%.`);
-      
     } catch (err: any) {
       Alert.alert("Error", err.message || "Could not process award.");
     }
@@ -182,12 +160,15 @@ export default function HomeScreen() {
     try {
       const { error } = await supabase.from("posts").insert({
         user_id: user.id,
-        content: newPostText.trim()
+        content: newPostText.trim(),
+        wager_id: attachedWagerId // Send the attached receipt to the database!
       });
       if (error) throw error;
+      
       setNewPostText("");
+      setAttachedWagerId(null);
       setComposeOpen(false);
-      fetchPosts();
+      fetchPosts(); // Instantly reload feed to show the new post
     } catch (error) {
       Alert.alert("Error", "Could not create post.");
     }
@@ -199,13 +180,10 @@ export default function HomeScreen() {
     const likesCount = item.post_likes?.length || 0;
     const hasLiked = item.post_likes?.some((l: any) => l.user_id === user?.id);
 
-    // Build the mini-receipt visual if the post has a wager attached
     let miniReceipt = null;
     if (item.wager) {
       const won = item.wager.status === "won";
       const lost = item.wager.status === "lost";
-      const pending = item.wager.status === "pending";
-      
       const predictionStr = item.wager.prediction || item.wager.choice;
       const fPrediction = getFlag(predictionStr);
       const displayPred = predictionStr === "Draw" ? "⚖️ Draw" : `${fPrediction ? fPrediction + " " : ""}${predictionStr}`;
@@ -220,7 +198,6 @@ export default function HomeScreen() {
                </Text>
             </View>
           </View>
-          
           <Text style={[styles.miniReceiptPred, { color: colors.foreground }]}>{displayPred}</Text>
           <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>
             {won ? `+${item.wager.payout} pts` : lost ? `-${item.wager.amount} pts` : `${item.wager.amount} pts at stake`}
@@ -237,12 +214,8 @@ export default function HomeScreen() {
             <Text style={[styles.displayName, { color: colors.foreground }]}>{author.display_name || 'Player'}</Text>
             <Text style={[styles.username, { color: colors.mutedForeground }]}>@{author.username}</Text>
           </View>
-          
           <Text style={[styles.postText, { color: colors.foreground }]}>{item.content}</Text>
-          
-          {/* RENDER THE RECEIPT RIGHT BELOW THE TEXT */}
           {miniReceipt}
-
           <View style={styles.actionRow}>
             <Pressable style={styles.actionButton} onPress={() => handleLike(item.id, hasLiked)}>
               <Feather name="heart" size={18} color={hasLiked ? "#FF3B30" : colors.mutedForeground} />
@@ -274,77 +247,36 @@ export default function HomeScreen() {
         renderItem={renderPost}
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          !loading ? <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No posts yet. Be the first to start the conversation!</Text> : null
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />}
+        ListEmptyComponent={!loading ? <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No posts yet. Be the first to start the conversation!</Text> : null}
       />
 
-      <Pressable 
-        style={[styles.fab, { backgroundColor: colors.foreground }]}
-        onPress={() => setComposeOpen(true)}
-      >
+      <Pressable style={[styles.fab, { backgroundColor: colors.foreground }]} onPress={() => setComposeOpen(true)}>
         <Feather name="plus" size={24} color={colors.background} />
       </Pressable>
-
-      {/* FIRE TIPPING MODAL */}
-      <Modal visible={fireModalOpen} animationType="fade" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayCenter}>
-          <View style={[styles.fireModalCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            <Text style={[styles.fireModalTitle, { color: colors.foreground }]}>Award Fire 🔥</Text>
-            <Text style={[styles.fireModalSub, { color: colors.mutedForeground }]}>
-              Tip up to 50 pts. The house takes a 20% tax.
-            </Text>
-            
-            <View style={styles.fireQuickButtons}>
-              {["10", "25", "50"].map(val => (
-                <Pressable 
-                  key={val}
-                  style={[styles.fireQuickBtn, fireAmount === val ? { backgroundColor: "#FF6B00", borderColor: "#FF6B00" } : { borderColor: colors.border }]}
-                  onPress={() => setFireAmount(val)}
-                >
-                  <Text style={[styles.fireQuickText, { color: fireAmount === val ? "#FFF" : colors.foreground }]}>{val}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <TextInput
-              style={[styles.fireInput, { color: colors.foreground, borderColor: colors.border }]}
-              keyboardType="number-pad"
-              maxLength={2}
-              value={fireAmount}
-              onChangeText={setFireAmount}
-              placeholder="Custom 1-50"
-              placeholderTextColor={colors.mutedForeground}
-            />
-
-            <View style={styles.fireModalActions}>
-              <Pressable style={styles.fireCancelBtn} onPress={() => setFireModalOpen(false)}>
-                <Text style={[styles.fireCancelText, { color: colors.mutedForeground }]}>Cancel</Text>
-              </Pressable>
-              <Pressable style={styles.fireSubmitBtn} onPress={submitFireAward}>
-                <Text style={styles.fireSubmitText}>Send Award</Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
 
       {/* COMPOSE MODAL */}
       <Modal visible={composeOpen} animationType="slide" transparent>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayBottom}>
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={styles.modalHeader}>
-              <Pressable onPress={() => setComposeOpen(false)}>
+              <Pressable onPress={() => { setComposeOpen(false); setAttachedWagerId(null); }}>
                 <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancel</Text>
               </Pressable>
-              <Pressable 
-                style={[styles.postBtn, { backgroundColor: newPostText.trim() ? colors.foreground : colors.border }]} 
-                onPress={submitPost}
-                disabled={!newPostText.trim()}
-              >
+              <Pressable style={[styles.postBtn, { backgroundColor: newPostText.trim() ? colors.foreground : colors.border }]} onPress={submitPost} disabled={!newPostText.trim()}>
                 <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
               </Pressable>
             </View>
+
+            {/* SHOW THE USER IF A RECEIPT IS ATTACHED */}
+            {attachedWagerId && (
+              <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
+                <Feather name="paperclip" size={14} color="#3B7BE5" />
+                <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
+                <Pressable onPress={() => setAttachedWagerId(null)}><Feather name="x" size={16} color="#3B7BE5" /></Pressable>
+              </View>
+            )}
+
             <TextInput
               style={[styles.input, { color: colors.foreground }]}
               placeholder="What's your latest prediction?"
@@ -357,12 +289,35 @@ export default function HomeScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* FIRE MODAL... */}
+      <Modal visible={fireModalOpen} animationType="fade" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayCenter}>
+          <View style={[styles.fireModalCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.fireModalTitle, { color: colors.foreground }]}>Award Fire 🔥</Text>
+            <Text style={[styles.fireModalSub, { color: colors.mutedForeground }]}>Tip up to 50 pts. The house takes a 20% tax.</Text>
+            <View style={styles.fireQuickButtons}>
+              {["10", "25", "50"].map(val => (
+                <Pressable key={val} style={[styles.fireQuickBtn, fireAmount === val ? { backgroundColor: "#FF6B00", borderColor: "#FF6B00" } : { borderColor: colors.border }]} onPress={() => setFireAmount(val)}>
+                  <Text style={[styles.fireQuickText, { color: fireAmount === val ? "#FFF" : colors.foreground }]}>{val}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <TextInput style={[styles.fireInput, { color: colors.foreground, borderColor: colors.border }]} keyboardType="number-pad" maxLength={2} value={fireAmount} onChangeText={setFireAmount} placeholder="Custom 1-50" placeholderTextColor={colors.mutedForeground} />
+            <View style={styles.fireModalActions}>
+              <Pressable style={styles.fireCancelBtn} onPress={() => setFireModalOpen(false)}><Text style={[styles.fireCancelText, { color: colors.mutedForeground }]}>Cancel</Text></Pressable>
+              <Pressable style={styles.fireSubmitBtn} onPress={submitFireAward}><Text style={styles.fireSubmitText}>Send Award</Text></Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, width: "100%", height: "100%" },
   topBar: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
   title: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: -0.5 },
   emptyText: { textAlign: "center", marginTop: 40, fontFamily: "Inter_400Regular", fontSize: 15 },
@@ -376,7 +331,24 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 40 },
   actionButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
   actionText: { fontFamily: "Inter_500Medium", fontSize: 13 },
-  fab: { position: "absolute", bottom: 24, right: 20, width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 5 },
+  
+  /* THE BULLETPROOF FAB STYLING */
+  fab: { 
+    position: "absolute", 
+    bottom: 24, 
+    right: 20, 
+    width: 60, 
+    height: 60, 
+    borderRadius: 30, 
+    alignItems: "center", 
+    justifyContent: "center", 
+    shadowColor: "#000", 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.3, 
+    shadowRadius: 4, 
+    elevation: 5,
+    zIndex: 9999 /* Prevents it from hiding behind other elements */
+  },
   
   modalOverlayBottom: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { height: "90%", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
@@ -385,6 +357,9 @@ const styles = StyleSheet.create({
   postBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
   postBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
   input: { fontFamily: "Inter_400Regular", fontSize: 18, minHeight: 100, textAlignVertical: "top" },
+  
+  attachmentBadge: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginBottom: 16, gap: 8 },
+  attachmentText: { flex: 1, fontFamily: "Inter_500Medium", fontSize: 13, color: "#3B7BE5" },
 
   modalOverlayCenter: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 20 },
   fireModalCard: { width: "100%", maxWidth: 340, borderRadius: 16, padding: 24, borderWidth: 1 },
@@ -400,7 +375,6 @@ const styles = StyleSheet.create({
   fireSubmitBtn: { flex: 1, paddingVertical: 14, backgroundColor: "#FF6B00", borderRadius: 999, alignItems: "center", justifyContent: "center" },
   fireSubmitText: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: "#FFF" },
 
-  // STYLES FOR THE NEW MINI RECEIPT IN THE FEED
   miniReceipt: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
   miniReceiptTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   miniReceiptLabel: { fontFamily: "Inter_500Medium", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
