@@ -12,8 +12,10 @@ export interface HuddleUser {
   email: string;
   username: string;
   displayName: string;
+  display_name?: string; // FIX: Added to match Supabase exactly
   dob: string;
   avatarColor: string;
+  avatar_color?: string; // FIX: Added to match Supabase exactly
   winRate: number;
   currentStreak: number;
   points: number;

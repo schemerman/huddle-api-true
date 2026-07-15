@@ -109,7 +109,6 @@ export default function HomeScreen() {
       setAttachedWagerId(pendingShare);
       await AsyncStorage.removeItem("pending_share_wager");
       
-      // Delay opening so the screen animation doesn't block the modal!
       setTimeout(() => {
         if (isDesktop) inputRef.current?.focus();
         else setComposeOpen(true);
@@ -121,7 +120,6 @@ export default function HomeScreen() {
     if (!user) return;
     if (!isDesktop && Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    // FIX: Safely convert null post_likes to an empty array [] to prevent the React crash!
     setPosts(current => current.map(p => {
       if (p.id === postId) {
         const safeLikes = p.post_likes || [];
@@ -141,7 +139,6 @@ export default function HomeScreen() {
   const openFireModal = (post: any) => {
     if (!user) return;
     
-    // REMOVED the block preventing you from firing your own posts so you can test it!
     if (!isDesktop && Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedPost(post);
     setFireAmount("50");
@@ -197,11 +194,12 @@ export default function HomeScreen() {
   const renderPost = useCallback(({ item }: { item: any }) => {
     const isLit = item.fire_count > 0;
     
-    // FIX: Safely parse the user data. If the database join lags, fallback to their active login session!
+    // Completely clean user parsing without hacks!
     let dbUser = item.users;
-    if (Array.isArray(dbUser)) dbUser = dbUser[0]; // Just in case Supabase sends an array
+    if (Array.isArray(dbUser)) dbUser = dbUser[0];
+    
     const finalUsername = dbUser?.username || user?.username || "player";
-    const finalColor = dbUser?.avatar_color || user?.avatar_color || colors.primary;
+    const finalColor = dbUser?.avatar_color || user?.avatar_color || user?.avatarColor || colors.primary;
     
     const safeLikes = item.post_likes || [];
     const likesCount = safeLikes.length;
@@ -249,7 +247,6 @@ export default function HomeScreen() {
               <Text style={[styles.actionText, { color: hasLiked ? "#FF3B30" : colors.mutedForeground }]}>{likesCount}</Text>
             </Pressable>
             
-            {/* FIX: Let them know the reply page is coming! */}
             <Pressable style={styles.actionButton} onPress={() => Alert.alert("Coming Soon", "We are building the Comments Thread screen next!")}>
               <Feather name="message-circle" size={18} color={colors.mutedForeground} />
               <Text style={[styles.actionText, { color: colors.mutedForeground }]}>0</Text>
@@ -263,7 +260,7 @@ export default function HomeScreen() {
         </View>
       </View>
     );
-  }, [user?.id, user?.username, user?.avatar_color, colors]);
+  }, [user, colors]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -406,7 +403,7 @@ const styles = StyleSheet.create({
   postContent: { flex: 1 },
   postHeader: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 },
   displayName: { fontFamily: "Inter_700Bold", fontSize: 15 },
-  username: { fontFamily: "Inter_400Regular", fontSize: 14, display: 'none' }, // Hiding this to keep just @username like you wanted
+  username: { fontFamily: "Inter_400Regular", fontSize: 14, display: 'none' },
   postText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, marginTop: 4, marginBottom: 12 },
   actionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 40 },
   actionButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
