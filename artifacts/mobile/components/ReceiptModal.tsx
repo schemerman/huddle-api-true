@@ -59,14 +59,15 @@ export function ReceiptModal({
   const displayPrediction = prediction === "Draw" ? "⚖️ Draw" : `${getFlag(prediction)} ${prediction}`;
 
   // THE NEW SHARE LOGIC
+  // THE FIXED SHARE LOGIC
   const handleShareToHome = async () => {
     if (!wagerId) return;
     // 1. Save the ID to local storage so the Home tab can grab it
     await AsyncStorage.setItem("pending_share_wager", wagerId);
     // 2. Close the modal
     onClose();
-    // 3. Jump to the Home tab
-    router.push("/(tabs)/index");
+    // 3. Jump to the Home tab safely using navigate!
+    router.navigate("/");
   };
 
   return (

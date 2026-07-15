@@ -28,14 +28,14 @@ const getFlag = (team: string) => {
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const topPad = Platform.OS === "web" ? 20 : insets.top;
   const { user } = useAuth();
 
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
-  // Compose State
+  // Modal Compose State
   const [composeOpen, setComposeOpen] = useState(false);
   const [newPostText, setNewPostText] = useState("");
   const [attachedWagerId, setAttachedWagerId] = useState<string | null>(null);
@@ -97,13 +97,13 @@ export default function HomeScreen() {
     }, [])
   );
 
-  // THIS CATCHES THE WAGER FROM THE PROFILE SCREEN
   const checkPendingShares = async () => {
     const pendingShare = await AsyncStorage.getItem("pending_share_wager");
     if (pendingShare) {
       setAttachedWagerId(pendingShare);
+      await AsyncStorage.removeItem("pending_share_wager");
+      // Open the compose modal automatically!
       setComposeOpen(true);
-      await AsyncStorage.removeItem("pending_share_wager"); // Clear it so it doesn't open twice
     }
   };
 
@@ -156,19 +156,21 @@ export default function HomeScreen() {
   };
 
   const submitPost = async () => {
-    if (!newPostText.trim() || !user) return;
+    const finalContent = newPostText.trim() || (attachedWagerId ? "Check out my prediction! 👀" : "");
+    if (!finalContent || !user) return;
+    
     try {
       const { error } = await supabase.from("posts").insert({
         user_id: user.id,
-        content: newPostText.trim(),
-        wager_id: attachedWagerId // Send the attached receipt to the database!
+        content: finalContent,
+        wager_id: attachedWagerId 
       });
       if (error) throw error;
       
       setNewPostText("");
       setAttachedWagerId(null);
       setComposeOpen(false);
-      fetchPosts(); // Instantly reload feed to show the new post
+      fetchPosts(); 
     } catch (error) {
       Alert.alert("Error", "Could not create post.");
     }
@@ -237,25 +239,29 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.topBar, { paddingTop: topPad, borderBottomColor: colors.border }]}>
-        <Text style={[styles.title, { color: colors.foreground }]}>Huddle</Text>
+      <View style={[styles.topBar, { paddingTop: topPad }]}>
+        <Text style={[styles.title, { color: colors.foreground }]}>Home</Text>
       </View>
 
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
         renderItem={renderPost}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />}
-        ListEmptyComponent={!loading ? <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No posts yet. Be the first to start the conversation!</Text> : null}
+        ListEmptyComponent={!loading ? <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No posts yet. Tap the + button to start the conversation!</Text> : null}
       />
 
-      <Pressable style={[styles.fab, { backgroundColor: colors.foreground }]} onPress={() => setComposeOpen(true)}>
-        <Feather name="plus" size={24} color={colors.background} />
+      {/* THE BULLETPROOF FLOATING BUTTON */}
+      <Pressable 
+        style={[styles.fab, { backgroundColor: colors.foreground }]} 
+        onPress={() => setComposeOpen(true)}
+      >
+        <Feather name="plus" size={26} color={colors.background} />
       </Pressable>
 
-      {/* COMPOSE MODAL */}
+      {/* THE COMPOSE MODAL */}
       <Modal visible={composeOpen} animationType="slide" transparent>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayBottom}>
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
@@ -263,22 +269,28 @@ export default function HomeScreen() {
               <Pressable onPress={() => { setComposeOpen(false); setAttachedWagerId(null); }}>
                 <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancel</Text>
               </Pressable>
-              <Pressable style={[styles.postBtn, { backgroundColor: newPostText.trim() ? colors.foreground : colors.border }]} onPress={submitPost} disabled={!newPostText.trim()}>
+              <Pressable 
+                style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} 
+                onPress={submitPost} 
+                disabled={!newPostText.trim() && !attachedWagerId}
+              >
                 <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
               </Pressable>
             </View>
 
-            {/* SHOW THE USER IF A RECEIPT IS ATTACHED */}
+            {/* ATTACHMENT BADGE (Shows up when you Share to Home) */}
             {attachedWagerId && (
               <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
                 <Feather name="paperclip" size={14} color="#3B7BE5" />
                 <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
-                <Pressable onPress={() => setAttachedWagerId(null)}><Feather name="x" size={16} color="#3B7BE5" /></Pressable>
+                <Pressable onPress={() => setAttachedWagerId(null)}>
+                  <Feather name="x" size={16} color="#3B7BE5" />
+                </Pressable>
               </View>
             )}
 
             <TextInput
-              style={[styles.input, { color: colors.foreground }]}
+              style={[styles.composeInput, { color: colors.foreground }]}
               placeholder="What's your latest prediction?"
               placeholderTextColor={colors.mutedForeground}
               multiline
@@ -290,7 +302,7 @@ export default function HomeScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* FIRE MODAL... */}
+      {/* FIRE MODAL REMAINS THE SAME */}
       <Modal visible={fireModalOpen} animationType="fade" transparent>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayCenter}>
           <View style={[styles.fireModalCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -318,9 +330,30 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, width: "100%", height: "100%" },
-  topBar: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
-  title: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: -0.5 },
-  emptyText: { textAlign: "center", marginTop: 40, fontFamily: "Inter_400Regular", fontSize: 15 },
+  topBar: { paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.05)" },
+  title: { fontFamily: "Inter_700Bold", fontSize: 24, letterSpacing: -0.5 },
+  emptyText: { textAlign: "center", marginTop: 60, fontFamily: "Inter_400Regular", fontSize: 16 },
+  
+  /* THE BULLETPROOF FLOATING BUTTON */
+  fab: { 
+    position: "absolute", 
+    bottom: Platform.OS === "web" ? 40 : 24, 
+    right: Platform.OS === "web" ? 40 : 20, 
+    width: 64, 
+    height: 64, 
+    borderRadius: 32, 
+    alignItems: "center", 
+    justifyContent: "center", 
+    shadowColor: "#000", 
+    shadowOffset: { width: 0, height: 6 }, 
+    shadowOpacity: 0.35, 
+    shadowRadius: 8, 
+    elevation: 8,
+    zIndex: 99999, // Super high so it's never covered
+    //@ts-ignore - for web cursor
+    cursor: "pointer",
+  },
+  
   postContainer: { flexDirection: "row", padding: 16, borderBottomWidth: 1, gap: 12 },
   postLit: { backgroundColor: "rgba(255, 107, 0, 0.04)" },
   postContent: { flex: 1 },
@@ -332,34 +365,16 @@ const styles = StyleSheet.create({
   actionButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
   actionText: { fontFamily: "Inter_500Medium", fontSize: 13 },
   
-  /* THE BULLETPROOF FAB STYLING */
-  fab: { 
-    position: "absolute", 
-    bottom: 24, 
-    right: 20, 
-    width: 60, 
-    height: 60, 
-    borderRadius: 30, 
-    alignItems: "center", 
-    justifyContent: "center", 
-    shadowColor: "#000", 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.3, 
-    shadowRadius: 4, 
-    elevation: 5,
-    zIndex: 9999 /* Prevents it from hiding behind other elements */
-  },
-  
   modalOverlayBottom: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalContent: { height: "90%", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  modalContent: { height: "85%", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   cancelText: { fontFamily: "Inter_500Medium", fontSize: 16 },
-  postBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  postBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
-  input: { fontFamily: "Inter_400Regular", fontSize: 18, minHeight: 100, textAlignVertical: "top" },
+  postBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 999 },
+  postBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
+  composeInput: { fontFamily: "Inter_400Regular", fontSize: 18, minHeight: 120, textAlignVertical: "top" },
   
-  attachmentBadge: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginBottom: 16, gap: 8 },
-  attachmentText: { flex: 1, fontFamily: "Inter_500Medium", fontSize: 13, color: "#3B7BE5" },
+  attachmentBadge: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, marginBottom: 16, gap: 8 },
+  attachmentText: { flex: 1, fontFamily: "Inter_500Medium", fontSize: 14, color: "#3B7BE5" },
 
   modalOverlayCenter: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 20 },
   fireModalCard: { width: "100%", maxWidth: 340, borderRadius: 16, padding: 24, borderWidth: 1 },
