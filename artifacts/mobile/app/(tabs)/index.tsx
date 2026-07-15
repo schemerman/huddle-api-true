@@ -51,16 +51,29 @@ export default function HomeScreen() {
 
   const fetchPosts = async () => {
     try {
-      // The full query is back, safely joining all tables!
+      // THE TRIPWIRE: Try the complex join
       const { data: postsData, error } = await supabase
         .from("posts")
         .select(`*, users (*), post_likes (user_id)`)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        // IF IT FAILS, YELL AT US AND FALL BACK TO BASIC DATA!
+        Alert.alert("Join Error", `Database rejected the user link: ${error.message}`);
+        
+        const { data: backupData, error: backupErr } = await supabase
+          .from("posts")
+          .select(`*`)
+          .order("created_at", { ascending: false });
+          
+        if (backupErr) Alert.alert("Fatal Error", backupErr.message);
+        setPosts(backupData || []);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
 
       const wagerIds = postsData?.map(p => p.wager_id).filter(Boolean) || [];
-
       if (wagerIds.length > 0) {
         const { data: wagersData } = await supabase.from("wagers").select("*").in("id", wagerIds);
         const fixtureIds = wagersData?.map(w => w.fixture_id || w.fixtureId).filter(Boolean) || [];
@@ -82,8 +95,8 @@ export default function HomeScreen() {
       } else {
         setPosts(postsData || []);
       }
-    } catch (error) {
-      console.log("Error fetching posts:", error);
+    } catch (error: any) {
+      Alert.alert("System Error", error.message || "Something went deeply wrong.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -107,12 +120,8 @@ export default function HomeScreen() {
     if (pendingShare) {
       setAttachedWagerId(pendingShare);
       await AsyncStorage.removeItem("pending_share_wager");
-      
-      if (isDesktop) {
-        setTimeout(() => inputRef.current?.focus(), 500);
-      } else {
-        setComposeOpen(true);
-      }
+      if (isDesktop) setTimeout(() => inputRef.current?.focus(), 500);
+      else setComposeOpen(true);
     }
   };
 
@@ -155,7 +164,6 @@ export default function HomeScreen() {
     try {
       const { error } = await supabase.rpc('award_fire', { post_id_param: selectedPost.id, giver_id_param: user?.id, author_id_param: selectedPost.user_id, tip_amount: amount });
       if (error) throw error;
-
       setPosts(current => current.map(p => p.id === selectedPost.id ? { ...p, fire_count: p.fire_count + 1 } : p));
       if (!isDesktop && Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Award Sent!", `You tipped ${amount} pts. The house took 20%.`);
@@ -165,8 +173,14 @@ export default function HomeScreen() {
   };
 
   const submitPost = async () => {
+    // TRIPWIRE 2: Check if user is magically missing
+    if (!user) {
+      Alert.alert("Auth Error", "We cannot find your user ID. Are you logged in?");
+      return;
+    }
+    
     const finalContent = newPostText.trim() || (attachedWagerId ? "Check out my prediction! 👀" : "");
-    if (!finalContent || !user) return;
+    if (!finalContent) return;
     
     try {
       const { error } = await supabase.from("posts").insert({
@@ -174,21 +188,27 @@ export default function HomeScreen() {
         content: finalContent,
         wager_id: attachedWagerId 
       });
-      if (error) throw error;
+      
+      if (error) {
+        Alert.alert("Insert Failed", error.message);
+        return;
+      }
       
       setNewPostText("");
       setAttachedWagerId(null);
       setComposeOpen(false);
       fetchPosts(); 
-    } catch (error) {
-      Alert.alert("Error", "Could not create post.");
+    } catch (error: any) {
+      Alert.alert("Crash", error.message);
     }
   };
 
   const renderPost = useCallback(({ item }: { item: any }) => {
     const isLit = item.fire_count > 0;
-    // We grab the real user data here, with a safe fallback
-    const author = item.users || { username: "player", display_name: "Player", avatar_color: colors.primary };
+    
+    // SAFE FALLBACK: If the join failed, it won't crash the app, it will just use a fallback avatar
+    const author = item.users || { username: user?.username || "player", display_name: "Anonymous", avatar_color: colors.primary };
+    
     const likesCount = item.post_likes?.length || 0;
     const hasLiked = item.post_likes?.some((l: any) => l.user_id === user?.id);
 
@@ -228,6 +248,8 @@ export default function HomeScreen() {
           </View>
           <Text style={[styles.postText, { color: colors.foreground }]}>{item.content}</Text>
           {miniReceipt}
+          
+          {/* THE FULL ACTION BAR IS BACK */}
           <View style={styles.actionRow}>
             <Pressable style={styles.actionButton} onPress={() => handleLike(item.id, hasLiked)}>
               <Feather name="heart" size={18} color={hasLiked ? "#FF3B30" : colors.mutedForeground} />
@@ -252,12 +274,10 @@ export default function HomeScreen() {
       <View style={[styles.topBar, { paddingTop: topPad }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Home</Text>
         
-        {/* Sleek refresh icon for Web users */}
-        {isWeb && (
-          <Pressable onPress={() => fetchPosts()} style={({pressed}) => [{ opacity: pressed ? 0.5 : 1 }]}>
-            <Feather name="refresh-cw" size={20} color={colors.foreground} />
-          </Pressable>
-        )}
+        {/* BIG REFRESH BUTTON FOR PWA CACHE BREAKING */}
+        <Pressable onPress={() => fetchPosts()} style={{ backgroundColor: colors.foreground, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }}>
+          <Text style={{ color: colors.background, fontFamily: "Inter_600SemiBold" }}>Force Refresh</Text>
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
@@ -308,10 +328,7 @@ export default function HomeScreen() {
       </KeyboardAvoidingView>
 
       {!isDesktop && (
-        <Pressable 
-          style={[styles.fab, { backgroundColor: colors.foreground }]} 
-          onPress={() => setComposeOpen(true)}
-        >
+        <Pressable style={[styles.fab, { backgroundColor: colors.foreground }]} onPress={() => setComposeOpen(true)}>
           <Feather name="plus" size={26} color={colors.background} />
         </Pressable>
       )}
@@ -357,6 +374,7 @@ export default function HomeScreen() {
         </Modal>
       )}
 
+      {/* FIRE MODAL */}
       <Modal visible={fireModalOpen} animationType="fade" transparent>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayCenter}>
           <View style={[styles.fireModalCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -367,8 +385,7 @@ export default function HomeScreen() {
                 <Pressable key={val} style={[styles.fireQuickBtn, fireAmount === val ? { backgroundColor: "#FF6B00", borderColor: "#FF6B00" } : { borderColor: colors.border }]} onPress={() => setFireAmount(val)}>
                   <Text style={[styles.fireQuickText, { color: fireAmount === val ? "#FFF" : colors.foreground }]}>{val}</Text>
                 </Pressable>
-              ))}
-            </View>
+              </View>
             <TextInput style={[styles.fireInput, { color: colors.foreground, borderColor: colors.border }]} keyboardType="number-pad" maxLength={2} value={fireAmount} onChangeText={setFireAmount} placeholder="Custom 1-50" placeholderTextColor={colors.mutedForeground} />
             <View style={styles.fireModalActions}>
               <Pressable style={styles.fireCancelBtn} onPress={() => setFireModalOpen(false)}><Text style={[styles.fireCancelText, { color: colors.mutedForeground }]}>Cancel</Text></Pressable>
