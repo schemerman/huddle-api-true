@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase";
 const formatTimeAgo = (dateString: string) => {
   if (!dateString) return "";
   const diffInSeconds = Math.floor((new Date().getTime() - new Date(dateString).getTime()) / 1000);
-  if (diffInSeconds < 60) return "now ago";
+  if (diffInSeconds < 60) return "now";
   if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m`;
   if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h`;
   return `${Math.floor(diffInSeconds / 86400)}d`;
@@ -64,29 +64,17 @@ export default function PostScreen() {
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [id])
-  );
+  useFocusEffect(useCallback(() => { fetchData(); }, [id]));
 
   const handleSend = async () => {
     if (!newComment.trim() || !user || !id) return;
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("comments").insert({
-        post_id: id,
-        user_id: user.id,
-        content: newComment.trim()
-      });
+      const { error } = await supabase.from("comments").insert({ post_id: id, user_id: user.id, content: newComment.trim() });
       if (error) throw error;
-      setNewComment("");
-      fetchData(); 
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to post comment");
-    } finally {
-      setIsSubmitting(false);
-    }
+      setNewComment(""); fetchData(); 
+    } catch (error: any) { Alert.alert("Error", error.message || "Failed to post comment"); } 
+    finally { setIsSubmitting(false); }
   };
 
   const handleLikeMainPost = async () => {
@@ -101,11 +89,8 @@ export default function PostScreen() {
       return { ...current, post_likes: newLikes };
     });
 
-    if (hasLiked) {
-      await supabase.from("post_likes").delete().match({ post_id: post.id, user_id: user.id });
-    } else {
-      await supabase.from("post_likes").insert({ post_id: post.id, user_id: user.id });
-    }
+    if (hasLiked) await supabase.from("post_likes").delete().match({ post_id: post.id, user_id: user.id });
+    else await supabase.from("post_likes").insert({ post_id: post.id, user_id: user.id });
   };
 
   if (loading || !post) {
@@ -166,7 +151,6 @@ export default function PostScreen() {
                     <FontAwesome5 name="heart" size={22} color={hasLikedMain ? "#FF3B30" : colors.foreground} solid={hasLikedMain} />
                   </Pressable>
                   <Feather name="message-circle" size={22} color={colors.foreground} />
-                  <Feather name="share" size={22} color={colors.foreground} />
                 </View>
               </View>
 
@@ -204,19 +188,8 @@ export default function PostScreen() {
         />
 
         <View style={[styles.inputContainer, { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? insets.bottom || 16 : 16 }]}>
-          <TextInput
-            style={[styles.textInput, { backgroundColor: "rgba(0,0,0,0.05)", color: colors.foreground }]}
-            placeholder="Add a comment..."
-            placeholderTextColor={colors.mutedForeground}
-            value={newComment}
-            onChangeText={setNewComment}
-            multiline
-          />
-          <Pressable 
-            onPress={handleSend} 
-            disabled={!newComment.trim() || isSubmitting}
-            style={({pressed}) => [{ opacity: !newComment.trim() || pressed ? 0.5 : 1 }, styles.sendBtn]}
-          >
+          <TextInput style={[styles.textInput, { backgroundColor: "rgba(0,0,0,0.05)", color: colors.foreground }]} placeholder="Add a comment..." placeholderTextColor={colors.mutedForeground} value={newComment} onChangeText={setNewComment} multiline />
+          <Pressable onPress={handleSend} disabled={!newComment.trim() || isSubmitting} style={({pressed}) => [{ opacity: !newComment.trim() || pressed ? 0.5 : 1 }, styles.sendBtn]}>
             <Text style={[styles.sendText, { color: colors.foreground }]}>Send</Text>
           </Pressable>
         </View>
@@ -231,33 +204,31 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   backButton: { width: 40, alignItems: "flex-start" },
   headerTitle: { fontFamily: "Inter_700Bold", fontSize: 18 },
-  
   mainPost: { padding: 16 },
   authorRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  authorText: { marginLeft: 12 },
+  authorText: { marginLeft: 12, flexDirection: "column", alignItems: "flex-start" },
   displayName: { fontFamily: "Inter_700Bold", fontSize: 16 },
-  username: { fontFamily: "Inter_400Regular", fontSize: 14 },
+  username: { fontFamily: "Inter_400Regular", fontSize: 14, marginTop: 2 },
   mainContent: { fontFamily: "Inter_400Regular", fontSize: 20, lineHeight: 28, marginBottom: 8 },
   timeAgo: { fontFamily: "Inter_400Regular", fontSize: 14, marginBottom: 16 },
   statsRow: { flexDirection: "row", paddingVertical: 16, borderTopWidth: 1, borderBottomWidth: 1, marginBottom: 16 },
   statText: { fontFamily: "Inter_400Regular", fontSize: 15 },
   statBold: { fontFamily: "Inter_700Bold" },
   actionRow: { flexDirection: "row", justifyContent: "flex-start", gap: 32, paddingBottom: 8 },
-  
   commentsHeader: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.05)" },
   commentsHeaderText: { fontFamily: "Inter_600SemiBold", fontSize: 12, letterSpacing: 1 },
-  
   commentRow: { flexDirection: "row", padding: 16, borderBottomWidth: 1 },
   commentContent: { flex: 1, marginLeft: 12 },
-  commentHeader: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginBottom: 4 },
-  commentDisplayName: { fontFamily: "Inter_600SemiBold", fontSize: 14, marginRight: 6 },
-  commentUsername: { fontFamily: "Inter_400Regular", fontSize: 13 },
+  
+  // Stacking logic applied to the comments as well!
+  commentHeader: { flexDirection: "column", alignItems: "flex-start", marginBottom: 6 },
+  commentDisplayName: { fontFamily: "Inter_700Bold", fontSize: 14 },
+  commentUsername: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 2 },
+  
   commentText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 20, marginBottom: 8 },
   commentActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   commentActionText: { fontFamily: "Inter_500Medium", fontSize: 12 },
-  
   emptyText: { textAlign: "center", marginTop: 40, fontFamily: "Inter_400Regular", fontSize: 15 },
-  
   inputContainer: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1 },
   textInput: { flex: 1, minHeight: 40, maxHeight: 100, borderRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontFamily: "Inter_400Regular", fontSize: 15 },
   sendBtn: { marginLeft: 16, paddingBottom: 10 },

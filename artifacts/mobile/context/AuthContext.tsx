@@ -12,10 +12,10 @@ export interface HuddleUser {
   email: string;
   username: string;
   displayName: string;
-  display_name?: string; // FIX: Added to match Supabase exactly
+  display_name?: string; 
   dob: string;
   avatarColor: string;
-  avatar_color?: string; // FIX: Added to match Supabase exactly
+  avatar_color?: string; 
   winRate: number;
   currentStreak: number;
   points: number;
@@ -40,7 +40,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ error: string | null; user: HuddleUser | null }>;
   register: (email: string, password: string) => Promise<{ error: string | null }>;
-  completeProfile: (username: string, dob: string, avatarColor: string) => Promise<void>;
+  completeProfile: (displayName: string, username: string, dob: string, avatarColor: string) => Promise<void>;
   placeWager: (details: WagerDetails) => Promise<void>;
   claimDailyBonus: () => Promise<boolean>;
   claimBailout: () => Promise<boolean>;
@@ -93,12 +93,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null };
   };
 
-  const completeProfile = async (username: string, dob: string, avatarColor: string) => {
+  // UPDATED: Now requires displayName!
+  const completeProfile = async (displayName: string, username: string, dob: string, avatarColor: string) => {
     if (!user) return;
     
     const { error } = await supabase.from("users").update({
+      display_name: displayName,
       username: username,
-      display_name: username,
       dob: dob,
       avatar_color: avatarColor,
       profile_complete: true
@@ -131,9 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return result.claimed;
   };
 
-  const joinGroup = async (groupId: string) => {
-    // Standard social function
-  };
+  const joinGroup = async (groupId: string) => {};
 
   const logout = async () => {
     await supabase.auth.signOut();

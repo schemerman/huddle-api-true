@@ -40,7 +40,7 @@ function validateDob(dob: string): string | null {
   let age = today.getFullYear() - year;
   const monthDiff = today.getMonth() - (month - 1);
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < day)) age--;
-  if (age < 13) return "You must be 13 or older to join Huddle.";
+  if (age < 18) return "You must be 18 or older to join Huddle.";
   if (age > 100) return "Please enter a valid date of birth.";
   return null;
 }
@@ -48,6 +48,9 @@ function validateDob(dob: string): string | null {
 export default function CompleteProfileScreen() {
   const insets = useSafeAreaInsets();
   const { completeProfile } = useAuth();
+  
+  // Added the missing displayName state
+  const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [dob, setDob] = useState("");
   const [selectedColor, setSelectedColor] = useState(AVATAR_COLORS[0]);
@@ -55,6 +58,10 @@ export default function CompleteProfileScreen() {
   const [error, setError] = useState("");
 
   const handleComplete = async () => {
+    if (!displayName.trim()) {
+      setError("Name is required.");
+      return;
+    }
     if (!username.trim()) {
       setError("Username is required.");
       return;
@@ -72,10 +79,13 @@ export default function CompleteProfileScreen() {
       setError(dobError);
       return;
     }
+    
     setLoading(true);
     setError("");
+    
     try {
-      await completeProfile(username.trim().toLowerCase(), dob, selectedColor);
+      // FIX: Now passing all 4 arguments exactly as TypeScript expects!
+      await completeProfile(displayName.trim(), username.trim().toLowerCase(), dob, selectedColor);
       router.replace("/(tabs)");
     } catch (err: any) {
       setError(err.message || "Something went wrong saving your profile.");
@@ -84,7 +94,11 @@ export default function CompleteProfileScreen() {
     }
   };
 
-  const initials = username ? username.substring(0, 2).toUpperCase() : "??";
+  const initials = displayName 
+    ? displayName.substring(0, 2).toUpperCase() 
+    : username 
+      ? username.substring(0, 2).toUpperCase() 
+      : "??";
 
   return (
     <KeyboardAvoidingView
@@ -128,6 +142,19 @@ export default function CompleteProfileScreen() {
         </View>
 
         <View style={styles.form}>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="James Smith"
+              placeholderTextColor="#ABABAB"
+              value={displayName}
+              onChangeText={setDisplayName}
+              autoCorrect={false}
+            />
+          </View>
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Username</Text>
             <View style={styles.usernameRow}>
@@ -143,6 +170,7 @@ export default function CompleteProfileScreen() {
               />
             </View>
           </View>
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Date of Birth</Text>
             <TextInput
@@ -162,8 +190,9 @@ export default function CompleteProfileScreen() {
               }}
               keyboardType="numeric"
             />
-            <Text style={styles.dobHint}>Must be 13 or older to join.</Text>
+            <Text style={styles.dobHint}>Must be 18 or older to join.</Text>
           </View>
+          
           {!!error && <Text style={styles.error}>{error}</Text>}
           <HuddleButton label="Let's Go" onPress={handleComplete} loading={loading} fullWidth />
         </View>

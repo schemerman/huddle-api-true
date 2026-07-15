@@ -9,22 +9,22 @@ import { useColors } from "@/hooks/useColors";
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 
 const isWeb = Platform.OS === "web";
 
 const getFlag = (team: string) => {
-  const flags: Record<string, string> = {
-    "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
-    "Canada": "🇨🇦", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-    "France": "🇫🇷", "Ghana": "🇬🇭", "Morocco": "🇲🇦", "Norway": "🇳🇴",
-    "Panama": "🇵🇦", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-    "Senegal": "🇸🇳", "Spain": "🇪🇸", "Switzerland": "🇨🇭", "USA": "🇺🇸",
-    "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
-    "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
-    "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
-    "Czech Republic": "🇨🇿", "Draw": "⚖️"
-  };
+  const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️" };
   return flags[team] || ""; 
+};
+
+const formatTimeAgo = (dateString: string) => {
+  if (!dateString) return "";
+  const diffInSeconds = Math.floor((new Date().getTime() - new Date(dateString).getTime()) / 1000);
+  if (diffInSeconds < 60) return "now";
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h`;
+  return `${Math.floor(diffInSeconds / 86400)}d`;
 };
 
 export default function HomeScreen() {
@@ -49,23 +49,15 @@ export default function HomeScreen() {
   const [fireModalOpen, setFireModalOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any>(null);
   const [fireAmount, setFireAmount] = useState<string>("50");
+  
+  // State for the Public Profile Pop-up
+  const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
 
   const fetchPosts = async () => {
     try {
-      const { data: postsData, error: postsError } = await supabase
-        .from("posts")
-        .select(`*`)
-        .order("created_at", { ascending: false });
-
-      if (postsError) {
-        Alert.alert("Database Error", postsError.message);
-        return;
-      }
-
-      if (!postsData || postsData.length === 0) {
-        setPosts([]);
-        return;
-      }
+      const { data: postsData, error: postsError } = await supabase.from("posts").select(`*`).order("created_at", { ascending: false });
+      if (postsError) return;
+      if (!postsData || postsData.length === 0) { setPosts([]); return; }
 
       const userIds = [...new Set(postsData.map(p => p.user_id).filter(Boolean))];
       const postIds = postsData.map(p => p.id);
@@ -78,64 +70,29 @@ export default function HomeScreen() {
 
       if (wagerIds.length > 0) {
         const { data: wagersData } = await supabase.from("wagers").select("*").in("id", wagerIds);
-        const fixtureIds = wagersData?.map(w => w.fixture_id || w.fixtureId).filter(Boolean) || [];
-        
-        let fixturesMap: Record<string, any> = {};
-        if (fixtureIds.length > 0) {
-          const { data: fixturesData } = await supabase.from("fixtures").select("*").in("id", fixtureIds);
-          fixturesData?.forEach(f => fixturesMap[f.id] = f);
-        }
-
-        wagersData?.forEach(w => {
-          const f = fixturesMap[w.fixture_id || w.fixtureId];
-          wagersMap[w.id] = { ...w, homeScore: f?.homeScore ?? f?.home_score, awayScore: f?.awayScore ?? f?.away_score, homeTeam: f?.homeTeam ?? f?.home_team, awayTeam: f?.awayTeam ?? f?.away_team };
-        });
+        wagersData?.forEach(w => wagersMap[w.id] = w);
       }
 
       const fullyBuiltPosts = postsData.map(post => {
         const author = usersData?.find(u => u.id === post.user_id) || null;
         const postLikes = likesData?.filter(l => l.post_id === post.id) || [];
         const postWager = post.wager_id ? wagersMap[post.wager_id] : null;
-        
-        return {
-          ...post,
-          users: author,
-          post_likes: postLikes,
-          wager: postWager
-        };
+        return { ...post, users: author, post_likes: postLikes, wager: postWager };
       });
 
       setPosts(fullyBuiltPosts);
-    } catch (error: any) {
-      console.log("Fetch Error", error.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    } catch (error: any) {} finally { setLoading(false); setRefreshing(false); }
   };
 
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchPosts();
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchPosts();
-      checkPendingShares();
-    }, [])
-  );
+  const onRefresh = useCallback(() => { setRefreshing(true); fetchPosts(); }, []);
+  useFocusEffect(useCallback(() => { fetchPosts(); checkPendingShares(); }, []));
 
   const checkPendingShares = async () => {
     const pendingShare = await AsyncStorage.getItem("pending_share_wager");
     if (pendingShare) {
       setAttachedWagerId(pendingShare);
       await AsyncStorage.removeItem("pending_share_wager");
-      
-      setTimeout(() => {
-        if (isDesktop) inputRef.current?.focus();
-        else setComposeOpen(true);
-      }, 300);
+      setTimeout(() => { if (isDesktop) inputRef.current?.focus(); else setComposeOpen(true); }, 300);
     }
   };
 
@@ -152,19 +109,14 @@ export default function HomeScreen() {
       return p;
     }));
 
-    if (hasLiked) {
-      await supabase.from("post_likes").delete().match({ post_id: postId, user_id: user.id });
-    } else {
-      await supabase.from("post_likes").insert({ post_id: postId, user_id: user.id });
-    }
+    if (hasLiked) await supabase.from("post_likes").delete().match({ post_id: postId, user_id: user.id });
+    else await supabase.from("post_likes").insert({ post_id: postId, user_id: user.id });
   };
 
   const openFireModal = (post: any) => {
     if (!user) return;
     if (!isDesktop && Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSelectedPost(post);
-    setFireAmount("50");
-    setFireModalOpen(true);
+    setSelectedPost(post); setFireAmount("50"); setFireModalOpen(true);
   };
 
   const submitFireAward = async () => {
@@ -173,52 +125,50 @@ export default function HomeScreen() {
     setFireModalOpen(false);
 
     try {
-      const { error } = await supabase.rpc('award_fire', { post_id_param: selectedPost.id, giver_id_param: user?.id, author_id_param: selectedPost.user_id, tip_amount: amount });
-      if (error) throw error;
+      await supabase.rpc('award_fire', { post_id_param: selectedPost.id, giver_id_param: user?.id, author_id_param: selectedPost.user_id, tip_amount: amount });
       setPosts(current => current.map(p => p.id === selectedPost.id ? { ...p, fire_count: p.fire_count + 1 } : p));
       if (!isDesktop && Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Award Sent!", `You tipped ${amount} pts. The house took 20%.`);
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "Could not process award.");
-    }
+      Alert.alert("Award Sent!", `You tipped ${amount} pts.`);
+    } catch (err: any) { Alert.alert("Error", err.message); }
   };
 
   const submitPost = async () => {
-    if (!user) {
-      Alert.alert("Auth Error", "We cannot find your user ID. Are you logged in?");
-      return;
-    }
-    
+    if (!user) return Alert.alert("Auth Error", "Are you logged in?");
     const finalContent = newPostText.trim() || (attachedWagerId ? "Check out my prediction! 👀" : "");
     if (!finalContent) return;
     
     try {
-      const { error } = await supabase.from("posts").insert({
-        user_id: user.id,
-        content: finalContent,
-        wager_id: attachedWagerId 
-      });
-      
-      if (error) {
-        Alert.alert("Insert Failed", error.message);
-        return;
+      await supabase.from("posts").insert({ user_id: user.id, content: finalContent, wager_id: attachedWagerId });
+      setNewPostText(""); setAttachedWagerId(null); setComposeOpen(false); fetchPosts(); 
+    } catch (error: any) { Alert.alert("Crash", error.message); }
+  };
+
+  // FULLY WIRED PUBLIC PROFILE MODAL
+  const handleProfileClick = async (userId: string) => {
+    if (!userId) return;
+    try {
+      const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
+      if (data) {
+        setProfileUser({
+          userId: data.id,
+          username: data.username,
+          displayName: data.display_name || data.username,
+          avatarColor: data.avatar_color || colors.primary,
+          points: data.points || 0,
+          winRate: data.win_rate || 0
+        });
       }
-      
-      setNewPostText("");
-      setAttachedWagerId(null);
-      setComposeOpen(false);
-      fetchPosts(); 
-    } catch (error: any) {
-      Alert.alert("Crash", error.message);
+    } catch (e) {
+      console.log("Error loading profile", e);
     }
   };
 
   const renderPost = useCallback(({ item }: { item: any }) => {
     const isLit = item.fire_count > 0;
-    
     const activeUser = user as any; 
     let dbUser = item.users;
     
+    const finalUserId = dbUser?.id || "";
     const finalUsername = dbUser?.username || activeUser?.username || "player";
     const finalDisplayName = dbUser?.display_name || dbUser?.displayName || dbUser?.username || "Player";
     const finalColor = dbUser?.avatar_color || activeUser?.avatar_color || activeUser?.avatarColor || colors.primary;
@@ -240,48 +190,49 @@ export default function HomeScreen() {
           <View style={styles.miniReceiptTop}>
             <Text style={[styles.miniReceiptLabel, { color: colors.mutedForeground }]}>Prediction</Text>
             <View style={[styles.miniReceiptBadge, { backgroundColor: won ? colors.primary : lost ? colors.secondary : colors.border }]}>
-               <Text style={[styles.miniReceiptStatus, { color: won ? colors.primaryForeground : colors.foreground }]}>
-                 {won ? "WON" : lost ? "LOST" : "PENDING"}
-               </Text>
+               <Text style={[styles.miniReceiptStatus, { color: won ? colors.primaryForeground : colors.foreground }]}>{won ? "WON" : lost ? "LOST" : "PENDING"}</Text>
             </View>
           </View>
           <Text style={[styles.miniReceiptPred, { color: colors.foreground }]}>{displayPred}</Text>
-          <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>
-            {won ? `+${item.wager.payout} pts` : lost ? `-${item.wager.amount} pts` : `${item.wager.amount} pts at stake`}
-          </Text>
+          <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>{won ? `+${item.wager.payout} pts` : lost ? `-${item.wager.amount} pts` : `${item.wager.amount} pts at stake`}</Text>
         </View>
       );
     }
 
     return (
       <View style={[styles.postContainer, { borderBottomColor: colors.border }, isLit && styles.postLit]}>
-        <Avatar color={finalColor} username={finalUsername} size={44} />
-        <View style={styles.postContent}>
+        {/* CLICKABLE AVATAR OPENS MODAL */}
+        <Pressable onPress={() => handleProfileClick(finalUserId)}>
+          <Avatar color={finalColor} username={finalUsername} size={48} />
+        </Pressable>
+
+        <Pressable style={styles.postContent} onPress={() => router.push(`/post/${item.id}`)}>
+          {/* TWITTER STYLE HEADER STACK */}
           <View style={styles.postHeader}>
             <Text style={[styles.displayName, { color: colors.foreground }]}>{finalDisplayName}</Text>
-            <Text style={[styles.username, { color: colors.mutedForeground }]}>@{finalUsername}</Text>
+            <Text style={[styles.username, { color: colors.mutedForeground }]}>@{finalUsername} · {formatTimeAgo(item.created_at)}</Text>
           </View>
+          
           <Text style={[styles.postText, { color: colors.foreground }]}>{item.content}</Text>
           {miniReceipt}
           
           <View style={styles.actionRow}>
-            {/* THE NEW FILLED HEART BUTTON */}
-            <Pressable style={styles.actionButton} onPress={() => handleLike(item.id, hasLiked)}>
+            <Pressable style={styles.actionButton} onPress={(e) => { e.stopPropagation(); handleLike(item.id, hasLiked); }}>
               <FontAwesome5 name="heart" size={18} color={hasLiked ? "#FF3B30" : colors.mutedForeground} solid={hasLiked} />
               <Text style={[styles.actionText, { color: colors.mutedForeground }]}>{likesCount}</Text>
             </Pressable>
             
-            <Pressable style={styles.actionButton} onPress={() => router.push(`/post/${item.id}`)}>
+            <Pressable style={styles.actionButton} onPress={(e) => { e.stopPropagation(); router.push(`/post/${item.id}`); }}>
               <Feather name="message-circle" size={18} color={colors.mutedForeground} />
               <Text style={[styles.actionText, { color: colors.mutedForeground }]}>0</Text>
             </Pressable>
             
-            <Pressable style={styles.actionButton} onPress={() => openFireModal(item)}>
+            <Pressable style={styles.actionButton} onPress={(e) => { e.stopPropagation(); openFireModal(item); }}>
               <FontAwesome5 name="fire" size={18} color={isLit ? "#FF6B00" : colors.mutedForeground} solid={isLit} />
               {isLit && <Text style={[styles.actionText, { color: "#FF6B00" }]}>{item.fire_count}</Text>}
             </Pressable>
           </View>
-        </View>
+        </Pressable>
       </View>
     );
   }, [user, colors]);
@@ -299,30 +250,9 @@ export default function HomeScreen() {
           ListHeaderComponent={
             isDesktop ? (
               <View style={[styles.composeContainer, { borderBottomColor: colors.border }]}>
-                <TextInput
-                  ref={inputRef}
-                  style={[styles.composeInput, { color: colors.foreground }]}
-                  placeholder="What's your latest prediction?"
-                  placeholderTextColor={colors.mutedForeground}
-                  multiline
-                  value={newPostText}
-                  onChangeText={setNewPostText}
-                />
-                {attachedWagerId && (
-                  <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
-                    <Feather name="paperclip" size={14} color="#3B7BE5" />
-                    <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
-                    <Pressable onPress={() => setAttachedWagerId(null)}>
-                      <Feather name="x" size={16} color="#3B7BE5" />
-                    </Pressable>
-                  </View>
-                )}
+                <TextInput ref={inputRef} style={[styles.composeInput, { color: colors.foreground }]} placeholder="What's your latest prediction?" placeholderTextColor={colors.mutedForeground} multiline value={newPostText} onChangeText={setNewPostText} />
                 <View style={styles.composeFooter}>
-                  <Pressable 
-                    style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} 
-                    onPress={submitPost} 
-                    disabled={!newPostText.trim() && !attachedWagerId}
-                  >
+                  <Pressable style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} onPress={submitPost} disabled={!newPostText.trim() && !attachedWagerId}>
                     <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
                   </Pressable>
                 </View>
@@ -343,6 +273,9 @@ export default function HomeScreen() {
         </Pressable>
       )}
 
+      {/* POP UP MODALS */}
+      <PublicProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
+
       {!isDesktop && (
         <Modal visible={composeOpen} animationType="slide" transparent>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayBottom}>
@@ -351,32 +284,11 @@ export default function HomeScreen() {
                 <Pressable onPress={() => { setComposeOpen(false); setAttachedWagerId(null); }}>
                   <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancel</Text>
                 </Pressable>
-                <Pressable 
-                  style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} 
-                  onPress={submitPost} 
-                  disabled={!newPostText.trim() && !attachedWagerId}
-                >
+                <Pressable style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} onPress={submitPost} disabled={!newPostText.trim() && !attachedWagerId}>
                   <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
                 </Pressable>
               </View>
-              {attachedWagerId && (
-                <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
-                  <Feather name="paperclip" size={14} color="#3B7BE5" />
-                  <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
-                  <Pressable onPress={() => setAttachedWagerId(null)}>
-                    <Feather name="x" size={16} color="#3B7BE5" />
-                  </Pressable>
-                </View>
-              )}
-              <TextInput
-                style={[styles.composeInput, { color: colors.foreground }]}
-                placeholder="What's your latest prediction?"
-                placeholderTextColor={colors.mutedForeground}
-                multiline
-                autoFocus
-                value={newPostText}
-                onChangeText={setNewPostText}
-              />
+              <TextInput style={[styles.composeInput, { color: colors.foreground }]} placeholder="What's your latest prediction?" placeholderTextColor={colors.mutedForeground} multiline autoFocus value={newPostText} onChangeText={setNewPostText} />
             </View>
           </KeyboardAvoidingView>
         </Modal>
@@ -417,10 +329,13 @@ const styles = StyleSheet.create({
   postContainer: { flexDirection: "row", padding: 16, borderBottomWidth: 1, gap: 12 },
   postLit: { backgroundColor: "rgba(255, 107, 0, 0.04)" },
   postContent: { flex: 1 },
-  postHeader: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 },
-  displayName: { fontFamily: "Inter_700Bold", fontSize: 15 },
-  username: { fontFamily: "Inter_400Regular", fontSize: 14 },
-  postText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, marginTop: 4, marginBottom: 12 },
+  
+  // STACKED TWITTER-STYLE HEADER
+  postHeader: { flexDirection: "column", alignItems: "flex-start", marginBottom: 6 },
+  displayName: { fontFamily: "Inter_700Bold", fontSize: 16 },
+  username: { fontFamily: "Inter_400Regular", fontSize: 14, marginTop: 2 },
+  
+  postText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, marginBottom: 12 },
   actionRow: { flexDirection: "row", justifyContent: "flex-start", alignItems: "center", gap: 28 },
   actionButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
   actionText: { fontFamily: "Inter_500Medium", fontSize: 13 },
