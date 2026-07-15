@@ -57,17 +57,7 @@ export default function HomeScreen() {
         .order("created_at", { ascending: false });
 
       if (error) {
-        Alert.alert("Join Error", `Database rejected the user link: ${error.message}`);
-        
-        const { data: backupData, error: backupErr } = await supabase
-          .from("posts")
-          .select(`*`)
-          .order("created_at", { ascending: false });
-          
-        if (backupErr) Alert.alert("Fatal Error", backupErr.message);
-        setPosts(backupData || []);
-        setLoading(false);
-        setRefreshing(false);
+        Alert.alert("Database Error", error.message);
         return;
       }
 
@@ -94,7 +84,7 @@ export default function HomeScreen() {
         setPosts(postsData || []);
       }
     } catch (error: any) {
-      Alert.alert("System Error", error.message || "Something went deeply wrong.");
+      console.log("Fetch error:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -118,8 +108,12 @@ export default function HomeScreen() {
     if (pendingShare) {
       setAttachedWagerId(pendingShare);
       await AsyncStorage.removeItem("pending_share_wager");
-      if (isDesktop) setTimeout(() => inputRef.current?.focus(), 500);
-      else setComposeOpen(true);
+      
+      // Delay opening so the screen animation doesn't block the modal!
+      setTimeout(() => {
+        if (isDesktop) inputRef.current?.focus();
+        else setComposeOpen(true);
+      }, 300);
     }
   };
 
@@ -127,9 +121,11 @@ export default function HomeScreen() {
     if (!user) return;
     if (!isDesktop && Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
+    // FIX: Safely convert null post_likes to an empty array [] to prevent the React crash!
     setPosts(current => current.map(p => {
       if (p.id === postId) {
-        const newLikes = hasLiked ? p.post_likes.filter((l: any) => l.user_id !== user.id) : [...p.post_likes, { user_id: user.id }];
+        const safeLikes = p.post_likes || [];
+        const newLikes = hasLiked ? safeLikes.filter((l: any) => l.user_id !== user.id) : [...safeLikes, { user_id: user.id }];
         return { ...p, post_likes: newLikes };
       }
       return p;
@@ -144,10 +140,8 @@ export default function HomeScreen() {
 
   const openFireModal = (post: any) => {
     if (!user) return;
-    if (user.id === post.user_id) {
-      Alert.alert("Hold up", "You cannot give a Fire award to your own post!");
-      return;
-    }
+    
+    // REMOVED the block preventing you from firing your own posts so you can test it!
     if (!isDesktop && Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedPost(post);
     setFireAmount("50");
@@ -202,10 +196,16 @@ export default function HomeScreen() {
 
   const renderPost = useCallback(({ item }: { item: any }) => {
     const isLit = item.fire_count > 0;
-    const author = item.users || { username: user?.username || "player", display_name: "Anonymous", avatar_color: colors.primary };
     
-    const likesCount = item.post_likes?.length || 0;
-    const hasLiked = item.post_likes?.some((l: any) => l.user_id === user?.id);
+    // FIX: Safely parse the user data. If the database join lags, fallback to their active login session!
+    let dbUser = item.users;
+    if (Array.isArray(dbUser)) dbUser = dbUser[0]; // Just in case Supabase sends an array
+    const finalUsername = dbUser?.username || user?.username || "player";
+    const finalColor = dbUser?.avatar_color || user?.avatar_color || colors.primary;
+    
+    const safeLikes = item.post_likes || [];
+    const likesCount = safeLikes.length;
+    const hasLiked = safeLikes.some((l: any) => l.user_id === user?.id);
 
     let miniReceipt = null;
     if (item.wager) {
@@ -235,11 +235,10 @@ export default function HomeScreen() {
 
     return (
       <View style={[styles.postContainer, { borderBottomColor: colors.border }, isLit && styles.postLit]}>
-        <Avatar color={author.avatar_color} username={author.username} size={44} />
+        <Avatar color={finalColor} username={finalUsername} size={44} />
         <View style={styles.postContent}>
           <View style={styles.postHeader}>
-            <Text style={[styles.displayName, { color: colors.foreground }]}>{author.display_name || author.username}</Text>
-            <Text style={[styles.username, { color: colors.mutedForeground }]}>@{author.username}</Text>
+            <Text style={[styles.displayName, { color: colors.foreground }]}>@{finalUsername}</Text>
           </View>
           <Text style={[styles.postText, { color: colors.foreground }]}>{item.content}</Text>
           {miniReceipt}
@@ -249,10 +248,13 @@ export default function HomeScreen() {
               <Feather name="heart" size={18} color={hasLiked ? "#FF3B30" : colors.mutedForeground} />
               <Text style={[styles.actionText, { color: hasLiked ? "#FF3B30" : colors.mutedForeground }]}>{likesCount}</Text>
             </Pressable>
-            <Pressable style={styles.actionButton}>
+            
+            {/* FIX: Let them know the reply page is coming! */}
+            <Pressable style={styles.actionButton} onPress={() => Alert.alert("Coming Soon", "We are building the Comments Thread screen next!")}>
               <Feather name="message-circle" size={18} color={colors.mutedForeground} />
               <Text style={[styles.actionText, { color: colors.mutedForeground }]}>0</Text>
             </Pressable>
+            
             <Pressable style={styles.actionButton} onPress={() => openFireModal(item)}>
               <FontAwesome5 name="fire" size={18} color={isLit ? "#FF6B00" : colors.mutedForeground} solid={isLit} />
               {isLit && <Text style={[styles.actionText, { color: "#FF6B00" }]}>{item.fire_count}</Text>}
@@ -261,7 +263,7 @@ export default function HomeScreen() {
         </View>
       </View>
     );
-  }, [user?.id, colors]);
+  }, [user?.id, user?.username, user?.avatar_color, colors]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -402,9 +404,9 @@ const styles = StyleSheet.create({
   postContainer: { flexDirection: "row", padding: 16, borderBottomWidth: 1, gap: 12 },
   postLit: { backgroundColor: "rgba(255, 107, 0, 0.04)" },
   postContent: { flex: 1 },
-  postHeader: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  displayName: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
-  username: { fontFamily: "Inter_400Regular", fontSize: 14 },
+  postHeader: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 },
+  displayName: { fontFamily: "Inter_700Bold", fontSize: 15 },
+  username: { fontFamily: "Inter_400Regular", fontSize: 14, display: 'none' }, // Hiding this to keep just @username like you wanted
   postText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, marginTop: 4, marginBottom: 12 },
   actionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 40 },
   actionButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
