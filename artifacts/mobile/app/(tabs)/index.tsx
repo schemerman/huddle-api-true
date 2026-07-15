@@ -1,8 +1,7 @@
 import React, { useState, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, Platform, Alert, TextInput, Modal, KeyboardAvoidingView, RefreshControl, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, Alert, TextInput, Modal, KeyboardAvoidingView, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
@@ -11,21 +10,6 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 
 const isWeb = Platform.OS === "web";
-
-const getFlag = (team: string) => {
-  const flags: Record<string, string> = {
-    "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
-    "Canada": "🇨🇦", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-    "France": "🇫🇷", "Ghana": "🇬🇭", "Morocco": "🇲🇦", "Norway": "🇳🇴",
-    "Panama": "🇵🇦", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-    "Senegal": "🇸🇳", "Spain": "🇪🇸", "Switzerland": "🇨🇭", "USA": "🇺🇸",
-    "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
-    "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
-    "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
-    "Czech Republic": "🇨🇿", "Draw": "⚖️"
-  };
-  return flags[team] || ""; 
-};
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -39,21 +23,17 @@ export default function HomeScreen() {
 
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   
   const [composeOpen, setComposeOpen] = useState(false);
   const [newPostText, setNewPostText] = useState("");
   const [attachedWagerId, setAttachedWagerId] = useState<string | null>(null);
 
-  const [fireModalOpen, setFireModalOpen] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<any>(null);
-  const [fireAmount, setFireAmount] = useState<string>("50");
-
-  const fetchPosts = async (showDiagnostic = false) => {
+  const fetchPosts = async () => {
     try {
+      // Stripped down to the absolute bare minimum to bypass relationship errors
       const { data: postsData, error } = await supabase
         .from("posts")
-        .select(`*, users (*), post_likes (user_id)`)
+        .select(`*`)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -61,114 +41,21 @@ export default function HomeScreen() {
         throw error;
       }
 
-      // DIAGNOSTIC CHECK: Prove exactly what the API is seeing
-      if (showDiagnostic) {
-         Alert.alert("Diagnostic", `The API successfully pulled ${postsData?.length || 0} posts from Supabase.`);
-      }
+      setPosts(postsData || []);
+      Alert.alert("Diagnostic", `Found ${postsData?.length || 0} posts in the database.`);
 
-      const wagerIds = postsData?.map(p => p.wager_id).filter(Boolean) || [];
-
-      if (wagerIds.length > 0) {
-        const { data: wagersData } = await supabase.from("wagers").select("*").in("id", wagerIds);
-        const fixtureIds = wagersData?.map(w => w.fixture_id || w.fixtureId).filter(Boolean) || [];
-        
-        let fixturesMap: Record<string, any> = {};
-        if (fixtureIds.length > 0) {
-          const { data: fixturesData } = await supabase.from("fixtures").select("*").in("id", fixtureIds);
-          fixturesData?.forEach(f => fixturesMap[f.id] = f);
-        }
-
-        const wagersMap: Record<string, any> = {};
-        wagersData?.forEach(w => {
-          const f = fixturesMap[w.fixture_id || w.fixtureId];
-          wagersMap[w.id] = { ...w, homeScore: f?.homeScore ?? f?.home_score, awayScore: f?.awayScore ?? f?.away_score, homeTeam: f?.homeTeam ?? f?.home_team, awayTeam: f?.awayTeam ?? f?.away_team };
-        });
-
-        const finalPosts = postsData?.map(p => ({ ...p, wager: p.wager_id ? wagersMap[p.wager_id] : null }));
-        setPosts(finalPosts || []);
-      } else {
-        setPosts(postsData || []);
-      }
     } catch (error) {
-      console.log("Error fetching posts:", error);
+      console.log("Fetch Error:", error);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchPosts(true); // Show the alert when you pull to refresh so we can debug!
-  }, []);
 
   useFocusEffect(
     useCallback(() => {
       fetchPosts();
-      checkPendingShares();
     }, [])
   );
-
-  const checkPendingShares = async () => {
-    const pendingShare = await AsyncStorage.getItem("pending_share_wager");
-    if (pendingShare) {
-      setAttachedWagerId(pendingShare);
-      await AsyncStorage.removeItem("pending_share_wager");
-      if (isDesktop) {
-        setTimeout(() => inputRef.current?.focus(), 500);
-      } else {
-        setComposeOpen(true);
-      }
-    }
-  };
-
-  const handleLike = async (postId: string, hasLiked: boolean) => {
-    if (!user) return;
-    if (!isDesktop && Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    setPosts(current => current.map(p => {
-      if (p.id === postId) {
-        const newLikes = hasLiked ? p.post_likes.filter((l: any) => l.user_id !== user.id) : [...p.post_likes, { user_id: user.id }];
-        return { ...p, post_likes: newLikes };
-      }
-      return p;
-    }));
-
-    if (hasLiked) {
-      await supabase.from("post_likes").delete().match({ post_id: postId, user_id: user.id });
-    } else {
-      await supabase.from("post_likes").insert({ post_id: postId, user_id: user.id });
-    }
-  };
-
-  const openFireModal = (post: any) => {
-    if (!user) return;
-    if (user.id === post.user_id) {
-      Alert.alert("Hold up", "You cannot give a Fire award to your own post!");
-      return;
-    }
-    if (!isDesktop && Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSelectedPost(post);
-    setFireAmount("50");
-    setFireModalOpen(true);
-  };
-
-  const submitFireAward = async () => {
-    const amount = parseInt(fireAmount, 10);
-    if (isNaN(amount) || amount < 1 || amount > 50) return Alert.alert("Invalid Amount", "Please enter a number between 1 and 50.");
-    setFireModalOpen(false);
-
-    try {
-      const { error } = await supabase.rpc('award_fire', { post_id_param: selectedPost.id, giver_id_param: user?.id, author_id_param: selectedPost.user_id, tip_amount: amount });
-      if (error) throw error;
-
-      setPosts(current => current.map(p => p.id === selectedPost.id ? { ...p, fire_count: p.fire_count + 1 } : p));
-      if (!isDesktop && Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Award Sent!", `You tipped ${amount} pts. The house took 20%.`);
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "Could not process award.");
-    }
-  };
 
   const submitPost = async () => {
     const finalContent = newPostText.trim() || (attachedWagerId ? "Check out my prediction! 👀" : "");
@@ -192,70 +79,35 @@ export default function HomeScreen() {
   };
 
   const renderPost = useCallback(({ item }: { item: any }) => {
-    const isLit = item.fire_count > 0;
-    const author = item.users || {};
-    const likesCount = item.post_likes?.length || 0;
-    const hasLiked = item.post_likes?.some((l: any) => l.user_id === user?.id);
-
-    let miniReceipt = null;
-    if (item.wager) {
-      const won = item.wager.status === "won";
-      const lost = item.wager.status === "lost";
-      const predictionStr = item.wager.prediction || item.wager.choice;
-      const fPrediction = getFlag(predictionStr);
-      const displayPred = predictionStr === "Draw" ? "⚖️ Draw" : `${fPrediction ? fPrediction + " " : ""}${predictionStr}`;
-      
-      miniReceipt = (
-        <View style={[styles.miniReceipt, { borderColor: colors.border, backgroundColor: won ? "rgba(52, 199, 89, 0.05)" : lost ? "rgba(255, 59, 48, 0.05)" : colors.background }]}>
-          <View style={styles.miniReceiptTop}>
-            <Text style={[styles.miniReceiptLabel, { color: colors.mutedForeground }]}>Prediction</Text>
-            <View style={[styles.miniReceiptBadge, { backgroundColor: won ? colors.primary : lost ? colors.secondary : colors.border }]}>
-               <Text style={[styles.miniReceiptStatus, { color: won ? colors.primaryForeground : colors.foreground }]}>
-                 {won ? "WON" : lost ? "LOST" : "PENDING"}
-               </Text>
-            </View>
-          </View>
-          <Text style={[styles.miniReceiptPred, { color: colors.foreground }]}>{displayPred}</Text>
-          <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>
-            {won ? `+${item.wager.payout} pts` : lost ? `-${item.wager.amount} pts` : `${item.wager.amount} pts at stake`}
-          </Text>
-        </View>
-      );
-    }
+    // Failsafe for missing user data during this test
+    const author = item.users || { username: "player", display_name: "Player" };
 
     return (
-      <View style={[styles.postContainer, { borderBottomColor: colors.border }, isLit && styles.postLit]}>
-        <Avatar color={author.avatar_color} username={author.username} size={44} />
+      <View style={[styles.postContainer, { borderBottomColor: colors.border }]}>
+        <Avatar color={colors.primary} username={author.username} size={44} />
         <View style={styles.postContent}>
           <View style={styles.postHeader}>
-            <Text style={[styles.displayName, { color: colors.foreground }]}>{author.display_name || 'Player'}</Text>
+            <Text style={[styles.displayName, { color: colors.foreground }]}>{author.display_name}</Text>
             <Text style={[styles.username, { color: colors.mutedForeground }]}>@{author.username}</Text>
           </View>
           <Text style={[styles.postText, { color: colors.foreground }]}>{item.content}</Text>
-          {miniReceipt}
-          <View style={styles.actionRow}>
-            <Pressable style={styles.actionButton} onPress={() => handleLike(item.id, hasLiked)}>
-              <Feather name="heart" size={18} color={hasLiked ? "#FF3B30" : colors.mutedForeground} />
-              <Text style={[styles.actionText, { color: hasLiked ? "#FF3B30" : colors.mutedForeground }]}>{likesCount}</Text>
-            </Pressable>
-            <Pressable style={styles.actionButton}>
-              <Feather name="message-circle" size={18} color={colors.mutedForeground} />
-              <Text style={[styles.actionText, { color: colors.mutedForeground }]}>0</Text>
-            </Pressable>
-            <Pressable style={styles.actionButton} onPress={() => openFireModal(item)}>
-              <FontAwesome5 name="fire" size={18} color={isLit ? "#FF6B00" : colors.mutedForeground} solid={isLit} />
-              {isLit && <Text style={[styles.actionText, { color: "#FF6B00" }]}>{item.fire_count}</Text>}
-            </Pressable>
-          </View>
         </View>
       </View>
     );
-  }, [user?.id, colors]);
+  }, [colors]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.topBar, { paddingTop: topPad }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Home</Text>
+        
+        {/* MANUAL REFRESH BUTTON */}
+        <Pressable 
+          onPress={fetchPosts}
+          style={{ backgroundColor: colors.foreground, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }}
+        >
+          <Text style={{ color: colors.background, fontFamily: "Inter_600SemiBold" }}>Force Refresh</Text>
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
@@ -274,22 +126,11 @@ export default function HomeScreen() {
                   value={newPostText}
                   onChangeText={setNewPostText}
                 />
-                
-                {attachedWagerId && (
-                  <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
-                    <Feather name="paperclip" size={14} color="#3B7BE5" />
-                    <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
-                    <Pressable onPress={() => setAttachedWagerId(null)}>
-                      <Feather name="x" size={16} color="#3B7BE5" />
-                    </Pressable>
-                  </View>
-                )}
-
                 <View style={styles.composeFooter}>
                   <Pressable 
-                    style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} 
+                    style={[styles.postBtn, { backgroundColor: newPostText.trim() ? colors.foreground : colors.mutedForeground }]} 
                     onPress={submitPost} 
-                    disabled={!newPostText.trim() && !attachedWagerId}
+                    disabled={!newPostText.trim()}
                   >
                     <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
                   </Pressable>
@@ -300,8 +141,7 @@ export default function HomeScreen() {
           renderItem={renderPost}
           contentContainerStyle={{ paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />}
-          ListEmptyComponent={!loading ? <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No posts yet. Start the conversation!</Text> : null}
+          ListEmptyComponent={!loading ? <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No posts found in database.</Text> : null}
         />
       </KeyboardAvoidingView>
 
@@ -316,28 +156,17 @@ export default function HomeScreen() {
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayBottom}>
             <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
               <View style={styles.modalHeader}>
-                <Pressable onPress={() => { setComposeOpen(false); setAttachedWagerId(null); }}>
+                <Pressable onPress={() => setComposeOpen(false)}>
                   <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancel</Text>
                 </Pressable>
                 <Pressable 
-                  style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} 
+                  style={[styles.postBtn, { backgroundColor: newPostText.trim() ? colors.foreground : colors.mutedForeground }]} 
                   onPress={submitPost} 
-                  disabled={!newPostText.trim() && !attachedWagerId}
+                  disabled={!newPostText.trim()}
                 >
                   <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
                 </Pressable>
               </View>
-
-              {attachedWagerId && (
-                <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
-                  <Feather name="paperclip" size={14} color="#3B7BE5" />
-                  <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
-                  <Pressable onPress={() => setAttachedWagerId(null)}>
-                    <Feather name="x" size={16} color="#3B7BE5" />
-                  </Pressable>
-                </View>
-              )}
-
               <TextInput
                 style={[styles.composeInput, { color: colors.foreground }]}
                 placeholder="What's your latest prediction?"
@@ -351,49 +180,24 @@ export default function HomeScreen() {
           </KeyboardAvoidingView>
         </Modal>
       )}
-
-      <Modal visible={fireModalOpen} animationType="fade" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayCenter}>
-          <View style={[styles.fireModalCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            <Text style={[styles.fireModalTitle, { color: colors.foreground }]}>Award Fire 🔥</Text>
-            <Text style={[styles.fireModalSub, { color: colors.mutedForeground }]}>Tip up to 50 pts. The house takes a 20% tax.</Text>
-            <View style={styles.fireQuickButtons}>
-              {["10", "25", "50"].map(val => (
-                <Pressable key={val} style={[styles.fireQuickBtn, fireAmount === val ? { backgroundColor: "#FF6B00", borderColor: "#FF6B00" } : { borderColor: colors.border }]} onPress={() => setFireAmount(val)}>
-                  <Text style={[styles.fireQuickText, { color: fireAmount === val ? "#FFF" : colors.foreground }]}>{val}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <TextInput style={[styles.fireInput, { color: colors.foreground, borderColor: colors.border }]} keyboardType="number-pad" maxLength={2} value={fireAmount} onChangeText={setFireAmount} placeholder="Custom 1-50" placeholderTextColor={colors.mutedForeground} />
-            <View style={styles.fireModalActions}>
-              <Pressable style={styles.fireCancelBtn} onPress={() => setFireModalOpen(false)}><Text style={[styles.fireCancelText, { color: colors.mutedForeground }]}>Cancel</Text></Pressable>
-              <Pressable style={styles.fireSubmitBtn} onPress={submitFireAward}><Text style={styles.fireSubmitText}>Send Award</Text></Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, width: "100%", height: "100%" },
-  topBar: { paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.05)" },
+  topBar: { paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.05)", flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontFamily: "Inter_700Bold", fontSize: 24, letterSpacing: -0.5 },
   composeContainer: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   composeFooter: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center" },
   emptyText: { textAlign: "center", marginTop: 60, fontFamily: "Inter_400Regular", fontSize: 16 },
   fab: { position: "absolute", bottom: 90, right: 20, width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 6, elevation: 8, zIndex: 99999 },
   postContainer: { flexDirection: "row", padding: 16, borderBottomWidth: 1, gap: 12 },
-  postLit: { backgroundColor: "rgba(255, 107, 0, 0.04)" },
   postContent: { flex: 1 },
   postHeader: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   displayName: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
   username: { fontFamily: "Inter_400Regular", fontSize: 14 },
   postText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, marginTop: 4, marginBottom: 12 },
-  actionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 40 },
-  actionButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
-  actionText: { fontFamily: "Inter_500Medium", fontSize: 13 },
   modalOverlayBottom: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { height: "85%", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
@@ -401,26 +205,4 @@ const styles = StyleSheet.create({
   postBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 999 },
   postBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
   composeInput: { fontFamily: "Inter_400Regular", fontSize: 18, minHeight: 120, textAlignVertical: "top" },
-  attachmentBadge: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, marginBottom: 16, gap: 8 },
-  attachmentText: { flex: 1, fontFamily: "Inter_500Medium", fontSize: 14, color: "#3B7BE5" },
-  modalOverlayCenter: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 20 },
-  fireModalCard: { width: "100%", maxWidth: 340, borderRadius: 16, padding: 24, borderWidth: 1 },
-  fireModalTitle: { fontFamily: "Inter_700Bold", fontSize: 20, textAlign: "center", marginBottom: 8 },
-  fireModalSub: { fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center", marginBottom: 20, lineHeight: 20 },
-  fireQuickButtons: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16, gap: 10 },
-  fireQuickBtn: { flex: 1, paddingVertical: 12, borderWidth: 1, borderRadius: 8, alignItems: "center" },
-  fireQuickText: { fontFamily: "Inter_600SemiBold", fontSize: 16 },
-  fireInput: { borderWidth: 1, borderRadius: 8, padding: 14, fontSize: 16, fontFamily: "Inter_500Medium", textAlign: "center", marginBottom: 24 },
-  fireModalActions: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
-  fireCancelBtn: { flex: 1, paddingVertical: 14, alignItems: "center", justifyContent: "center" },
-  fireCancelText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
-  fireSubmitBtn: { flex: 1, paddingVertical: 14, backgroundColor: "#FF6B00", borderRadius: 999, alignItems: "center", justifyContent: "center" },
-  fireSubmitText: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: "#FFF" },
-  miniReceipt: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
-  miniReceiptTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  miniReceiptLabel: { fontFamily: "Inter_500Medium", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
-  miniReceiptBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  miniReceiptStatus: { fontFamily: "Inter_700Bold", fontSize: 10, letterSpacing: 0.5 },
-  miniReceiptPred: { fontFamily: "Inter_600SemiBold", fontSize: 16, marginBottom: 4 },
-  miniReceiptPts: { fontFamily: "Inter_400Regular", fontSize: 13 },
 });
