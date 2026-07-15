@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, Pressable, Platform, Alert, TextInput
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { Avatar } from "@/components/Avatar";
@@ -32,6 +32,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const inputRef = useRef<TextInput>(null);
+  const router = useRouter();
   
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768; 
@@ -49,10 +50,8 @@ export default function HomeScreen() {
   const [selectedPost, setSelectedPost] = useState<any>(null);
   const [fireAmount, setFireAmount] = useState<string>("50");
 
-  // THE BULLETPROOF FETCH: Bypasses the broken Supabase Join engine entirely!
   const fetchPosts = async () => {
     try {
-      // 1. Fetch JUST the raw posts. We know this works perfectly.
       const { data: postsData, error: postsError } = await supabase
         .from("posts")
         .select(`*`)
@@ -68,15 +67,12 @@ export default function HomeScreen() {
         return;
       }
 
-      // 2. Grab all the unique User IDs and Post IDs from those posts
       const userIds = [...new Set(postsData.map(p => p.user_id).filter(Boolean))];
       const postIds = postsData.map(p => p.id);
 
-      // 3. Manually fetch the Authors and the Likes
       const { data: usersData } = await supabase.from("users").select("*").in("id", userIds);
       const { data: likesData } = await supabase.from("post_likes").select("*").in("post_id", postIds);
 
-      // 4. Manually fetch the Wagers
       const wagerIds = postsData.map(p => p.wager_id).filter(Boolean);
       let wagersMap: Record<string, any> = {};
 
@@ -96,7 +92,6 @@ export default function HomeScreen() {
         });
       }
 
-      // 5. Merge everything together right here in the app!
       const fullyBuiltPosts = postsData.map(post => {
         const author = usersData?.find(u => u.id === post.user_id) || null;
         const postLikes = likesData?.filter(l => l.post_id === post.id) || [];
@@ -112,7 +107,7 @@ export default function HomeScreen() {
 
       setPosts(fullyBuiltPosts);
     } catch (error: any) {
-      Alert.alert("System Crash", error.message || "Failed to stitch data together.");
+      console.log("Fetch Error", error.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -166,7 +161,6 @@ export default function HomeScreen() {
 
   const openFireModal = (post: any) => {
     if (!user) return;
-    
     if (!isDesktop && Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedPost(post);
     setFireAmount("50");
@@ -222,11 +216,11 @@ export default function HomeScreen() {
   const renderPost = useCallback(({ item }: { item: any }) => {
     const isLit = item.fire_count > 0;
     
-    // BYPASS FIX: Force TypeScript to ignore the missing avatar_color rule locally to clear the red error
     const activeUser = user as any; 
     let dbUser = item.users;
     
     const finalUsername = dbUser?.username || activeUser?.username || "player";
+    const finalDisplayName = dbUser?.display_name || dbUser?.displayName || dbUser?.username || "Player";
     const finalColor = dbUser?.avatar_color || activeUser?.avatar_color || activeUser?.avatarColor || colors.primary;
     
     const safeLikes = item.post_likes || [];
@@ -264,18 +258,20 @@ export default function HomeScreen() {
         <Avatar color={finalColor} username={finalUsername} size={44} />
         <View style={styles.postContent}>
           <View style={styles.postHeader}>
-            <Text style={[styles.displayName, { color: colors.foreground }]}>@{finalUsername}</Text>
+            <Text style={[styles.displayName, { color: colors.foreground }]}>{finalDisplayName}</Text>
+            <Text style={[styles.username, { color: colors.mutedForeground }]}>@{finalUsername}</Text>
           </View>
           <Text style={[styles.postText, { color: colors.foreground }]}>{item.content}</Text>
           {miniReceipt}
           
           <View style={styles.actionRow}>
+            {/* THE NEW FILLED HEART BUTTON */}
             <Pressable style={styles.actionButton} onPress={() => handleLike(item.id, hasLiked)}>
-              <Feather name="heart" size={18} color={hasLiked ? "#FF3B30" : colors.mutedForeground} />
-              <Text style={[styles.actionText, { color: hasLiked ? "#FF3B30" : colors.mutedForeground }]}>{likesCount}</Text>
+              <FontAwesome5 name="heart" size={18} color={hasLiked ? "#FF3B30" : colors.mutedForeground} solid={hasLiked} />
+              <Text style={[styles.actionText, { color: colors.mutedForeground }]}>{likesCount}</Text>
             </Pressable>
             
-            <Pressable style={styles.actionButton} onPress={() => Alert.alert("Coming Soon", "We are building the Comments Thread screen next!")}>
+            <Pressable style={styles.actionButton} onPress={() => router.push(`/post/${item.id}`)}>
               <Feather name="message-circle" size={18} color={colors.mutedForeground} />
               <Text style={[styles.actionText, { color: colors.mutedForeground }]}>0</Text>
             </Pressable>
@@ -294,10 +290,6 @@ export default function HomeScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.topBar, { paddingTop: topPad }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Home</Text>
-        
-        <Pressable onPress={() => fetchPosts()} style={{ backgroundColor: colors.foreground, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }}>
-          <Text style={{ color: colors.background, fontFamily: "Inter_600SemiBold" }}>Force Refresh</Text>
-        </Pressable>
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
@@ -316,7 +308,6 @@ export default function HomeScreen() {
                   value={newPostText}
                   onChangeText={setNewPostText}
                 />
-                
                 {attachedWagerId && (
                   <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
                     <Feather name="paperclip" size={14} color="#3B7BE5" />
@@ -326,7 +317,6 @@ export default function HomeScreen() {
                     </Pressable>
                   </View>
                 )}
-
                 <View style={styles.composeFooter}>
                   <Pressable 
                     style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} 
@@ -369,7 +359,6 @@ export default function HomeScreen() {
                   <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
                 </Pressable>
               </View>
-
               {attachedWagerId && (
                 <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
                   <Feather name="paperclip" size={14} color="#3B7BE5" />
@@ -379,7 +368,6 @@ export default function HomeScreen() {
                   </Pressable>
                 </View>
               )}
-
               <TextInput
                 style={[styles.composeInput, { color: colors.foreground }]}
                 placeholder="What's your latest prediction?"
@@ -420,8 +408,8 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, width: "100%", height: "100%" },
-  topBar: { paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.05)", flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontFamily: "Inter_700Bold", fontSize: 24, letterSpacing: -0.5 },
+  topBar: { paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.05)", flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  title: { fontFamily: "Inter_700Bold", fontSize: 20 },
   composeContainer: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   composeFooter: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center" },
   emptyText: { textAlign: "center", marginTop: 60, fontFamily: "Inter_400Regular", fontSize: 16 },
@@ -431,9 +419,9 @@ const styles = StyleSheet.create({
   postContent: { flex: 1 },
   postHeader: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 },
   displayName: { fontFamily: "Inter_700Bold", fontSize: 15 },
-  username: { fontFamily: "Inter_400Regular", fontSize: 14, display: 'none' },
+  username: { fontFamily: "Inter_400Regular", fontSize: 14 },
   postText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, marginTop: 4, marginBottom: 12 },
-  actionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 40 },
+  actionRow: { flexDirection: "row", justifyContent: "flex-start", alignItems: "center", gap: 28 },
   actionButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
   actionText: { fontFamily: "Inter_500Medium", fontSize: 13 },
   modalOverlayBottom: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },

@@ -1,424 +1,265 @@
-import { AntDesign, Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useRef, useState } from "react";
-import {
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import React, { useState, useCallback } from "react";
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from "react-native";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Feather, FontAwesome5 } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
-import { useData } from "@/context/DataContext";
-import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
-import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 
-const USERNAME_TO_USERID: Record<string, string> = {
-  kingsleyobi: "u1",
-  sarahchidi: "u2",
-  tomaszwiecek: "u3",
-  ameliavoss: "u4",
-  joshadeleke: "u5",
-  mikeokoro: "u6",
-  priyapatel: "u7",
+const formatTimeAgo = (dateString: string) => {
+  if (!dateString) return "";
+  const diffInSeconds = Math.floor((new Date().getTime() - new Date(dateString).getTime()) / 1000);
+  if (diffInSeconds < 60) return "now ago";
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h`;
+  return `${Math.floor(diffInSeconds / 86400)}d`;
 };
 
-interface Comment {
-  id: string;
-  userId: string;
-  username: string;
-  displayName: string;
-  avatarColor: string;
-  text: string;
-  createdAt: string;
-  likes: number;
-  liked: boolean;
-}
-
-const MOCK_COMMENTS: Record<string, Comment[]> = {
-  p1: [
-    { id: "c1", userId: "u2", username: "sarahchidi", displayName: "Sarah Chidi", avatarColor: "#3A7DE8", text: "City are genuinely unstoppable this season tbh", createdAt: "1h", likes: 14, liked: false },
-    { id: "c2", userId: "u3", username: "tomaszwiecek", displayName: "Tomasz Wiecek", avatarColor: "#9B3AE8", text: "Arsenal have been shaky away from home all season. City by 2", createdAt: "1h", likes: 9, liked: false },
-    { id: "c3", userId: "u5", username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A", text: "Never count out Arsenal. Classic 1-0 Arteta grind", createdAt: "45m", likes: 6, liked: false },
-  ],
-  p2: [
-    { id: "c4", userId: "u1", username: "kingsleyobi", displayName: "Kingsley Obi", avatarColor: "#E8533A", text: "Curry has scored 35+ in 6 of the last 8 vs Lakers. It's basically guaranteed lol", createdAt: "3h", likes: 21, liked: false },
-    { id: "c5", userId: "u4", username: "ameliavoss", displayName: "Amelia Voss", avatarColor: "#3AE86A", text: "LeBron always shows up in these games though let's not sleep", createdAt: "3h", likes: 7, liked: false },
-    { id: "c6", userId: "u3", username: "tomaszwiecek", displayName: "Tomasz Wiecek", avatarColor: "#9B3AE8", text: "Warriors at home? Easy money on Curry", createdAt: "2h", likes: 12, liked: false },
-    { id: "c7", userId: "u5", username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A", text: "Both teams are actually mid rn, unpopular opinion", createdAt: "2h", likes: 3, liked: false },
-  ],
-  p3: [
-    { id: "c8", userId: "u2", username: "sarahchidi", displayName: "Sarah Chidi", avatarColor: "#3A7DE8", text: "Mbappé is playing more as a team player at Real. The numbers will come", createdAt: "5h", likes: 18, liked: false },
-    { id: "c9", userId: "u1", username: "kingsleyobi", displayName: "Kingsley Obi", avatarColor: "#E8533A", text: "Atletico's defence will absolutely shut him down, it's their thing", createdAt: "5h", likes: 11, liked: false },
-  ],
-  p4: [
-    { id: "c10", userId: "u3", username: "tomaszwiecek", displayName: "Tomasz Wiecek", avatarColor: "#9B3AE8", text: "England away? I can't see it happening, Australia are too good at home", createdAt: "7h", likes: 8, liked: false },
-    { id: "c11", userId: "u4", username: "ameliavoss", displayName: "Amelia Voss", avatarColor: "#3AE86A", text: "England need to start performing in these big games", createdAt: "7h", likes: 5, liked: false },
-    { id: "c12", userId: "u5", username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A", text: "Always England moment", createdAt: "6h", likes: 22, liked: false },
-  ],
-};
-
-const FALLBACK_COMMENTS: Comment[] = [
-  { id: "fb1", userId: "u2", username: "sarahchidi", displayName: "Sarah Chidi", avatarColor: "#3A7DE8", text: "This is the take of the week honestly", createdAt: "30m", likes: 8, liked: false },
-  { id: "fb2", userId: "u1", username: "kingsleyobi", displayName: "Kingsley Obi", avatarColor: "#E8533A", text: "Hard disagree but respect the conviction", createdAt: "25m", likes: 4, liked: false },
-  { id: "fb3", userId: "u5", username: "joshadeleke", displayName: "Josh Adeleke", avatarColor: "#E8C83A", text: "Someone had to say it", createdAt: "20m", likes: 12, liked: false },
-];
-
-function generateId(): string {
-  return Date.now().toString() + Math.random().toString(36).substring(2, 9);
-}
-
-interface CommentRowProps {
-  comment: Comment;
-  onProfilePress: (userId: string, username: string, displayName: string, avatarColor: string) => void;
-  onLike: (commentId: string) => void;
-}
-
-function CommentRow({ comment, onProfilePress, onLike }: CommentRowProps) {
-  const colors = useColors();
-  const openProfile = () => onProfilePress(comment.userId, comment.username, comment.displayName, comment.avatarColor);
-
-  const handleLike = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onLike(comment.id);
-  };
-
-  return (
-    <View style={[styles.commentRow, { borderBottomColor: colors.border }]}>
-      <Avatar
-        color={comment.avatarColor}
-        username={comment.username}
-        size={34}
-        onPress={openProfile}
-      />
-      <View style={styles.commentContent}>
-        <View style={styles.commentHeader}>
-          <Pressable onPress={openProfile}>
-            <Text style={[styles.commentName, { color: colors.foreground }]}>{comment.displayName}</Text>
-          </Pressable>
-          <Text style={[styles.commentHandle, { color: colors.mutedForeground }]}>
-            @{comment.username} · {comment.createdAt}
-          </Text>
-        </View>
-        <Text style={[styles.commentText, { color: colors.foreground }]}>{comment.text}</Text>
-        <Pressable style={styles.commentLikeRow} onPress={handleLike}>
-          {comment.liked ? (
-            <AntDesign name="heart" size={14} color="#E8533A" />
-          ) : (
-            <Feather name="heart" size={14} color={colors.mutedForeground} />
-          )}
-          <Text
-            style={[
-              styles.commentLikes,
-              { color: comment.liked ? "#E8533A" : colors.mutedForeground },
-            ]}
-          >
-            {comment.likes}
-          </Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-export default function PostDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+export default function PostScreen() {
+  const { id } = useLocalSearchParams();
+  const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { posts, likePost, getUserStats } = useData();
   const { user } = useAuth();
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const post = posts.find((p) => p.id === id);
+  const [post, setPost] = useState<any>(null);
+  const [comments, setComments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newComment, setNewComment] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [inputText, setInputText] = useState("");
-  const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
-  const inputRef = useRef<TextInput>(null);
-  const listRef = useRef<FlatList>(null);
+  const fetchData = async () => {
+    if (!id) return;
+    try {
+      const { data: postData, error: postErr } = await supabase.from("posts").select("*").eq("id", id).single();
+      if (postErr) throw postErr;
 
-  const openProfile = (userId: string, username: string, displayName: string, avatarColor: string) => {
-    if (userId === user?.id) return;
-    const stats = getUserStats(userId) ?? { points: 0, winRate: 0 };
-    setProfileUser({ userId, username, displayName, avatarColor, points: stats.points, winRate: stats.winRate });
+      const { data: authorData } = await supabase.from("users").select("*").eq("id", postData.user_id).single();
+      const { data: likesData } = await supabase.from("post_likes").select("*").eq("post_id", id);
+      
+      setPost({ ...postData, users: authorData, post_likes: likesData || [] });
+
+      const { data: commentsData, error: commentsErr } = await supabase.from("comments").select("*").eq("post_id", id).order("created_at", { ascending: true });
+      if (commentsErr) throw commentsErr;
+
+      if (commentsData && commentsData.length > 0) {
+        const userIds = [...new Set(commentsData.map(c => c.user_id))];
+        const { data: commentUsers } = await supabase.from("users").select("*").in("id", userIds);
+        
+        const builtComments = commentsData.map(c => ({
+          ...c,
+          users: commentUsers?.find(u => u.id === c.user_id) || null
+        }));
+        setComments(builtComments);
+      } else {
+        setComments([]);
+      }
+    } catch (error: any) {
+      console.log("Error loading post:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const openPostProfile = () => {
-    if (!post) return;
-    openProfile(post.userId, post.username, post.displayName, post.avatarColor);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [id])
+  );
+
+  const handleSend = async () => {
+    if (!newComment.trim() || !user || !id) return;
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.from("comments").insert({
+        post_id: id,
+        user_id: user.id,
+        content: newComment.trim()
+      });
+      if (error) throw error;
+      setNewComment("");
+      fetchData(); 
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to post comment");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const toggleCommentLike = (commentId: string) => {
-    setComments((prev) =>
-      prev.map((c) =>
-        c.id === commentId
-          ? { ...c, liked: !c.liked, likes: c.liked ? c.likes - 1 : c.likes + 1 }
-          : c
-      )
-    );
+  const handleLikeMainPost = async () => {
+    if (!user || !post) return;
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const safeLikes = post.post_likes || [];
+    const hasLiked = safeLikes.some((l: any) => l.user_id === user.id);
+
+    setPost((current: any) => {
+      const newLikes = hasLiked ? safeLikes.filter((l: any) => l.user_id !== user.id) : [...safeLikes, { user_id: user.id }];
+      return { ...current, post_likes: newLikes };
+    });
+
+    if (hasLiked) {
+      await supabase.from("post_likes").delete().match({ post_id: post.id, user_id: user.id });
+    } else {
+      await supabase.from("post_likes").insert({ post_id: post.id, user_id: user.id });
+    }
   };
 
-  const handleSend = () => {
-    const text = inputText.trim();
-    if (!text || !user) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const newComment: Comment = {
-      id: generateId(),
-      userId: user.id,
-      username: user.username || "me",
-      displayName: user.displayName || "You",
-      avatarColor: user.avatarColor,
-      text,
-      createdAt: "now",
-      likes: 0,
-      liked: false,
-    };
-    setComments((prev) => [...prev, newComment]);
-    setInputText("");
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-  };
-
-  if (!post) {
+  if (loading || !post) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Pressable onPress={() => router.back()} style={[styles.backBtn, { paddingTop: topPad + 8 }]}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
-        </Pressable>
-        <Text style={{ color: colors.foreground, padding: 24 }}>Post not found.</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.foreground} />
       </View>
     );
   }
 
-  const handleLike = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    likePost(post.id);
-  };
+  const activeUser = user as any;
+  const postAuthor = post.users || {};
+  const finalUsername = postAuthor.username || activeUser?.username || "player";
+  const finalDisplayName = postAuthor.display_name || postAuthor.displayName || finalUsername;
+  const finalColor = postAuthor.avatar_color || activeUser?.avatar_color || activeUser?.avatarColor || colors.primary;
 
-  const HEADER_HEIGHT = topPad + 56;
+  const safeLikes = post.post_likes || [];
+  const likesCount = safeLikes.length;
+  const hasLikedMain = safeLikes.some((l: any) => l.user_id === user?.id);
+  const commentsCount = comments.length;
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      behavior="padding"
-      keyboardVerticalOffset={Platform.OS === "ios" ? HEADER_HEIGHT : 0}
-    >
-      <View style={[styles.header, { paddingTop: topPad, borderBottomColor: colors.border }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Feather name="arrow-left" size={24} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Post</Text>
-        <View style={{ width: 40 }} />
+        <View style={{ width: 40 }} /> 
       </View>
 
-      <FlatList<Comment>
-        ref={listRef}
-        data={comments}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          <View>
-            <View style={[styles.originalPost, { borderBottomColor: colors.border }]}>
-              <View style={styles.postHeader}>
-                <Avatar
-                  color={post.avatarColor}
-                  username={post.username}
-                  size={44}
-                  onPress={openPostProfile}
-                />
-                <Pressable style={styles.postHeaderText} onPress={openPostProfile}>
-                  <Text style={[styles.displayName, { color: colors.foreground }]}>{post.displayName}</Text>
-                  <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{post.username}</Text>
-                </Pressable>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        <FlatList
+          data={comments}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <View>
+              <View style={styles.mainPost}>
+                <View style={styles.authorRow}>
+                  <Avatar color={finalColor} username={finalUsername} size={48} />
+                  <View style={styles.authorText}>
+                    <Text style={[styles.displayName, { color: colors.foreground }]}>{finalDisplayName}</Text>
+                    <Text style={[styles.username, { color: colors.mutedForeground }]}>@{finalUsername}</Text>
+                  </View>
+                </View>
+                
+                <Text style={[styles.mainContent, { color: colors.foreground }]}>{post.content}</Text>
+                <Text style={[styles.timeAgo, { color: colors.mutedForeground }]}>{formatTimeAgo(post.created_at)}</Text>
+                
+                <View style={[styles.statsRow, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
+                  <Text style={[styles.statText, { color: colors.foreground }]}><Text style={styles.statBold}>{likesCount}</Text> Likes</Text>
+                  <Text style={[styles.statText, { color: colors.foreground, marginLeft: 16 }]}><Text style={styles.statBold}>{commentsCount}</Text> Comments</Text>
+                </View>
+
+                <View style={styles.actionRow}>
+                  <Pressable onPress={handleLikeMainPost}>
+                    <FontAwesome5 name="heart" size={22} color={hasLikedMain ? "#FF3B30" : colors.foreground} solid={hasLikedMain} />
+                  </Pressable>
+                  <Feather name="message-circle" size={22} color={colors.foreground} />
+                  <Feather name="share" size={22} color={colors.foreground} />
+                </View>
               </View>
-              <Text style={[styles.postText, { color: colors.foreground }]}>{post.text}</Text>
-              <Text style={[styles.postTime, { color: colors.mutedForeground }]}>{post.createdAt} ago</Text>
-              <View style={[styles.postStats, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
-                <Text style={[styles.statText, { color: colors.foreground }]}>
-                  <Text style={styles.statNum}>{post.likes}</Text>
-                  <Text style={[styles.statLabel, { color: colors.mutedForeground }]}> Likes</Text>
-                </Text>
-                <Text style={[styles.statText, { color: colors.foreground }]}>
-                  <Text style={styles.statNum}>{comments.length}</Text>
-                  <Text style={[styles.statLabel, { color: colors.mutedForeground }]}> Comments</Text>
-                </Text>
-              </View>
-              <View style={styles.postActions}>
-                <Pressable style={styles.actionBtn} onPress={handleLike}>
-                  {post.liked ? (
-                    <AntDesign name="heart" size={22} color="#E8533A" />
-                  ) : (
-                    <Feather name="heart" size={22} color={colors.mutedForeground} />
-                  )}
-                </Pressable>
-                <Pressable style={styles.actionBtn} onPress={() => inputRef.current?.focus()}>
-                  <Feather name="message-circle" size={22} color={colors.mutedForeground} />
-                </Pressable>
-                <Pressable style={styles.actionBtn}>
-                  <Feather name="share" size={22} color={colors.mutedForeground} />
-                </Pressable>
+
+              <View style={[styles.commentsHeader, { backgroundColor: colors.background }]}>
+                <Text style={[styles.commentsHeaderText, { color: colors.mutedForeground }]}>COMMENTS</Text>
               </View>
             </View>
-            <Text
-              style={[
-                styles.commentsLabel,
-                { color: colors.mutedForeground, borderBottomColor: colors.border },
-              ]}
-            >
-              COMMENTS
-            </Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <CommentRow
-            comment={item}
-            onProfilePress={openProfile}
-            onLike={toggleCommentLike}
-          />
-        )}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 8 }}
-        keyboardShouldPersistTaps="handled"
-      />
+          }
+          renderItem={({ item }) => {
+            const commentAuthor = item.users || {};
+            const finalCommentUsername = commentAuthor.username || "player";
+            const finalCommentName = commentAuthor.display_name || commentAuthor.displayName || finalCommentUsername;
+            const finalCommentColor = commentAuthor.avatar_color || colors.primary;
 
-      <View
-        style={[
-          styles.inputBar,
-          {
-            backgroundColor: colors.background,
-            borderTopColor: colors.border,
-            paddingBottom: insets.bottom + (Platform.OS === "web" ? 12 : 8),
-          },
-        ]}
-      >
-        <TextInput
-          ref={inputRef}
-          style={[
-            styles.commentInput,
-            {
-              backgroundColor: colors.secondary,
-              color: colors.foreground,
-              borderColor: colors.border,
-            },
-          ]}
-          placeholder="Add a comment..."
-          placeholderTextColor={colors.mutedForeground}
-          value={inputText}
-          onChangeText={setInputText}
-          returnKeyType="done"
-          blurOnSubmit
-          multiline={false}
+            return (
+              <View style={[styles.commentRow, { borderBottomColor: colors.border }]}>
+                <Avatar color={finalCommentColor} username={finalCommentUsername} size={36} />
+                <View style={styles.commentContent}>
+                  <View style={styles.commentHeader}>
+                    <Text style={[styles.commentDisplayName, { color: colors.foreground }]}>{finalCommentName}</Text>
+                    <Text style={[styles.commentUsername, { color: colors.mutedForeground }]}>@{finalCommentUsername} · {formatTimeAgo(item.created_at)}</Text>
+                  </View>
+                  <Text style={[styles.commentText, { color: colors.foreground }]}>{item.content}</Text>
+                  <View style={styles.commentActions}>
+                    <FontAwesome5 name="heart" size={14} color={colors.mutedForeground} solid={false} />
+                    <Text style={[styles.commentActionText, { color: colors.mutedForeground }]}>0</Text>
+                  </View>
+                </View>
+              </View>
+            );
+          }}
+          ListEmptyComponent={
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Be the first to comment.</Text>
+          }
         />
-        <Pressable
-          onPress={handleSend}
-          disabled={!inputText.trim()}
-          style={({ pressed }) => [{ opacity: pressed || !inputText.trim() ? 0.5 : 1 }]}
-        >
-          <Text
-            style={[
-              styles.sendBtn,
-              { color: inputText.trim() ? colors.foreground : colors.mutedForeground },
-            ]}
-          >
-            Send
-          </Text>
-        </Pressable>
-      </View>
 
-      <PublicProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
-    </KeyboardAvoidingView>
+        <View style={[styles.inputContainer, { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? insets.bottom || 16 : 16 }]}>
+          <TextInput
+            style={[styles.textInput, { backgroundColor: "rgba(0,0,0,0.05)", color: colors.foreground }]}
+            placeholder="Add a comment..."
+            placeholderTextColor={colors.mutedForeground}
+            value={newComment}
+            onChangeText={setNewComment}
+            multiline
+          />
+          <Pressable 
+            onPress={handleSend} 
+            disabled={!newComment.trim() || isSubmitting}
+            style={({pressed}) => [{ opacity: !newComment.trim() || pressed ? 0.5 : 1 }, styles.sendBtn]}
+          >
+            <Text style={[styles.sendText, { color: colors.foreground }]}>Send</Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   container: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    paddingHorizontal: 8,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    justifyContent: "space-between",
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: { fontFamily: "Inter_700Bold", fontSize: 17 },
-  originalPost: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 0, borderBottomWidth: 1 },
-  postHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
-  postHeaderText: { flex: 1 },
-  displayName: { fontFamily: "Inter_700Bold", fontSize: 15 },
-  handle: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 1 },
-  postText: { fontFamily: "Inter_400Regular", fontSize: 17, lineHeight: 25, marginBottom: 12 },
-  postTime: { fontFamily: "Inter_400Regular", fontSize: 13, marginBottom: 14 },
-  postStats: {
-    flexDirection: "row",
-    gap: 20,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-  },
-  statText: { fontFamily: "Inter_400Regular", fontSize: 14 },
-  statNum: { fontFamily: "Inter_700Bold", fontSize: 14 },
-  statLabel: { fontFamily: "Inter_400Regular" },
-  postActions: { flexDirection: "row", paddingVertical: 10, gap: 28 },
-  actionBtn: { padding: 4 },
-  commentsLabel: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 11,
-    letterSpacing: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-  },
-  commentRow: {
-    flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-  },
-  commentContent: { flex: 1 },
-  commentHeader: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 6,
-    flexWrap: "wrap",
-    marginBottom: 4,
-  },
-  commentName: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
-  commentHandle: { fontFamily: "Inter_400Regular", fontSize: 12 },
-  commentText: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 20, marginBottom: 6 },
-  commentLikeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    alignSelf: "flex-start",
-  },
-  commentLikes: { fontFamily: "Inter_400Regular", fontSize: 12 },
-  inputBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    borderTopWidth: 1,
-  },
-  commentInput: {
-    flex: 1,
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    borderWidth: 1,
-  },
-  sendBtn: { fontFamily: "Inter_600SemiBold", fontSize: 15, paddingHorizontal: 4 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
+  backButton: { width: 40, alignItems: "flex-start" },
+  headerTitle: { fontFamily: "Inter_700Bold", fontSize: 18 },
+  
+  mainPost: { padding: 16 },
+  authorRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  authorText: { marginLeft: 12 },
+  displayName: { fontFamily: "Inter_700Bold", fontSize: 16 },
+  username: { fontFamily: "Inter_400Regular", fontSize: 14 },
+  mainContent: { fontFamily: "Inter_400Regular", fontSize: 20, lineHeight: 28, marginBottom: 8 },
+  timeAgo: { fontFamily: "Inter_400Regular", fontSize: 14, marginBottom: 16 },
+  statsRow: { flexDirection: "row", paddingVertical: 16, borderTopWidth: 1, borderBottomWidth: 1, marginBottom: 16 },
+  statText: { fontFamily: "Inter_400Regular", fontSize: 15 },
+  statBold: { fontFamily: "Inter_700Bold" },
+  actionRow: { flexDirection: "row", justifyContent: "flex-start", gap: 32, paddingBottom: 8 },
+  
+  commentsHeader: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.05)" },
+  commentsHeaderText: { fontFamily: "Inter_600SemiBold", fontSize: 12, letterSpacing: 1 },
+  
+  commentRow: { flexDirection: "row", padding: 16, borderBottomWidth: 1 },
+  commentContent: { flex: 1, marginLeft: 12 },
+  commentHeader: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginBottom: 4 },
+  commentDisplayName: { fontFamily: "Inter_600SemiBold", fontSize: 14, marginRight: 6 },
+  commentUsername: { fontFamily: "Inter_400Regular", fontSize: 13 },
+  commentText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 20, marginBottom: 8 },
+  commentActions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  commentActionText: { fontFamily: "Inter_500Medium", fontSize: 12 },
+  
+  emptyText: { textAlign: "center", marginTop: 40, fontFamily: "Inter_400Regular", fontSize: 15 },
+  
+  inputContainer: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1 },
+  textInput: { flex: 1, minHeight: 40, maxHeight: 100, borderRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontFamily: "Inter_400Regular", fontSize: 15 },
+  sendBtn: { marginLeft: 16, paddingBottom: 10 },
+  sendText: { fontFamily: "Inter_700Bold", fontSize: 15 },
 });
