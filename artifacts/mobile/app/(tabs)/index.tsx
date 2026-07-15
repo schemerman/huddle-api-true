@@ -53,12 +53,13 @@ export default function HomeScreen() {
 
   const fetchPosts = async () => {
     try {
+      // 1. We changed "users (...)" to "users (*)" to stop missing-column crashes!
       const { data: postsData, error } = await supabase
         .from("posts")
-        .select(`*, users (username, display_name, avatar_color), post_likes (user_id)`)
+        .select(`*, users (*), post_likes (user_id)`)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) throw error; // If this fails, it jumps straight to the Alert below
 
       const wagerIds = postsData?.map(p => p.wager_id).filter(Boolean) || [];
 
@@ -83,8 +84,10 @@ export default function HomeScreen() {
       } else {
         setPosts(postsData || []);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log("Error fetching posts:", error);
+      // 2. THE ALARM BELL: This forces the app to scream the exact error at you!
+      Alert.alert("Database Error", error.message || "Failed to load posts.");
     } finally {
       setLoading(false);
       setRefreshing(false);
