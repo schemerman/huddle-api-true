@@ -1,18 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
-import {
-  Animated,
-  Modal,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { useColors } from "@/hooks/useColors";
-import { PerformanceTitleBadge } from "./PerformanceTitleBadge";
-import { Avatar } from "./Avatar";
-import { supabase } from "@/lib/supabase";
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Modal, Pressable, Platform, FlatList, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
+import { useColors } from '@/hooks/useColors';
+import { Avatar } from '@/components/Avatar';
+import { supabase } from '@/lib/supabase';
 
 export interface PublicProfileUser {
   userId: string;
@@ -20,354 +12,219 @@ export interface PublicProfileUser {
   displayName: string;
   avatarColor: string;
   points: number;
-  winRate: number;
+  winRate?: number; 
 }
 
-function statusLabel(status: string): string {
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
-
-const getFlag = (team: string) => {
-  const flags: Record<string, string> = {
-    "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
-    "Canada": "🇨🇦", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-    "France": "🇫🇷", "Ghana": "🇬🇭", "Morocco": "🇲🇦", "Norway": "🇳🇴",
-    "Panama": "🇵🇦", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-    "Senegal": "🇸🇳", "Spain": "🇪🇸", "Switzerland": "🇨🇭", "USA": "🇺🇸",
-    "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
-    "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
-    "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
-    "Czech Republic": "🇨🇿", "Draw": "⚖️"
-  };
-  return flags[team] || ""; 
-};
-
-interface Props {
+interface PublicProfileModalProps {
   user: PublicProfileUser | null;
   onClose: () => void;
 }
 
-export function PublicProfileModal({ user, onClose }: Props) {
+const getFlag = (team: string) => {
+  const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️", "Spain": "🇪🇸", "Belgium": "🇧🇪" };
+  return flags[team] || ""; 
+};
+
+export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
   const colors = useColors();
-  const translateY = useRef(new Animated.Value(0)).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 2,
-      onPanResponderMove: (_, gs) => {
-        if (gs.dy > 0) translateY.setValue(gs.dy);
-      },
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dy > 80 || gs.vy > 0.8) {
-          Animated.timing(translateY, {
-            toValue: 700,
-            duration: 220,
-            useNativeDriver: true,
-          }).start(() => {
-            onClose();
-            translateY.setValue(0);
-          });
-        } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            tension: 100,
-            friction: 10,
-          }).start();
-        }
-      },
-    })
-  ).current;
-
-  const [wagers, setWagers] = useState<any[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const insets = useSafeAreaInsets();
+  
+  const [picks, setPicks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [dynamicWinRate, setDynamicWinRate] = useState(0);
 
   useEffect(() => {
-    const id = user?.userId;
-    if (!id) {
-      setWagers([]);
-      setLoaded(false);
-      return;
+    if (user?.userId) {
+      fetchUserPicks(user.userId);
+    } else {
+      setPicks([]);
+      setDynamicWinRate(0);
     }
-    let active = true;
-    setLoaded(false);
+  }, [user]);
 
-    const fetchPublicData = async () => {
-      try {
-        const { data: wagersData, error } = await supabase
-          .from("wagers")
-          .select("*")
-          .eq("user_id", id)
-          .order("created_at", { ascending: false });
-
-        if (error || !wagersData) throw error;
-
-        const fixtureIds = wagersData.map((w: any) => w.fixture_id || w.fixtureId).filter(Boolean);
-        let fixturesMap: Record<string, any> = {};
-
-        if (fixtureIds.length > 0) {
-          const { data: fixturesData } = await supabase
-            .from("fixtures")
-            .select("*")
-            .in("id", fixtureIds);
-
-          if (fixturesData) {
-            fixturesData.forEach((f: any) => {
-              fixturesMap[f.id] = f;
-            });
-          }
-        }
-
-        const merged = wagersData.map((w: any) => {
-          const f = fixturesMap[w.fixture_id || w.fixtureId];
-          return {
-            ...w,
-            homeScore: f?.homeScore ?? f?.home_score,
-            awayScore: f?.awayScore ?? f?.away_score,
-            homeTeam: f?.homeTeam ?? f?.home_team,
-            awayTeam: f?.awayTeam ?? f?.away_team,
-          };
-        });
-
-        if (active) setWagers(merged);
-      } catch (err) {
-        if (active) setWagers([]);
-      } finally {
-        if (active) setLoaded(true);
+  const fetchUserPicks = async (userId: string) => {
+    setLoading(true);
+    try {
+      const { data: wagersData } = await supabase.from('wagers').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+      
+      if (!wagersData || wagersData.length === 0) {
+        setPicks([]);
+        setDynamicWinRate(0);
+        return;
       }
-    };
 
-    fetchPublicData();
+      const fixtureIds = wagersData.map(w => w.fixture_id || w.fixtureId).filter(Boolean);
+      let fixturesMap: Record<string, any> = {};
+      
+      if (fixtureIds.length > 0) {
+        const { data: fixturesData } = await supabase.from('fixtures').select('*').in('id', fixtureIds);
+        fixturesData?.forEach(f => fixturesMap[f.id] = f);
+      }
 
-    return () => {
-      active = false;
-    };
-  }, [user?.userId]);
+      const fullyBuiltPicks = wagersData.map(w => ({
+        ...w,
+        fixture: fixturesMap[w.fixture_id || w.fixtureId] || null
+      }));
 
-  const handleClose = () => {
-    Animated.timing(translateY, {
-      toValue: 700,
-      duration: 220,
-      useNativeDriver: true,
-    }).start(() => {
-      onClose();
-      translateY.setValue(0);
-    });
+      setPicks(fullyBuiltPicks);
+
+      // TRUE WIN RATE MATH FOR THE MODAL
+      const resolvedPicks = fullyBuiltPicks.filter(p => p.status === 'won' || p.status === 'lost');
+      if (resolvedPicks.length > 0) {
+        const wins = resolvedPicks.filter(p => p.status === 'won').length;
+        setDynamicWinRate(Math.round((wins / resolvedPicks.length) * 100));
+      } else {
+        setDynamicWinRate(0);
+      }
+
+    } catch (error) {
+      console.log("Error loading modal picks", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!user) return null;
+
+  const renderPick = ({ item }: { item: any }) => {
+    const f = item.fixture || {};
+    const homeTeam = f.homeTeam || f.home_team || "Home";
+    const awayTeam = f.awayTeam || f.away_team || "Away";
+    const homeScore = f.homeScore ?? f.home_score ?? 0;
+    const awayScore = f.awayScore ?? f.away_score ?? 0;
+    
+    const choiceStr = item.prediction || item.choice;
+    const isWon = item.status === "won";
+    const isLost = item.status === "lost";
+
+    let winnerStr = "";
+    if (isWon || isLost) {
+      if (homeScore > awayScore) winnerStr = `${getFlag(homeTeam)} ${homeTeam} Won`;
+      else if (awayScore > homeScore) winnerStr = `${getFlag(awayTeam)} ${awayTeam} Won`;
+      else winnerStr = `⚖️ Draw`;
+      winnerStr += ` (${homeScore} - ${awayScore})`;
+    }
+
+    return (
+      <View style={[styles.sleekPickContainer, { borderBottomColor: colors.border }]}>
+        <View style={styles.sleekPickLeft}>
+          <Text style={[styles.sleekMatchText, { color: colors.foreground }]}>
+            {getFlag(homeTeam)} {homeTeam} vs {getFlag(awayTeam)} {awayTeam}
+          </Text>
+          <Text style={[styles.sleekPickDetails, { color: colors.mutedForeground }]}>
+            Picked: {getFlag(choiceStr)} {choiceStr} ({item.amount} pts)
+          </Text>
+          {(isWon || isLost) && (
+            <Text style={[styles.sleekResultText, { color: colors.foreground }]}>
+              {winnerStr}
+            </Text>
+          )}
+        </View>
+        <View style={[styles.sleekBadge, { backgroundColor: isWon ? colors.foreground : "rgba(0,0,0,0.05)" }]}>
+          <Text style={[styles.sleekBadgeText, { color: isWon ? colors.background : colors.foreground }]}>
+            {isWon ? "Won" : isLost ? "Lost" : "Pending"}
+          </Text>
+        </View>
+      </View>
+    );
   };
 
   return (
-    <Modal
-      visible={!!user}
-      transparent
-      animationType="slide"
-      onRequestClose={handleClose}
-      onDismiss={() => translateY.setValue(0)}
-    >
-      <Pressable style={styles.overlay} onPress={handleClose}>
-        <Animated.View
-          style={[
-            styles.sheet,
-            { backgroundColor: colors.background, transform: [{ translateY }] },
-          ]}
-        >
-          <Pressable onPress={() => {}} style={styles.sheetInner}>
-            <View style={styles.handleWrap} {...panResponder.panHandlers}>
-              <View style={[styles.handle, { backgroundColor: colors.border }]} />
-            </View>
+    <Modal visible={!!user} animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+        <View style={[styles.modalContent, { backgroundColor: colors.background, paddingBottom: insets.bottom || 24 }]}>
+          
+          <FlatList
+            data={picks}
+            keyExtractor={item => item.id}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              <View>
+                <View style={styles.headerSpacer} />
+                <View style={styles.profileHeader}>
+                  <Avatar color={user.avatarColor} username={user.username} size={80} />
+                  <Text style={[styles.displayName, { color: colors.foreground }]}>{user.displayName}</Text>
+                  <Text style={[styles.username, { color: colors.mutedForeground }]}>@{user.username}</Text>
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>Benchwarmer</Text>
+                  </View>
+                </View>
 
-            <View style={styles.avatarWrap}>
-              <Avatar
-                color={user?.avatarColor ?? "#000"}
-                username={user?.username ?? ""}
-                size={80}
-              />
-            </View>
+                <View style={[styles.statsContainer, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
+                  <View style={styles.statBox}>
+                    <Text style={[styles.statValue, { color: colors.foreground }]}>{user.points}</Text>
+                    <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>POINTS</Text>
+                  </View>
+                  <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+                  <View style={styles.statBox}>
+                    <Text style={[styles.statValue, { color: colors.foreground }]}>{dynamicWinRate}%</Text>
+                    <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>WIN RATE</Text>
+                  </View>
+                </View>
 
-            <Text style={[styles.displayName, { color: colors.foreground }]}>
-              {user?.displayName}
-            </Text>
-            <Text style={[styles.username, { color: colors.mutedForeground }]}>
-              @{user?.username}
-            </Text>
-            {!!user && (
-              <PerformanceTitleBadge winRate={user.winRate} style={styles.perfBadge} />
-            )}
+                <View style={styles.recentPicksHeader}>
+                  <Text style={[styles.recentPicksTitle, { color: colors.foreground }]}>Recent Picks</Text>
+                </View>
 
-            <View
-              style={[
-                styles.statsRow,
-                { borderTopColor: colors.border, borderBottomColor: colors.border },
-              ]}
-            >
-              <View
-                style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1 }]}
-              >
-                <Text style={[styles.statValue, { color: colors.foreground }]}>
-                  {user?.points.toLocaleString()}
-                </Text>
-                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Points</Text>
+                {loading && (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator color={colors.foreground} />
+                  </View>
+                )}
               </View>
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: colors.foreground }]}>
-                  {user?.winRate}%
-                </Text>
-                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Win Rate</Text>
-              </View>
-            </View>
+            }
+            renderItem={renderPick}
+            ListEmptyComponent={
+              !loading ? (
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No picks found.</Text>
+              ) : null
+            }
+          />
 
-            <View style={styles.wagersSection}>
-              <Text style={[styles.wagersTitle, { color: colors.foreground }]}>Recent Picks</Text>
-              {loaded && wagers.length === 0 ? (
-                <Text style={[styles.wagersEmpty, { color: colors.mutedForeground }]}>
-                  No activity yet
-                </Text>
-              ) : (
-                <ScrollView
-                  style={styles.wagersList}
-                  nestedScrollEnabled
-                  showsVerticalScrollIndicator={false}
-                  scrollEnabled={wagers.length > 4}
-                >
-                  {wagers.map((w, i) => {
-                    const won = w.status === "won";
-                    const pick = w.prediction || w.choice;
-                    
-                    let matchText = w.question || "";
-                    let actualResultText = null;
-
-                    if (matchText.includes(" or ")) {
-                      const teamsStr = matchText.replace("Who will win: ", "").replace("?", "");
-                      const [teamA, teamB] = teamsStr.split(" or ");
-                      const flagA = getFlag(teamA);
-                      const flagB = getFlag(teamB);
-                      
-                      matchText = `${flagA ? flagA + " " : ""}${teamA} vs ${flagB ? flagB + " " : ""}${teamB}`;
-                      
-                      if (w.status !== "pending") {
-                        const finalWinner = w.actual_result; 
-                        const hScore = w.homeScore;
-                        const aScore = w.awayScore;
-                        const hTeam = w.homeTeam;
-                        const aTeam = w.awayTeam;
-
-                        // Use the exact new logic to format the score
-                        if (hScore !== undefined && hScore !== null && aScore !== undefined && aScore !== null && hTeam && aTeam) {
-                          const hFlag = getFlag(hTeam);
-                          const aFlag = getFlag(aTeam);
-                          const scoreLine = `${hScore} - ${aScore}`;
-
-                          if (hScore === aScore) {
-                            actualResultText = `⚖️ Draw (${scoreLine})`;
-                          } else if (hScore > aScore) {
-                            actualResultText = `${hFlag ? hFlag + " " : ""}${hTeam} Won (${scoreLine})`;
-                          } else {
-                            actualResultText = `${aFlag ? aFlag + " " : ""}${aTeam} Won (${scoreLine})`;
-                          }
-                        } else if (finalWinner) {
-                          if (finalWinner.toLowerCase() === "draw") {
-                            actualResultText = "⚖️ Draw";
-                          } else {
-                            const fFlag = getFlag(finalWinner);
-                            actualResultText = `${fFlag ? fFlag + " " : ""}${finalWinner} Won`;
-                          }
-                        } else {
-                          actualResultText = "Match Finished";
-                        }
-                      }
-                    }
-
-                    const pickFlag = getFlag(pick);
-
-                    return (
-                      <View
-                        key={w.id}
-                        style={[
-                          styles.wagerRow,
-                          { borderBottomColor: colors.border },
-                          i === wagers.length - 1 && { borderBottomWidth: 0 },
-                        ]}
-                      >
-                        <View style={styles.wagerLeft}>
-                          <Text style={[styles.wagerTeam, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                            {matchText}
-                          </Text>
-                          <Text style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 4 }}>
-                            Picked: {pickFlag ? pickFlag + " " : ""}{pick} ({w.amount} pts)
-                          </Text>
-                          {actualResultText && (
-                            <Text style={{ color: won ? colors.primary : colors.foreground, fontSize: 13, marginTop: 4, fontFamily: "Inter_700Bold" }}>
-                              {actualResultText}
-                            </Text>
-                          )}
-                        </View>
-                        <View
-                          style={[
-                            styles.wagerBadge,
-                            { backgroundColor: won ? colors.primary : colors.secondary },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.wagerStatus,
-                              {
-                                color: won
-                                  ? colors.primaryForeground
-                                  : w.status === "lost"
-                                  ? colors.mutedForeground
-                                  : colors.foreground,
-                              },
-                            ]}
-                          >
-                            {statusLabel(w.status)}
-                          </Text>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </ScrollView>
-              )}
-            </View>
-
-            <Pressable
-              onPress={handleClose}
-              style={({ pressed }) => [
-                styles.closeBtn,
-                { backgroundColor: colors.secondary, opacity: pressed ? 0.7 : 1 },
-              ]}
-            >
+          <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
+            <Pressable style={[styles.closeBtn, { backgroundColor: 'rgba(0,0,0,0.05)' }]} onPress={onClose}>
               <Text style={[styles.closeBtnText, { color: colors.foreground }]}>Close</Text>
             </Pressable>
-          </Pressable>
-        </Animated.View>
-      </Pressable>
+          </View>
+          
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "90%" },
-  sheetInner: { paddingHorizontal: 24, paddingBottom: 40, alignItems: "center" },
-  handleWrap: { alignSelf: "stretch", alignItems: "center", paddingTop: 12, paddingBottom: 20 },
-  handle: { width: 36, height: 4, borderRadius: 2 },
-  avatarWrap: { marginBottom: 16 },
-  displayName: { fontFamily: "Inter_700Bold", fontSize: 20, letterSpacing: -0.3, marginBottom: 4 },
-  username: { fontFamily: "Inter_400Regular", fontSize: 14, marginBottom: 6 },
-  perfBadge: { alignSelf: "center", marginBottom: 24 },
-  statsRow: { flexDirection: "row", borderTopWidth: 1, borderBottomWidth: 1, width: "100%", marginBottom: 24 },
-  statItem: { flex: 1, alignItems: "center", paddingVertical: 16, gap: 4 },
-  statValue: { fontFamily: "Inter_700Bold", fontSize: 24, letterSpacing: -0.8 },
-  statLabel: { fontFamily: "Inter_400Regular", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 },
-  wagersSection: { width: "100%", marginBottom: 20 },
-  wagersTitle: { fontFamily: "Inter_700Bold", fontSize: 16, letterSpacing: -0.2, marginBottom: 12 },
-  wagersList: { maxHeight: 250 },
-  wagersEmpty: { fontFamily: "Inter_400Regular", fontSize: 14, paddingVertical: 8 },
-  wagerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, borderBottomWidth: 1 },
-  wagerLeft: { flex: 1, paddingRight: 12 },
-  wagerTeam: { fontFamily: "Inter_400Regular", fontSize: 15 },
-  wagerBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, marginLeft: 10 },
-  wagerStatus: { fontFamily: "Inter_600SemiBold", fontSize: 11 },
-  closeBtn: { width: "100%", paddingVertical: 14, borderRadius: 999, alignItems: "center" },
-  closeBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { height: '90%', borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
+  
+  headerSpacer: { height: 24 },
+  profileHeader: { alignItems: 'center', marginBottom: 24 },
+  displayName: { fontFamily: 'Inter_700Bold', fontSize: 22, marginTop: 12, marginBottom: 2 },
+  username: { fontFamily: 'Inter_400Regular', fontSize: 15, marginBottom: 8 },
+  badge: { backgroundColor: "rgba(0,0,0,0.05)", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
+  badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+
+  statsContainer: { flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: 20 },
+  statBox: { flex: 1, alignItems: 'center' },
+  statDivider: { width: 1, height: '100%' },
+  statValue: { fontFamily: 'Inter_700Bold', fontSize: 24, marginBottom: 4 },
+  statLabel: { fontFamily: 'Inter_500Medium', fontSize: 11, letterSpacing: 0.5 },
+
+  recentPicksHeader: { paddingHorizontal: 16, paddingTop: 24, paddingBottom: 8 },
+  recentPicksTitle: { fontFamily: 'Inter_700Bold', fontSize: 18 },
+  loadingContainer: { padding: 40, alignItems: 'center' },
+  emptyText: { textAlign: 'center', marginTop: 40, fontFamily: 'Inter_400Regular', fontSize: 15 },
+  
+  footer: { padding: 16, borderTopWidth: 1 },
+  closeBtn: { padding: 16, borderRadius: 12, alignItems: 'center' },
+  closeBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
+
+  // SLEEK ORIGINAL UI
+  sleekPickContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 16, borderBottomWidth: 1 },
+  sleekPickLeft: { flex: 1, paddingRight: 16 },
+  sleekMatchText: { fontFamily: 'Inter_700Bold', fontSize: 15, marginBottom: 4 },
+  sleekPickDetails: { fontFamily: 'Inter_400Regular', fontSize: 13, marginBottom: 4 },
+  sleekResultText: { fontFamily: 'Inter_700Bold', fontSize: 13 },
+  sleekBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  sleekBadgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12, textTransform: 'capitalize' }
 });
