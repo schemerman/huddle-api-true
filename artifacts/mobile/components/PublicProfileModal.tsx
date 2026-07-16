@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Platform, FlatList, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/Avatar';
 import { supabase } from '@/lib/supabase';
@@ -12,7 +11,7 @@ export interface PublicProfileUser {
   displayName: string;
   avatarColor: string;
   points: number;
-  winRate?: number; 
+  winRate?: number; // ADDED THIS BACK TO STOP THE RED ERRORS!
 }
 
 interface PublicProfileModalProps {
@@ -48,9 +47,7 @@ export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
       const { data: wagersData } = await supabase.from('wagers').select('*').eq('user_id', userId).order('created_at', { ascending: false });
       
       if (!wagersData || wagersData.length === 0) {
-        setPicks([]);
-        setDynamicWinRate(0);
-        return;
+        setPicks([]); setDynamicWinRate(0); return;
       }
 
       const fixtureIds = wagersData.map(w => w.fixture_id || w.fixtureId).filter(Boolean);
@@ -61,14 +58,10 @@ export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
         fixturesData?.forEach(f => fixturesMap[f.id] = f);
       }
 
-      const fullyBuiltPicks = wagersData.map(w => ({
-        ...w,
-        fixture: fixturesMap[w.fixture_id || w.fixtureId] || null
-      }));
-
+      const fullyBuiltPicks = wagersData.map(w => ({ ...w, fixture: fixturesMap[w.fixture_id || w.fixtureId] || null }));
       setPicks(fullyBuiltPicks);
 
-      // TRUE WIN RATE MATH FOR THE MODAL
+      // PERFECTED VIDEO GAME MATH
       const resolvedPicks = fullyBuiltPicks.filter(p => p.status === 'won' || p.status === 'lost');
       if (resolvedPicks.length > 0) {
         const wins = resolvedPicks.filter(p => p.status === 'won').length;
@@ -196,30 +189,24 @@ export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
 const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { height: '90%', borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
-  
   headerSpacer: { height: 24 },
   profileHeader: { alignItems: 'center', marginBottom: 24 },
   displayName: { fontFamily: 'Inter_700Bold', fontSize: 22, marginTop: 12, marginBottom: 2 },
   username: { fontFamily: 'Inter_400Regular', fontSize: 15, marginBottom: 8 },
   badge: { backgroundColor: "rgba(0,0,0,0.05)", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
   badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
-
   statsContainer: { flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: 20 },
   statBox: { flex: 1, alignItems: 'center' },
   statDivider: { width: 1, height: '100%' },
   statValue: { fontFamily: 'Inter_700Bold', fontSize: 24, marginBottom: 4 },
   statLabel: { fontFamily: 'Inter_500Medium', fontSize: 11, letterSpacing: 0.5 },
-
   recentPicksHeader: { paddingHorizontal: 16, paddingTop: 24, paddingBottom: 8 },
   recentPicksTitle: { fontFamily: 'Inter_700Bold', fontSize: 18 },
   loadingContainer: { padding: 40, alignItems: 'center' },
   emptyText: { textAlign: 'center', marginTop: 40, fontFamily: 'Inter_400Regular', fontSize: 15 },
-  
   footer: { padding: 16, borderTopWidth: 1 },
   closeBtn: { padding: 16, borderRadius: 12, alignItems: 'center' },
   closeBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
-
-  // SLEEK ORIGINAL UI
   sleekPickContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 16, borderBottomWidth: 1 },
   sleekPickLeft: { flex: 1, paddingRight: 16 },
   sleekMatchText: { fontFamily: 'Inter_700Bold', fontSize: 15, marginBottom: 4 },

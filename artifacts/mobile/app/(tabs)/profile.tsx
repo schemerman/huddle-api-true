@@ -10,8 +10,9 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
-  Linking, // Added Linking for the email button
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -50,27 +51,22 @@ const getFinalResult = (wager: any) => {
   if (!wager) return "Unknown";
   if (wager.status === "pending") return "Pending";
   
-  // 1. If we have the exact scores from the database
   if (wager.homeScore !== undefined && wager.homeScore !== null && wager.awayScore !== undefined && wager.awayScore !== null) {
       const hFlag = getFlag(wager.homeTeam);
       const aFlag = getFlag(wager.awayTeam);
       const scoreLine = `${wager.homeScore} - ${wager.awayScore}`;
 
-      // Explicitly announce Draws!
       if (wager.homeScore === wager.awayScore) {
           return `⚖️ Draw (${scoreLine})`;
       } 
-      // Explicitly announce the Home Winner
       else if (wager.homeScore > wager.awayScore) {
           return `${hFlag ? hFlag + " " : ""}${wager.homeTeam} Won (${scoreLine})`;
       } 
-      // Explicitly announce the Away Winner
       else {
           return `${aFlag ? aFlag + " " : ""}${wager.awayTeam} Won (${scoreLine})`;
       }
   }
 
-  // 2. Fallback for older legacy matches
   const finalWinner = wager.actual_result;
   if (finalWinner) {
       if (finalWinner.toLowerCase() === "draw") return "⚖️ Draw";
@@ -198,10 +194,10 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
-  const completedWagers = wagers.filter(w => w.status === "won" || w.status === "lost");
-  const wonWagers = completedWagers.filter(w => w.status === "won");
-  const safeWinRate = completedWagers.length > 0 
-    ? Math.round((wonWagers.length / completedWagers.length) * 100) 
+  // FIX: Exact Total Wagers Win Rate Math
+  const wonWagers = wagers.filter(w => w.status === "won");
+  const safeWinRate = wagers.length > 0 
+    ? Math.round((wonWagers.length / wagers.length) * 100) 
     : 0;
 
   let safeStreak = 0;
@@ -213,13 +209,13 @@ export default function ProfileScreen() {
   const isEmail = (str: string) => str?.includes("@");
   const isUUID = (str: string) => str?.length > 20;
 
-  const safeEmail = user.email || "No Email";
-  const safeUsername = (user.username && !isEmail(user.username) && !isUUID(user.username)) 
-    ? user.username 
-    : "player";
-  const safeDisplayName = (user.displayName && !isEmail(user.displayName) && !isUUID(user.displayName)) 
-    ? user.displayName 
-    : "Player";
+  const activeUser = user as any;
+  const safeEmail = activeUser.email || "No Email";
+  const safeUsername = (activeUser.username && !isEmail(activeUser.username) && !isUUID(activeUser.username)) ? activeUser.username : "player";
+  
+  // FIX: Twitter style Name overrides
+  const safeDisplayName = activeUser.display_name || activeUser.displayName || safeUsername || "Player";
+  const safeColor = activeUser.avatar_color || activeUser.avatarColor || colors.primary;
 
   const safeWagersCount = wagers?.length || 0;
 
@@ -256,7 +252,7 @@ export default function ProfileScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}>
         
         <View style={styles.heroSection}>
-          <Avatar color={user.avatarColor} username={safeUsername} size={80} highlight={safeStreak >= 3} />
+          <Avatar color={safeColor} username={safeUsername} size={80} highlight={safeStreak >= 3} />
           <View style={styles.heroText}>
             <Text style={[styles.displayName, { color: colors.foreground }]}>{safeDisplayName}</Text>
             <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{safeUsername}</Text>
@@ -346,7 +342,6 @@ export default function ProfileScreen() {
                   <Text style={[styles.settingsLabel, { color: colors.foreground }]}>Privacy Policy</Text>
                   <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
                 </Pressable>
-                {/* NEW GIVE FEEDBACK BUTTON */}
                 <Pressable 
                   onPress={() => Linking.openURL('mailto:huddleappsupport@gmail.com?subject=Huddle App Feedback')} 
                   style={styles.settingsRow}
@@ -402,7 +397,6 @@ export default function ProfileScreen() {
         )}
       </ScrollView>
 
-      {/* NEW APP STORE COMPLIANT MODAL */}
       <Modal visible={agreementOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <Pressable style={styles.modalDismiss} onPress={() => setAgreementOpen(false)} />
@@ -438,7 +432,6 @@ export default function ProfileScreen() {
                 We reserve the right to suspend or terminate your access to the app at our sole discretion, at any time, and without notice, including if we believe you have violated this Agreement.
               </Text>
               
-              {/* Added a little extra padding at the bottom for comfortable scrolling */}
               <View style={{ height: 40 }} />
             </ScrollView>
           </View>
@@ -453,7 +446,7 @@ export default function ProfileScreen() {
         prediction={receiptWager?.prediction || receiptWager?.choice || ""} 
         points={receiptWager?.status === "won" ? receiptWager.payout : receiptWager?.amount ?? 0} 
         won={receiptWager?.status === "won"} 
-        wagerId={receiptWager?.id} // Add this line right here!
+        wagerId={receiptWager?.id}
       />
     </View>
   );

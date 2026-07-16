@@ -63,6 +63,8 @@ export default function HomeScreen() {
 
       const { data: usersData } = await supabase.from("users").select("*").in("id", userIds);
       const { data: likesData } = await supabase.from("post_likes").select("*").in("post_id", postIds);
+      
+      const { data: commentsData } = await supabase.from("comments").select("id, post_id").in("post_id", postIds);
 
       const wagerIds = postsData.map(p => p.wager_id).filter(Boolean);
       let wagersMap: Record<string, any> = {};
@@ -75,8 +77,10 @@ export default function HomeScreen() {
       const fullyBuiltPosts = postsData.map(post => {
         const author = usersData?.find(u => u.id === post.user_id) || null;
         const postLikes = likesData?.filter(l => l.post_id === post.id) || [];
+        const postCommentsCount = commentsData?.filter(c => c.post_id === post.id).length || 0;
         const postWager = post.wager_id ? wagersMap[post.wager_id] : null;
-        return { ...post, users: author, post_likes: postLikes, wager: postWager };
+        
+        return { ...post, users: author, post_likes: postLikes, commentsCount: postCommentsCount, wager: postWager };
       });
 
       setPosts(fullyBuiltPosts);
@@ -146,23 +150,15 @@ export default function HomeScreen() {
     try {
       const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
       if (data) {
-        let parsedWinRate = data.win_rate ?? data.winRate ?? 0;
-        if (parsedWinRate > 0 && parsedWinRate <= 1) {
-          parsedWinRate = Math.round(parsedWinRate * 100);
-        }
-
         setProfileUser({
           userId: data.id,
           username: data.username,
           displayName: data.display_name || data.username,
           avatarColor: data.avatar_color || colors.primary,
-          points: data.points || 0,
-          winRate: parsedWinRate
+          points: data.points || 0
         });
       }
-    } catch (e) {
-      console.log("Error loading profile", e);
-    }
+    } catch (e) {}
   };
 
   const renderPost = useCallback(({ item }: { item: any }) => {
@@ -224,7 +220,7 @@ export default function HomeScreen() {
             
             <Pressable style={styles.actionButton} onPress={(e) => { e.stopPropagation(); router.push(`/post/${item.id}`); }}>
               <Feather name="message-circle" size={18} color={colors.mutedForeground} />
-              <Text style={[styles.actionText, { color: colors.mutedForeground }]}>0</Text>
+              <Text style={[styles.actionText, { color: colors.mutedForeground }]}>{item.commentsCount}</Text>
             </Pressable>
             
             <Pressable style={styles.actionButton} onPress={(e) => { e.stopPropagation(); openFireModal(item); }}>
@@ -251,6 +247,18 @@ export default function HomeScreen() {
             isDesktop ? (
               <View style={[styles.composeContainer, { borderBottomColor: colors.border }]}>
                 <TextInput ref={inputRef} style={[styles.composeInput, { color: colors.foreground }]} placeholder="What's your latest prediction?" placeholderTextColor={colors.mutedForeground} multiline value={newPostText} onChangeText={setNewPostText} />
+                
+                {/* BLUE BADGE - RESTORED */}
+                {attachedWagerId && (
+                  <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
+                    <Feather name="paperclip" size={14} color="#3B7BE5" />
+                    <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
+                    <Pressable onPress={() => setAttachedWagerId(null)}>
+                      <Feather name="x" size={16} color="#3B7BE5" />
+                    </Pressable>
+                  </View>
+                )}
+
                 <View style={styles.composeFooter}>
                   <Pressable style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} onPress={submitPost} disabled={!newPostText.trim() && !attachedWagerId}>
                     <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
@@ -287,6 +295,18 @@ export default function HomeScreen() {
                   <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
                 </Pressable>
               </View>
+              
+              {/* BLUE BADGE - RESTORED FOR MOBILE */}
+              {attachedWagerId && (
+                <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
+                  <Feather name="paperclip" size={14} color="#3B7BE5" />
+                  <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
+                  <Pressable onPress={() => setAttachedWagerId(null)}>
+                    <Feather name="x" size={16} color="#3B7BE5" />
+                  </Pressable>
+                </View>
+              )}
+
               <TextInput style={[styles.composeInput, { color: colors.foreground }]} placeholder="What's your latest prediction?" placeholderTextColor={colors.mutedForeground} multiline autoFocus value={newPostText} onChangeText={setNewPostText} />
             </View>
           </KeyboardAvoidingView>
@@ -331,7 +351,7 @@ const styles = StyleSheet.create({
   postHeader: { flexDirection: "column", alignItems: "flex-start", marginBottom: 6 },
   displayName: { fontFamily: "Inter_700Bold", fontSize: 16 },
   username: { fontFamily: "Inter_400Regular", fontSize: 14, marginTop: 2 },
-  postText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, marginTop: 4, marginBottom: 12 },
+  postText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, marginBottom: 12 },
   actionRow: { flexDirection: "row", justifyContent: "flex-start", alignItems: "center", gap: 28 },
   actionButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
   actionText: { fontFamily: "Inter_500Medium", fontSize: 13 },

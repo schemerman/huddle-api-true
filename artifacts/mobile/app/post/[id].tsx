@@ -8,6 +8,7 @@ import { useColors } from "@/hooks/useColors";
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal"; // ADDED THE MISSING IMPORT!
 
 const formatTimeAgo = (dateString: string) => {
   if (!dateString) return "";
@@ -31,9 +32,11 @@ export default function PostScreen() {
   const [newComment, setNewComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Fire modal state for the details screen!
   const [fireModalOpen, setFireModalOpen] = useState(false);
   const [fireAmount, setFireAmount] = useState<string>("50");
+
+  // ADDED THE MISSING PROFILE STATE
+  const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
 
   const fetchData = async () => {
     if (!id) return;
@@ -51,11 +54,15 @@ export default function PostScreen() {
 
       if (commentsData && commentsData.length > 0) {
         const userIds = [...new Set(commentsData.map(c => c.user_id))];
+        const commentIds = commentsData.map(c => c.id);
+
         const { data: commentUsers } = await supabase.from("users").select("*").in("id", userIds);
+        const { data: commentLikesData } = await supabase.from("comment_likes").select("*").in("comment_id", commentIds);
         
         const builtComments = commentsData.map(c => ({
           ...c,
-          users: commentUsers?.find(u => u.id === c.user_id) || null
+          users: commentUsers?.find(u => u.id === c.user_id) || null,
+          likes: commentLikesData?.filter(l => l.comment_id === c.id) || []
         }));
         setComments(builtComments);
       } else {
@@ -97,6 +104,23 @@ export default function PostScreen() {
     else await supabase.from("post_likes").insert({ post_id: post.id, user_id: user.id });
   };
 
+  const handleCommentLike = async (commentId: string, hasLiked: boolean) => {
+    if (!user) return;
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    setComments(current => current.map(c => {
+      if (c.id === commentId) {
+        const safeLikes = c.likes || [];
+        const newLikes = hasLiked ? safeLikes.filter((l: any) => l.user_id !== user.id) : [...safeLikes, { user_id: user.id }];
+        return { ...c, likes: newLikes };
+      }
+      return c;
+    }));
+
+    if (hasLiked) await supabase.from("comment_likes").delete().match({ comment_id: commentId, user_id: user.id });
+    else await supabase.from("comment_likes").insert({ comment_id: commentId, user_id: user.id });
+  };
+
   const openFireModal = () => {
     if (!user) return;
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -116,6 +140,23 @@ export default function PostScreen() {
     } catch (err: any) { Alert.alert("Error", err.message); }
   };
 
+  // ADDED MISSING PROFILE CLICK LOGIC
+  const handleProfileClick = async (userId: string) => {
+    if (!userId) return;
+    try {
+      const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
+      if (data) {
+        setProfileUser({
+          userId: data.id,
+          username: data.username,
+          displayName: data.display_name || data.username,
+          avatarColor: data.avatar_color || colors.primary,
+          points: data.points || 0
+        });
+      }
+    } catch (e) {}
+  };
+
   if (loading || !post) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
@@ -126,6 +167,7 @@ export default function PostScreen() {
 
   const activeUser = user as any;
   const postAuthor = post.users || {};
+  const finalUserId = postAuthor.id || "";
   const finalUsername = postAuthor.username || activeUser?.username || "player";
   const finalDisplayName = postAuthor.display_name || postAuthor.displayName || finalUsername;
   const finalColor = postAuthor.avatar_color || activeUser?.avatar_color || activeUser?.avatarColor || colors.primary;
@@ -154,13 +196,13 @@ export default function PostScreen() {
           ListHeaderComponent={
             <View>
               <View style={styles.mainPost}>
-                <View style={styles.authorRow}>
+                <Pressable style={styles.authorRow} onPress={() => handleProfileClick(finalUserId)}>
                   <Avatar color={finalColor} username={finalUsername} size={48} />
                   <View style={styles.authorText}>
                     <Text style={[styles.displayName, { color: colors.foreground }]}>{finalDisplayName}</Text>
                     <Text style={[styles.username, { color: colors.mutedForeground }]}>@{finalUsername}</Text>
                   </View>
-                </View>
+                </Pressable>
                 
                 <Text style={[styles.mainContent, { color: colors.foreground }]}>{post.content}</Text>
                 <Text style={[styles.timeAgo, { color: colors.mutedForeground }]}>{formatTimeAgo(post.created_at)}</Text>
@@ -188,23 +230,31 @@ export default function PostScreen() {
           }
           renderItem={({ item }) => {
             const commentAuthor = item.users || {};
+            const finalCommentUserId = commentAuthor.id || "";
             const finalCommentUsername = commentAuthor.username || "player";
             const finalCommentName = commentAuthor.display_name || commentAuthor.displayName || finalCommentUsername;
             const finalCommentColor = commentAuthor.avatar_color || colors.primary;
+            
+            const safeCommentLikes = item.likes || [];
+            const commentLikesCount = safeCommentLikes.length;
+            const hasLikedComment = safeCommentLikes.some((l: any) => l.user_id === user?.id);
 
             return (
               <View style={[styles.commentRow, { borderBottomColor: colors.border }]}>
-                <Avatar color={finalCommentColor} username={finalCommentUsername} size={36} />
+                <Pressable onPress={() => handleProfileClick(finalCommentUserId)}>
+                  <Avatar color={finalCommentColor} username={finalCommentUsername} size={36} />
+                </Pressable>
                 <View style={styles.commentContent}>
                   <View style={styles.commentHeader}>
                     <Text style={[styles.commentDisplayName, { color: colors.foreground }]}>{finalCommentName}</Text>
                     <Text style={[styles.commentUsername, { color: colors.mutedForeground }]}>@{finalCommentUsername} · {formatTimeAgo(item.created_at)}</Text>
                   </View>
                   <Text style={[styles.commentText, { color: colors.foreground }]}>{item.content}</Text>
-                  <View style={styles.commentActions}>
-                    <FontAwesome5 name="heart" size={14} color={colors.mutedForeground} solid={false} />
-                    <Text style={[styles.commentActionText, { color: colors.mutedForeground }]}>0</Text>
-                  </View>
+                  
+                  <Pressable style={styles.commentActions} onPress={() => handleCommentLike(item.id, hasLikedComment)}>
+                    <FontAwesome5 name="heart" size={14} color={hasLikedComment ? "#FF3B30" : colors.mutedForeground} solid={hasLikedComment} />
+                    <Text style={[styles.commentActionText, { color: hasLikedComment ? "#FF3B30" : colors.mutedForeground }]}>{commentLikesCount}</Text>
+                  </Pressable>
                 </View>
               </View>
             );
@@ -219,6 +269,9 @@ export default function PostScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      {/* RENDER THE PROFILE MODAL HERE */}
+      <PublicProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
 
       <Modal visible={fireModalOpen} animationType="fade" transparent>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayCenter}>
