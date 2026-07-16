@@ -50,7 +50,6 @@ export default function HomeScreen() {
   const [selectedPost, setSelectedPost] = useState<any>(null);
   const [fireAmount, setFireAmount] = useState<string>("50");
   
-  // State for the Public Profile Pop-up
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
 
   const fetchPosts = async () => {
@@ -128,7 +127,6 @@ export default function HomeScreen() {
       await supabase.rpc('award_fire', { post_id_param: selectedPost.id, giver_id_param: user?.id, author_id_param: selectedPost.user_id, tip_amount: amount });
       setPosts(current => current.map(p => p.id === selectedPost.id ? { ...p, fire_count: p.fire_count + 1 } : p));
       if (!isDesktop && Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Award Sent!", `You tipped ${amount} pts.`);
     } catch (err: any) { Alert.alert("Error", err.message); }
   };
 
@@ -143,19 +141,23 @@ export default function HomeScreen() {
     } catch (error: any) { Alert.alert("Crash", error.message); }
   };
 
-  // FULLY WIRED PUBLIC PROFILE MODAL
   const handleProfileClick = async (userId: string) => {
     if (!userId) return;
     try {
       const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
       if (data) {
+        let parsedWinRate = data.win_rate ?? data.winRate ?? 0;
+        if (parsedWinRate > 0 && parsedWinRate <= 1) {
+          parsedWinRate = Math.round(parsedWinRate * 100);
+        }
+
         setProfileUser({
           userId: data.id,
           username: data.username,
           displayName: data.display_name || data.username,
           avatarColor: data.avatar_color || colors.primary,
           points: data.points || 0,
-          winRate: data.win_rate || 0
+          winRate: parsedWinRate
         });
       }
     } catch (e) {
@@ -201,13 +203,11 @@ export default function HomeScreen() {
 
     return (
       <View style={[styles.postContainer, { borderBottomColor: colors.border }, isLit && styles.postLit]}>
-        {/* CLICKABLE AVATAR OPENS MODAL */}
         <Pressable onPress={() => handleProfileClick(finalUserId)}>
           <Avatar color={finalColor} username={finalUsername} size={48} />
         </Pressable>
 
         <Pressable style={styles.postContent} onPress={() => router.push(`/post/${item.id}`)}>
-          {/* TWITTER STYLE HEADER STACK */}
           <View style={styles.postHeader}>
             <Text style={[styles.displayName, { color: colors.foreground }]}>{finalDisplayName}</Text>
             <Text style={[styles.username, { color: colors.mutedForeground }]}>@{finalUsername} · {formatTimeAgo(item.created_at)}</Text>
@@ -273,7 +273,6 @@ export default function HomeScreen() {
         </Pressable>
       )}
 
-      {/* POP UP MODALS */}
       <PublicProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
 
       {!isDesktop && (
@@ -329,13 +328,10 @@ const styles = StyleSheet.create({
   postContainer: { flexDirection: "row", padding: 16, borderBottomWidth: 1, gap: 12 },
   postLit: { backgroundColor: "rgba(255, 107, 0, 0.04)" },
   postContent: { flex: 1 },
-  
-  // STACKED TWITTER-STYLE HEADER
   postHeader: { flexDirection: "column", alignItems: "flex-start", marginBottom: 6 },
   displayName: { fontFamily: "Inter_700Bold", fontSize: 16 },
   username: { fontFamily: "Inter_400Regular", fontSize: 14, marginTop: 2 },
-  
-  postText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, marginBottom: 12 },
+  postText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, marginTop: 4, marginBottom: 12 },
   actionRow: { flexDirection: "row", justifyContent: "flex-start", alignItems: "center", gap: 28 },
   actionButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
   actionText: { fontFamily: "Inter_500Medium", fontSize: 13 },

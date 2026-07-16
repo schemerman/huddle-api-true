@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Modal } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
@@ -30,6 +30,10 @@ export default function PostScreen() {
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Fire modal state for the details screen!
+  const [fireModalOpen, setFireModalOpen] = useState(false);
+  const [fireAmount, setFireAmount] = useState<string>("50");
 
   const fetchData = async () => {
     if (!id) return;
@@ -93,6 +97,25 @@ export default function PostScreen() {
     else await supabase.from("post_likes").insert({ post_id: post.id, user_id: user.id });
   };
 
+  const openFireModal = () => {
+    if (!user) return;
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setFireAmount("50"); setFireModalOpen(true);
+  };
+
+  const submitFireAward = async () => {
+    const amount = parseInt(fireAmount, 10);
+    if (isNaN(amount) || amount < 1 || amount > 50) return Alert.alert("Invalid Amount", "Please enter a number between 1 and 50.");
+    setFireModalOpen(false);
+
+    try {
+      await supabase.rpc('award_fire', { post_id_param: post.id, giver_id_param: user?.id, author_id_param: post.user_id, tip_amount: amount });
+      
+      setPost((current: any) => ({ ...current, fire_count: (current.fire_count || 0) + 1 }));
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err: any) { Alert.alert("Error", err.message); }
+  };
+
   if (loading || !post) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
@@ -111,6 +134,7 @@ export default function PostScreen() {
   const likesCount = safeLikes.length;
   const hasLikedMain = safeLikes.some((l: any) => l.user_id === user?.id);
   const commentsCount = comments.length;
+  const isLit = post.fire_count > 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -151,6 +175,9 @@ export default function PostScreen() {
                     <FontAwesome5 name="heart" size={22} color={hasLikedMain ? "#FF3B30" : colors.foreground} solid={hasLikedMain} />
                   </Pressable>
                   <Feather name="message-circle" size={22} color={colors.foreground} />
+                  <Pressable onPress={openFireModal}>
+                    <FontAwesome5 name="fire" size={22} color={isLit ? "#FF6B00" : colors.foreground} solid={isLit} />
+                  </Pressable>
                 </View>
               </View>
 
@@ -182,9 +209,7 @@ export default function PostScreen() {
               </View>
             );
           }}
-          ListEmptyComponent={
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Be the first to comment.</Text>
-          }
+          ListEmptyComponent={<Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Be the first to comment.</Text>}
         />
 
         <View style={[styles.inputContainer, { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? insets.bottom || 16 : 16 }]}>
@@ -194,6 +219,27 @@ export default function PostScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      <Modal visible={fireModalOpen} animationType="fade" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayCenter}>
+          <View style={[styles.fireModalCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[styles.fireModalTitle, { color: colors.foreground }]}>Award Fire 🔥</Text>
+            <Text style={[styles.fireModalSub, { color: colors.mutedForeground }]}>Tip up to 50 pts. The house takes a 20% tax.</Text>
+            <View style={styles.fireQuickButtons}>
+              {["10", "25", "50"].map(val => (
+                <Pressable key={val} style={[styles.fireQuickBtn, fireAmount === val ? { backgroundColor: "#FF6B00", borderColor: "#FF6B00" } : { borderColor: colors.border }]} onPress={() => setFireAmount(val)}>
+                  <Text style={[styles.fireQuickText, { color: fireAmount === val ? "#FFF" : colors.foreground }]}>{val}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <TextInput style={[styles.fireInput, { color: colors.foreground, borderColor: colors.border }]} keyboardType="number-pad" maxLength={2} value={fireAmount} onChangeText={setFireAmount} placeholder="Custom 1-50" placeholderTextColor={colors.mutedForeground} />
+            <View style={styles.fireModalActions}>
+              <Pressable style={styles.fireCancelBtn} onPress={() => setFireModalOpen(false)}><Text style={[styles.fireCancelText, { color: colors.mutedForeground }]}>Cancel</Text></Pressable>
+              <Pressable style={styles.fireSubmitBtn} onPress={submitFireAward}><Text style={styles.fireSubmitText}>Send Award</Text></Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -219,12 +265,9 @@ const styles = StyleSheet.create({
   commentsHeaderText: { fontFamily: "Inter_600SemiBold", fontSize: 12, letterSpacing: 1 },
   commentRow: { flexDirection: "row", padding: 16, borderBottomWidth: 1 },
   commentContent: { flex: 1, marginLeft: 12 },
-  
-  // Stacking logic applied to the comments as well!
   commentHeader: { flexDirection: "column", alignItems: "flex-start", marginBottom: 6 },
   commentDisplayName: { fontFamily: "Inter_700Bold", fontSize: 14 },
   commentUsername: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 2 },
-  
   commentText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 20, marginBottom: 8 },
   commentActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   commentActionText: { fontFamily: "Inter_500Medium", fontSize: 12 },
@@ -233,4 +276,17 @@ const styles = StyleSheet.create({
   textInput: { flex: 1, minHeight: 40, maxHeight: 100, borderRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontFamily: "Inter_400Regular", fontSize: 15 },
   sendBtn: { marginLeft: 16, paddingBottom: 10 },
   sendText: { fontFamily: "Inter_700Bold", fontSize: 15 },
+  modalOverlayCenter: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 20 },
+  fireModalCard: { width: "100%", maxWidth: 340, borderRadius: 16, padding: 24, borderWidth: 1 },
+  fireModalTitle: { fontFamily: "Inter_700Bold", fontSize: 20, textAlign: "center", marginBottom: 8 },
+  fireModalSub: { fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center", marginBottom: 20, lineHeight: 20 },
+  fireQuickButtons: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16, gap: 10 },
+  fireQuickBtn: { flex: 1, paddingVertical: 12, borderWidth: 1, borderRadius: 8, alignItems: "center" },
+  fireQuickText: { fontFamily: "Inter_600SemiBold", fontSize: 16 },
+  fireInput: { borderWidth: 1, borderRadius: 8, padding: 14, fontSize: 16, fontFamily: "Inter_500Medium", textAlign: "center", marginBottom: 24 },
+  fireModalActions: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
+  fireCancelBtn: { flex: 1, paddingVertical: 14, alignItems: "center", justifyContent: "center" },
+  fireCancelText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
+  fireSubmitBtn: { flex: 1, paddingVertical: 14, backgroundColor: "#FF6B00", borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  fireSubmitText: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: "#FFF" },
 });
