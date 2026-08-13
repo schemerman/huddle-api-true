@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Modal } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Modal, Image } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
@@ -19,9 +19,31 @@ const formatTimeAgo = (dateString: string) => {
   return `${Math.floor(diffInSeconds / 86400)}d`;
 };
 
-const getFlag = (team: string) => {
-  const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️", "Spain": "🇪🇸", "Belgium": "🇧🇪" };
-  return flags[team] || ""; 
+const getCrestUrl = (team: string): string | null => {
+  const crests: Record<string, string> = {
+    "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
+    "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
+    "Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
+    "Brentford": "https://a.espncdn.com/i/teamlogos/soccer/500/139026.png",
+    "Brighton": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
+    "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png",
+    "Crystal Palace": "https://a.espncdn.com/i/teamlogos/soccer/500/384.png",
+    "Everton": "https://a.espncdn.com/i/teamlogos/soccer/500/368.png",
+    "Fulham": "https://a.espncdn.com/i/teamlogos/soccer/500/370.png",
+    "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
+    "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
+    "Man United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
+    "Newcastle": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
+    "Nottm Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
+    "Southampton": "https://a.espncdn.com/i/teamlogos/soccer/500/376.png",
+    "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "Tottenham": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "West Ham": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
+    "Wolves": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
+    "Leicester": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
+    "Ipswich": "https://a.espncdn.com/i/teamlogos/soccer/500/374.png",
+  };
+  return crests[team] || null; 
 };
 
 export default function PostScreen() {
@@ -37,15 +59,12 @@ export default function PostScreen() {
   const [newComment, setNewComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Adaptive Fire Modal: Tracks if we are tipping the main post or a specific comment
   const [fireModalOpen, setFireModalOpen] = useState(false);
   const [fireAmount, setFireAmount] = useState<string>("50");
   const [fireTarget, setFireTarget] = useState<{ id: string, type: 'post' | 'comment', authorId: string } | null>(null);
 
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
-  
-  // Double tap tracker
-  const lastTapRef = useRef<number>(0);
+  const lastTapRef = useRef<Record<string, number>>({});
 
   const fetchData = async () => {
     if (!id) return;
@@ -122,6 +141,15 @@ export default function PostScreen() {
     else await supabase.from("post_likes").insert({ post_id: post.id, user_id: user.id });
   };
 
+  const handleMainPostPress = () => {
+    const now = Date.now();
+    const lastTap = lastTapRef.current['main'] || 0;
+    if (now - lastTap < 300) {
+      handleLikeMainPost();
+    }
+    lastTapRef.current['main'] = now;
+  };
+
   const handleCommentLike = async (commentId: string, hasLiked: boolean) => {
     if (!user) return;
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -139,16 +167,25 @@ export default function PostScreen() {
     else await supabase.from("comment_likes").insert({ comment_id: commentId, user_id: user.id });
   };
 
-  // NEW: Double Tap detection
-  const handleCommentDoubleTap = (commentId: string, hasLiked: boolean) => {
+  const handleCommentPress = (commentId: string, hasLiked: boolean) => {
     const now = Date.now();
-    if (now - lastTapRef.current < 300) {
+    const lastTap = lastTapRef.current[commentId] || 0;
+    if (now - lastTap < 300) {
       handleCommentLike(commentId, hasLiked);
     }
-    lastTapRef.current = now;
+    lastTapRef.current[commentId] = now;
   };
 
-  // NEW: Delete Comment Logic
+  const handleDeleteMainPost = () => {
+    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+          await supabase.from("posts").delete().eq("id", id);
+          router.back();
+      }}
+    ]);
+  };
+
   const handleDeleteComment = (commentId: string) => {
     Alert.alert("Delete Reply", "Are you sure you want to delete this reply?", [
       { text: "Cancel", style: "cancel" },
@@ -230,9 +267,9 @@ export default function PostScreen() {
   const hasLikedMain = safeLikes.some((l: any) => l.user_id === user?.id);
   const commentsCount = comments.length;
   const isLit = post.fire_count > 0;
+  const isMyPost = finalUserId === user?.id;
 
-  // Match Header for Main Post
-  let mainMatchHeader = null;
+  let mainMatchHeader: React.ReactNode = null;
   if (post.wager) {
       const homeTeam = post.wager.homeTeam || post.wager.home_team;
       const awayTeam = post.wager.awayTeam || post.wager.away_team;
@@ -243,9 +280,20 @@ export default function PostScreen() {
           if (homeScore !== undefined && awayScore !== undefined && homeScore !== null && awayScore !== null) {
               scoreText = ` (${homeScore} - ${awayScore})`;
           }
-          mainMatchHeader = <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, marginBottom: 6, color: colors.foreground }}>{getFlag(homeTeam)} {homeTeam} vs {getFlag(awayTeam)} {awayTeam}{scoreText}</Text>;
+          const hUrl = getCrestUrl(homeTeam);
+          const aUrl = getCrestUrl(awayTeam);
+          mainMatchHeader = (
+            <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, marginBottom: 6, color: colors.foreground }}>
+              {hUrl ? <Image source={{ uri: hUrl as string }} style={{ width: 14, height: 14 }} /> : "⚽"} {homeTeam} vs {aUrl ? <Image source={{ uri: aUrl as string }} style={{ width: 14, height: 14 }} /> : "⚽"} {awayTeam}{scoreText}
+            </Text>
+          );
       }
   }
+
+  // FIX: Properly handle rendering "Draw" without hijacking all string values!
+  const predStr = post.wager?.prediction || post.wager?.choice || "";
+  const isDraw = predStr === "Draw";
+  const pUrl = getCrestUrl(predStr);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -264,7 +312,7 @@ export default function PostScreen() {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <View>
-              <View style={styles.mainPost}>
+              <Pressable style={styles.mainPost} onPress={() => handleMainPostPress()}>
                 <Pressable style={styles.authorRow} onPress={() => handleProfileClick(finalUserId)}>
                   <Avatar color={finalColor} username={finalUsername} size={48} />
                   <View style={styles.authorText}>
@@ -285,7 +333,13 @@ export default function PostScreen() {
                       </View>
                     </View>
                     {mainMatchHeader}
-                    <Text style={[styles.miniReceiptPred, { color: colors.foreground }]}>{post.wager.prediction || post.wager.choice === "Draw" ? "⚖️ Draw" : `${getFlag(post.wager.prediction || post.wager.choice)} ${post.wager.prediction || post.wager.choice}`}</Text>
+                    <Text style={[styles.miniReceiptPred, { color: colors.foreground }]}>
+                      {isDraw ? "⚖️ Draw" : (
+                        <Text>
+                          {pUrl ? <Image source={{ uri: pUrl as string }} style={{ width: 16, height: 16 }} /> : "⚽"} {predStr}
+                        </Text>
+                      )}
+                    </Text>
                     <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>{post.wager.status === "won" ? `+${post.wager.payout} pts` : post.wager.status === "lost" ? `-${post.wager.amount} pts` : `${post.wager.amount} pts at stake`}</Text>
                   </View>
                 )}
@@ -296,15 +350,23 @@ export default function PostScreen() {
                 </View>
 
                 <View style={styles.actionRow}>
-                  <Pressable onPress={handleLikeMainPost}>
+                  <Pressable style={styles.commentActionGroup} onPress={(e) => { e.stopPropagation(); handleLikeMainPost(); }}>
                     <FontAwesome5 name="heart" size={22} color={hasLikedMain ? "#FF3B30" : colors.foreground} solid={hasLikedMain} />
                   </Pressable>
-                  <Feather name="message-circle" size={22} color={colors.foreground} />
-                  <Pressable onPress={openPostFireModal}>
+                  <View style={styles.commentActionGroup}>
+                    <Feather name="message-circle" size={22} color={colors.foreground} />
+                  </View>
+                  <Pressable style={styles.commentActionGroup} onPress={(e) => { e.stopPropagation(); openPostFireModal(); }}>
                     <FontAwesome5 name="fire" size={22} color={isLit ? "#FF6B00" : colors.foreground} solid={isLit} />
                   </Pressable>
+
+                  {isMyPost && (
+                    <Pressable style={[styles.commentActionGroup, { marginLeft: 'auto' }]} onPress={(e) => { e.stopPropagation(); handleDeleteMainPost(); }}>
+                      <Feather name="trash-2" size={20} color={colors.mutedForeground} />
+                    </Pressable>
+                  )}
                 </View>
-              </View>
+              </Pressable>
 
               <View style={[styles.commentsHeader, { backgroundColor: colors.background }]}>
                 <Text style={[styles.commentsHeaderText, { color: colors.mutedForeground }]}>COMMENTS</Text>
@@ -330,8 +392,7 @@ export default function PostScreen() {
                   <Avatar color={finalCommentColor} username={finalCommentUsername} size={36} />
                 </Pressable>
                 
-                {/* NEW: Double Tap wrapper around the entire comment body! */}
-                <Pressable style={styles.commentContent} onPress={() => handleCommentDoubleTap(item.id, hasLikedComment)}>
+                <Pressable style={styles.commentContent} onPress={() => handleCommentPress(item.id, hasLikedComment)}>
                   <View style={styles.commentHeader}>
                     <Text style={[styles.commentDisplayName, { color: colors.foreground }]}>{finalCommentName}</Text>
                     <Text style={[styles.commentUsername, { color: colors.mutedForeground }]}>@{finalCommentUsername} · {formatTimeAgo(item.created_at)}</Text>
@@ -344,15 +405,13 @@ export default function PostScreen() {
                       <Text style={[styles.commentActionText, { color: hasLikedComment ? "#FF3B30" : colors.mutedForeground }]}>{commentLikesCount}</Text>
                     </Pressable>
                     
-                    {/* NEW: Comment Fire Button */}
                     <Pressable style={styles.commentActionGroup} onPress={(e) => { e.stopPropagation(); openCommentFireModal(item.id, item.user_id); }}>
                       <FontAwesome5 name="fire" size={14} color={commentLit ? "#FF6B00" : colors.mutedForeground} solid={commentLit} />
                       {commentLit && <Text style={[styles.commentActionText, { color: "#FF6B00" }]}>{item.fire_count}</Text>}
                     </Pressable>
 
-                    {/* NEW: Trash Can for your own comments */}
                     {isMyComment && (
-                      <Pressable style={[styles.commentActionGroup, { marginLeft: 16 }]} onPress={(e) => { e.stopPropagation(); handleDeleteComment(item.id); }}>
+                      <Pressable style={[styles.commentActionGroup, { marginLeft: 'auto' }]} onPress={(e) => { e.stopPropagation(); handleDeleteComment(item.id); }}>
                         <Feather name="trash-2" size={14} color={colors.mutedForeground} />
                       </Pressable>
                     )}

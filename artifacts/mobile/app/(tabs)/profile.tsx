@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
   Linking,
+  Image
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -32,46 +33,56 @@ function statusLabel(status: string): string {
   return "Pending";
 }
 
-const getFlag = (team: string) => {
-  const flags: Record<string, string> = {
-    "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
-    "Canada": "🇨🇦", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-    "France": "🇫🇷", "Ghana": "🇬🇭", "Morocco": "🇲🇦", "Norway": "🇳🇴",
-    "Panama": "🇵🇦", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-    "Senegal": "🇸🇳", "Spain": "🇪🇸", "Switzerland": "🇨🇭", "USA": "🇺🇸",
-    "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
-    "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
-    "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
-    "Czech Republic": "🇨🇿", "Draw": "⚖️"
+const getCrestUrl = (team: string): string | null => {
+  const crests: Record<string, string> = {
+    "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
+    "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
+    "Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
+    "Brentford": "https://a.espncdn.com/i/teamlogos/soccer/500/139026.png",
+    "Brighton": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
+    "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png",
+    "Crystal Palace": "https://a.espncdn.com/i/teamlogos/soccer/500/384.png",
+    "Everton": "https://a.espncdn.com/i/teamlogos/soccer/500/368.png",
+    "Fulham": "https://a.espncdn.com/i/teamlogos/soccer/500/370.png",
+    "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
+    "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
+    "Man United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
+    "Newcastle": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
+    "Nottm Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
+    "Southampton": "https://a.espncdn.com/i/teamlogos/soccer/500/376.png",
+    "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "Tottenham": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "West Ham": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
+    "Wolves": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
+    "Leicester": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
+    "Ipswich": "https://a.espncdn.com/i/teamlogos/soccer/500/374.png",
   };
-  return flags[team] || ""; 
+  return crests[team] || null; 
 };
 
-const getFinalResult = (wager: any) => {
+// Kept purely text-based so it doesn't break the ReceiptModal!
+const getFinalResult = (wager: any): string => {
   if (!wager) return "Unknown";
   if (wager.status === "pending") return "Pending";
   
   if (wager.homeScore !== undefined && wager.homeScore !== null && wager.awayScore !== undefined && wager.awayScore !== null) {
-      const hFlag = getFlag(wager.homeTeam);
-      const aFlag = getFlag(wager.awayTeam);
       const scoreLine = `${wager.homeScore} - ${wager.awayScore}`;
 
       if (wager.homeScore === wager.awayScore) {
           return `⚖️ Draw (${scoreLine})`;
       } 
       else if (wager.homeScore > wager.awayScore) {
-          return `${hFlag ? hFlag + " " : ""}${wager.homeTeam} Won (${scoreLine})`;
+          return `${wager.homeTeam} Won (${scoreLine})`;
       } 
       else {
-          return `${aFlag ? aFlag + " " : ""}${wager.awayTeam} Won (${scoreLine})`;
+          return `${wager.awayTeam} Won (${scoreLine})`;
       }
   }
 
   const finalWinner = wager.actual_result;
   if (finalWinner) {
       if (finalWinner.toLowerCase() === "draw") return "⚖️ Draw";
-      const fFlag = getFlag(finalWinner);
-      return `${fFlag ? fFlag + " " : ""}${finalWinner} Won`;
+      return `${finalWinner} Won`;
   }
 
   return "Match Finished";
@@ -194,8 +205,8 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
-  // FIX: Exact Total Wagers Win Rate Math
-  const wonWagers = wagers.filter(w => w.status === "won");
+  const completedWagers = wagers.filter(w => w.status === "won" || w.status === "lost");
+  const wonWagers = completedWagers.filter(w => w.status === "won");
   const safeWinRate = wagers.length > 0 
     ? Math.round((wonWagers.length / wagers.length) * 100) 
     : 0;
@@ -212,8 +223,6 @@ export default function ProfileScreen() {
   const activeUser = user as any;
   const safeEmail = activeUser.email || "No Email";
   const safeUsername = (activeUser.username && !isEmail(activeUser.username) && !isUUID(activeUser.username)) ? activeUser.username : "player";
-  
-  // FIX: Twitter style Name overrides
   const safeDisplayName = activeUser.display_name || activeUser.displayName || safeUsername || "Player";
   const safeColor = activeUser.avatar_color || activeUser.avatarColor || colors.primary;
 
@@ -368,13 +377,17 @@ export default function ProfileScreen() {
                 const completed = w.status === "won" || w.status === "lost";
                 const won = w.status === "won";
                 
-                let displayQuestion = w.question || "";
-                if (displayQuestion.includes(" or ")) {
+                let displayQuestion: React.ReactNode = w.question || "";
+                if (typeof displayQuestion === "string" && displayQuestion.includes(" or ")) {
                   const teamsStr = displayQuestion.replace("Who will win: ", "").replace("?", "");
                   const [teamA, teamB] = teamsStr.split(" or ");
-                  const fA = getFlag(teamA);
-                  const fB = getFlag(teamB);
-                  displayQuestion = `${fA ? fA + " " : ""}${teamA} vs ${fB ? fB + " " : ""}${teamB}`;
+                  const aUrl = getCrestUrl(teamA);
+                  const bUrl = getCrestUrl(teamB);
+                  displayQuestion = (
+                    <Text>
+                      {aUrl ? <Image source={{ uri: aUrl }} style={{ width: 14, height: 14 }} /> : "⚽"} {teamA} vs {bUrl ? <Image source={{ uri: bUrl }} style={{ width: 14, height: 14 }} /> : "⚽"} {teamB}
+                    </Text>
+                  );
                 }
 
                 return (
@@ -446,7 +459,7 @@ export default function ProfileScreen() {
         prediction={receiptWager?.prediction || receiptWager?.choice || ""} 
         points={receiptWager?.status === "won" ? receiptWager.payout : receiptWager?.amount ?? 0} 
         won={receiptWager?.status === "won"} 
-        wagerId={receiptWager?.id}
+        wagerId={receiptWager?.id} 
       />
     </View>
   );

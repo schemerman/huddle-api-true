@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, Platform, Alert, TextInput, Modal, KeyboardAvoidingView, RefreshControl, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, Alert, TextInput, Modal, KeyboardAvoidingView, RefreshControl, useWindowDimensions, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -13,9 +13,31 @@ import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicP
 
 const isWeb = Platform.OS === "web";
 
-const getFlag = (team: string) => {
-  const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️", "Spain": "🇪🇸", "Belgium": "🇧🇪" };
-  return flags[team] || ""; 
+const getCrestUrl = (team: string): string | null => {
+  const crests: Record<string, string> = {
+    "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
+    "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
+    "Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
+    "Brentford": "https://a.espncdn.com/i/teamlogos/soccer/500/139026.png",
+    "Brighton": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
+    "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png",
+    "Crystal Palace": "https://a.espncdn.com/i/teamlogos/soccer/500/384.png",
+    "Everton": "https://a.espncdn.com/i/teamlogos/soccer/500/368.png",
+    "Fulham": "https://a.espncdn.com/i/teamlogos/soccer/500/370.png",
+    "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
+    "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
+    "Man United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
+    "Newcastle": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
+    "Nottm Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
+    "Southampton": "https://a.espncdn.com/i/teamlogos/soccer/500/376.png",
+    "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "Tottenham": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "West Ham": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
+    "Wolves": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
+    "Leicester": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
+    "Ipswich": "https://a.espncdn.com/i/teamlogos/soccer/500/374.png",
+  };
+  return crests[team] || null; 
 };
 
 const formatTimeAgo = (dateString: string) => {
@@ -51,6 +73,10 @@ export default function HomeScreen() {
   const [fireAmount, setFireAmount] = useState<string>("50");
   
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
+
+  // FIX: Explicitly typed as 'any' to stop TypeScript from crashing over NodeJS.Timeout
+  const tapTimers = useRef<Record<string, any>>({});
+  const lastTapRef = useRef<Record<string, number>>({});
 
   const fetchPosts = async () => {
     try {
@@ -126,6 +152,31 @@ export default function HomeScreen() {
     else await supabase.from("post_likes").insert({ post_id: postId, user_id: user.id });
   };
 
+  const handlePostPress = (postId: string, hasLiked: boolean) => {
+    const now = Date.now();
+    const lastTap = lastTapRef.current[postId] || 0;
+
+    if (now - lastTap < 300) {
+      if (tapTimers.current[postId]) clearTimeout(tapTimers.current[postId]);
+      handleLike(postId, hasLiked);
+    } else {
+      tapTimers.current[postId] = setTimeout(() => {
+        router.push(`/post/${postId}`);
+      }, 300);
+    }
+    lastTapRef.current[postId] = now;
+  };
+
+  const handleDeletePost = (postId: string) => {
+    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+          await supabase.from("posts").delete().eq("id", postId);
+          setPosts(prev => prev.filter(p => p.id !== postId));
+      }}
+    ]);
+  };
+
   const openFireModal = (post: any) => {
     if (!user) return;
     if (!isDesktop && Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -158,7 +209,7 @@ export default function HomeScreen() {
   const handleProfileClick = async (userId: string) => {
     if (!userId) return;
     try {
-      const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
+      const { data } = await supabase.from("users").select("*").eq("id", userId).single();
       if (data) {
         let parsedWinRate = data.win_rate ?? data.winRate ?? 0;
         if (parsedWinRate > 0 && parsedWinRate <= 1) parsedWinRate = Math.round(parsedWinRate * 100);
@@ -188,17 +239,17 @@ export default function HomeScreen() {
     const safeLikes = item.post_likes || [];
     const likesCount = safeLikes.length;
     const hasLiked = safeLikes.some((l: any) => l.user_id === user?.id);
+    const isMyPost = finalUserId === user?.id;
 
     let miniReceipt = null;
     if (item.wager) {
       const won = item.wager.status === "won";
       const lost = item.wager.status === "lost";
       const predictionStr = item.wager.prediction || item.wager.choice;
-      const fPrediction = getFlag(predictionStr);
-      const displayPred = predictionStr === "Draw" ? "⚖️ Draw" : `${fPrediction ? fPrediction + " " : ""}${predictionStr}`;
+      const isDraw = predictionStr === "Draw";
+      const pUrl = getCrestUrl(predictionStr);
       
-      // NEW: Dynamic Match Header!
-      let matchHeader = null;
+      let matchHeader: React.ReactNode = null;
       const homeTeam = item.wager.homeTeam || item.wager.home_team;
       const awayTeam = item.wager.awayTeam || item.wager.away_team;
       if (homeTeam && awayTeam) {
@@ -208,7 +259,14 @@ export default function HomeScreen() {
           if (homeScore !== undefined && awayScore !== undefined && homeScore !== null && awayScore !== null) {
               scoreText = ` (${homeScore} - ${awayScore})`;
           }
-          matchHeader = <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, marginBottom: 6, color: colors.foreground }}>{getFlag(homeTeam)} {homeTeam} vs {getFlag(awayTeam)} {awayTeam}{scoreText}</Text>;
+          const hUrl = getCrestUrl(homeTeam);
+          const aUrl = getCrestUrl(awayTeam);
+          // FIX: Explicitly cast 'as string' to make TypeScript happy!
+          matchHeader = (
+            <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, marginBottom: 6, color: colors.foreground }}>
+              {hUrl ? <Image source={{ uri: hUrl as string }} style={{ width: 14, height: 14 }} /> : "⚽"} {homeTeam} vs {aUrl ? <Image source={{ uri: aUrl as string }} style={{ width: 14, height: 14 }} /> : "⚽"} {awayTeam}{scoreText}
+            </Text>
+          );
       }
 
       miniReceipt = (
@@ -220,7 +278,11 @@ export default function HomeScreen() {
             </View>
           </View>
           {matchHeader}
-          <Text style={[styles.miniReceiptPred, { color: colors.foreground }]}>{displayPred}</Text>
+          <Text style={[styles.miniReceiptPred, { color: colors.foreground }]}>
+            {isDraw ? "⚖️ Draw" : (
+              <Text>{pUrl ? <Image source={{ uri: pUrl as string }} style={{ width: 16, height: 16 }} /> : "⚽"} {predictionStr}</Text>
+            )}
+          </Text>
           <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>{won ? `+${item.wager.payout} pts` : lost ? `-${item.wager.amount} pts` : `${item.wager.amount} pts at stake`}</Text>
         </View>
       );
@@ -232,7 +294,7 @@ export default function HomeScreen() {
           <Avatar color={finalColor} username={finalUsername} size={48} />
         </Pressable>
 
-        <Pressable style={styles.postContent} onPress={() => router.push(`/post/${item.id}`)}>
+        <Pressable style={styles.postContent} onPress={() => handlePostPress(item.id, hasLiked)}>
           <View style={styles.postHeader}>
             <Text style={[styles.displayName, { color: colors.foreground }]}>{finalDisplayName}</Text>
             <Text style={[styles.username, { color: colors.mutedForeground }]}>@{finalUsername} · {formatTimeAgo(item.created_at)}</Text>
@@ -256,6 +318,12 @@ export default function HomeScreen() {
               <FontAwesome5 name="fire" size={18} color={isLit ? "#FF6B00" : colors.mutedForeground} solid={isLit} />
               {isLit && <Text style={[styles.actionText, { color: "#FF6B00" }]}>{item.fire_count}</Text>}
             </Pressable>
+
+            {isMyPost && (
+              <Pressable style={[styles.actionButton, { marginLeft: 'auto' }]} onPress={(e) => { e.stopPropagation(); handleDeletePost(item.id); }}>
+                <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+              </Pressable>
+            )}
           </View>
         </Pressable>
       </View>
