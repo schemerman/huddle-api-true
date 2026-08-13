@@ -14,7 +14,7 @@ import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicP
 const isWeb = Platform.OS === "web";
 
 const getFlag = (team: string) => {
-  const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️" };
+  const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️", "Spain": "🇪🇸", "Belgium": "🇧🇪" };
   return flags[team] || ""; 
 };
 
@@ -63,7 +63,6 @@ export default function HomeScreen() {
 
       const { data: usersData } = await supabase.from("users").select("*").in("id", userIds);
       const { data: likesData } = await supabase.from("post_likes").select("*").in("post_id", postIds);
-      
       const { data: commentsData } = await supabase.from("comments").select("id, post_id").in("post_id", postIds);
 
       const wagerIds = postsData.map(p => p.wager_id).filter(Boolean);
@@ -71,7 +70,18 @@ export default function HomeScreen() {
 
       if (wagerIds.length > 0) {
         const { data: wagersData } = await supabase.from("wagers").select("*").in("id", wagerIds);
-        wagersData?.forEach(w => wagersMap[w.id] = w);
+        const fixtureIds = wagersData?.map(w => w.fixture_id || w.fixtureId).filter(Boolean) || [];
+        
+        let fixturesMap: Record<string, any> = {};
+        if (fixtureIds.length > 0) {
+          const { data: fixturesData } = await supabase.from("fixtures").select("*").in("id", fixtureIds);
+          fixturesData?.forEach(f => fixturesMap[f.id] = f);
+        }
+
+        wagersData?.forEach(w => {
+          const f = fixturesMap[w.fixture_id || w.fixtureId];
+          wagersMap[w.id] = { ...w, homeScore: f?.homeScore ?? f?.home_score, awayScore: f?.awayScore ?? f?.away_score, homeTeam: f?.homeTeam ?? f?.home_team, awayTeam: f?.awayTeam ?? f?.away_team };
+        });
       }
 
       const fullyBuiltPosts = postsData.map(post => {
@@ -129,7 +139,7 @@ export default function HomeScreen() {
 
     try {
       await supabase.rpc('award_fire', { post_id_param: selectedPost.id, giver_id_param: user?.id, author_id_param: selectedPost.user_id, tip_amount: amount });
-      setPosts(current => current.map(p => p.id === selectedPost.id ? { ...p, fire_count: p.fire_count + 1 } : p));
+      setPosts(current => current.map(p => p.id === selectedPost.id ? { ...p, fire_count: (p.fire_count || 0) + 1 } : p));
       if (!isDesktop && Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) { Alert.alert("Error", err.message); }
   };
@@ -150,12 +160,16 @@ export default function HomeScreen() {
     try {
       const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
       if (data) {
+        let parsedWinRate = data.win_rate ?? data.winRate ?? 0;
+        if (parsedWinRate > 0 && parsedWinRate <= 1) parsedWinRate = Math.round(parsedWinRate * 100);
+
         setProfileUser({
           userId: data.id,
           username: data.username,
           displayName: data.display_name || data.username,
           avatarColor: data.avatar_color || colors.primary,
-          points: data.points || 0
+          points: data.points || 0,
+          winRate: parsedWinRate
         });
       }
     } catch (e) {}
@@ -183,6 +197,20 @@ export default function HomeScreen() {
       const fPrediction = getFlag(predictionStr);
       const displayPred = predictionStr === "Draw" ? "⚖️ Draw" : `${fPrediction ? fPrediction + " " : ""}${predictionStr}`;
       
+      // NEW: Dynamic Match Header!
+      let matchHeader = null;
+      const homeTeam = item.wager.homeTeam || item.wager.home_team;
+      const awayTeam = item.wager.awayTeam || item.wager.away_team;
+      if (homeTeam && awayTeam) {
+          const homeScore = item.wager.homeScore ?? item.wager.home_score;
+          const awayScore = item.wager.awayScore ?? item.wager.away_score;
+          let scoreText = "";
+          if (homeScore !== undefined && awayScore !== undefined && homeScore !== null && awayScore !== null) {
+              scoreText = ` (${homeScore} - ${awayScore})`;
+          }
+          matchHeader = <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, marginBottom: 6, color: colors.foreground }}>{getFlag(homeTeam)} {homeTeam} vs {getFlag(awayTeam)} {awayTeam}{scoreText}</Text>;
+      }
+
       miniReceipt = (
         <View style={[styles.miniReceipt, { borderColor: colors.border, backgroundColor: won ? "rgba(52, 199, 89, 0.05)" : lost ? "rgba(255, 59, 48, 0.05)" : colors.background }]}>
           <View style={styles.miniReceiptTop}>
@@ -191,6 +219,7 @@ export default function HomeScreen() {
                <Text style={[styles.miniReceiptStatus, { color: won ? colors.primaryForeground : colors.foreground }]}>{won ? "WON" : lost ? "LOST" : "PENDING"}</Text>
             </View>
           </View>
+          {matchHeader}
           <Text style={[styles.miniReceiptPred, { color: colors.foreground }]}>{displayPred}</Text>
           <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>{won ? `+${item.wager.payout} pts` : lost ? `-${item.wager.amount} pts` : `${item.wager.amount} pts at stake`}</Text>
         </View>
@@ -247,8 +276,6 @@ export default function HomeScreen() {
             isDesktop ? (
               <View style={[styles.composeContainer, { borderBottomColor: colors.border }]}>
                 <TextInput ref={inputRef} style={[styles.composeInput, { color: colors.foreground }]} placeholder="What's your latest prediction?" placeholderTextColor={colors.mutedForeground} multiline value={newPostText} onChangeText={setNewPostText} />
-                
-                {/* BLUE BADGE - RESTORED */}
                 {attachedWagerId && (
                   <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
                     <Feather name="paperclip" size={14} color="#3B7BE5" />
@@ -258,7 +285,6 @@ export default function HomeScreen() {
                     </Pressable>
                   </View>
                 )}
-
                 <View style={styles.composeFooter}>
                   <Pressable style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} onPress={submitPost} disabled={!newPostText.trim() && !attachedWagerId}>
                     <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
@@ -296,7 +322,6 @@ export default function HomeScreen() {
                 </Pressable>
               </View>
               
-              {/* BLUE BADGE - RESTORED FOR MOBILE */}
               {attachedWagerId && (
                 <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
                   <Feather name="paperclip" size={14} color="#3B7BE5" />

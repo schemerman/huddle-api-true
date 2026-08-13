@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { View, Text, StyleSheet, FlatList, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Modal } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,7 +8,7 @@ import { useColors } from "@/hooks/useColors";
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal"; // ADDED THE MISSING IMPORT!
+import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal"; 
 
 const formatTimeAgo = (dateString: string) => {
   if (!dateString) return "";
@@ -17,6 +17,11 @@ const formatTimeAgo = (dateString: string) => {
   if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m`;
   if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h`;
   return `${Math.floor(diffInSeconds / 86400)}d`;
+};
+
+const getFlag = (team: string) => {
+  const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️", "Spain": "🇪🇸", "Belgium": "🇧🇪" };
+  return flags[team] || ""; 
 };
 
 export default function PostScreen() {
@@ -32,11 +37,15 @@ export default function PostScreen() {
   const [newComment, setNewComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // Adaptive Fire Modal: Tracks if we are tipping the main post or a specific comment
   const [fireModalOpen, setFireModalOpen] = useState(false);
   const [fireAmount, setFireAmount] = useState<string>("50");
+  const [fireTarget, setFireTarget] = useState<{ id: string, type: 'post' | 'comment', authorId: string } | null>(null);
 
-  // ADDED THE MISSING PROFILE STATE
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
+  
+  // Double tap tracker
+  const lastTapRef = useRef<number>(0);
 
   const fetchData = async () => {
     if (!id) return;
@@ -47,7 +56,16 @@ export default function PostScreen() {
       const { data: authorData } = await supabase.from("users").select("*").eq("id", postData.user_id).single();
       const { data: likesData } = await supabase.from("post_likes").select("*").eq("post_id", id);
       
-      setPost({ ...postData, users: authorData, post_likes: likesData || [] });
+      let wagersMap: Record<string, any> = {};
+      if (postData.wager_id) {
+         const { data: wagerData } = await supabase.from("wagers").select("*").eq("id", postData.wager_id).single();
+         if (wagerData && (wagerData.fixture_id || wagerData.fixtureId)) {
+            const { data: fixtureData } = await supabase.from("fixtures").select("*").eq("id", wagerData.fixture_id || wagerData.fixtureId).single();
+            wagersMap[postData.wager_id] = { ...wagerData, homeScore: fixtureData?.homeScore ?? fixtureData?.home_score, awayScore: fixtureData?.awayScore ?? fixtureData?.away_score, homeTeam: fixtureData?.homeTeam ?? fixtureData?.home_team, awayTeam: fixtureData?.awayTeam ?? fixtureData?.away_team };
+         }
+      }
+
+      setPost({ ...postData, users: authorData, post_likes: likesData || [], wager: postData.wager_id ? wagersMap[postData.wager_id] : null });
 
       const { data: commentsData, error: commentsErr } = await supabase.from("comments").select("*").eq("post_id", id).order("created_at", { ascending: true });
       if (commentsErr) throw commentsErr;
@@ -121,9 +139,37 @@ export default function PostScreen() {
     else await supabase.from("comment_likes").insert({ comment_id: commentId, user_id: user.id });
   };
 
-  const openFireModal = () => {
+  // NEW: Double Tap detection
+  const handleCommentDoubleTap = (commentId: string, hasLiked: boolean) => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      handleCommentLike(commentId, hasLiked);
+    }
+    lastTapRef.current = now;
+  };
+
+  // NEW: Delete Comment Logic
+  const handleDeleteComment = (commentId: string) => {
+    Alert.alert("Delete Reply", "Are you sure you want to delete this reply?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+          await supabase.from("comments").delete().eq("id", commentId);
+          setComments(prev => prev.filter(c => c.id !== commentId));
+      }}
+    ]);
+  };
+
+  const openPostFireModal = () => {
+    if (!user || !post) return;
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setFireTarget({ id: post.id, type: 'post', authorId: post.user_id });
+    setFireAmount("50"); setFireModalOpen(true);
+  };
+
+  const openCommentFireModal = (commentId: string, authorId: string) => {
     if (!user) return;
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setFireTarget({ id: commentId, type: 'comment', authorId });
     setFireAmount("50"); setFireModalOpen(true);
   };
 
@@ -133,25 +179,32 @@ export default function PostScreen() {
     setFireModalOpen(false);
 
     try {
-      await supabase.rpc('award_fire', { post_id_param: post.id, giver_id_param: user?.id, author_id_param: post.user_id, tip_amount: amount });
-      
-      setPost((current: any) => ({ ...current, fire_count: (current.fire_count || 0) + 1 }));
+      if (fireTarget?.type === 'post') {
+        await supabase.rpc('award_fire', { post_id_param: fireTarget.id, giver_id_param: user?.id, author_id_param: fireTarget.authorId, tip_amount: amount });
+        setPost((current: any) => ({ ...current, fire_count: (current.fire_count || 0) + 1 }));
+      } else if (fireTarget?.type === 'comment') {
+        await supabase.rpc('award_comment_fire', { comment_id_param: fireTarget.id, giver_id_param: user?.id, author_id_param: fireTarget.authorId, tip_amount: amount });
+        setComments(current => current.map(c => c.id === fireTarget.id ? { ...c, fire_count: (c.fire_count || 0) + 1 } : c));
+      }
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) { Alert.alert("Error", err.message); }
   };
 
-  // ADDED MISSING PROFILE CLICK LOGIC
   const handleProfileClick = async (userId: string) => {
     if (!userId) return;
     try {
-      const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
+      const { data } = await supabase.from("users").select("*").eq("id", userId).single();
       if (data) {
+        let parsedWinRate = data.win_rate ?? data.winRate ?? 0;
+        if (parsedWinRate > 0 && parsedWinRate <= 1) parsedWinRate = Math.round(parsedWinRate * 100);
+
         setProfileUser({
           userId: data.id,
           username: data.username,
           displayName: data.display_name || data.username,
           avatarColor: data.avatar_color || colors.primary,
-          points: data.points || 0
+          points: data.points || 0,
+          winRate: parsedWinRate
         });
       }
     } catch (e) {}
@@ -177,6 +230,22 @@ export default function PostScreen() {
   const hasLikedMain = safeLikes.some((l: any) => l.user_id === user?.id);
   const commentsCount = comments.length;
   const isLit = post.fire_count > 0;
+
+  // Match Header for Main Post
+  let mainMatchHeader = null;
+  if (post.wager) {
+      const homeTeam = post.wager.homeTeam || post.wager.home_team;
+      const awayTeam = post.wager.awayTeam || post.wager.away_team;
+      if (homeTeam && awayTeam) {
+          const homeScore = post.wager.homeScore ?? post.wager.home_score;
+          const awayScore = post.wager.awayScore ?? post.wager.away_score;
+          let scoreText = "";
+          if (homeScore !== undefined && awayScore !== undefined && homeScore !== null && awayScore !== null) {
+              scoreText = ` (${homeScore} - ${awayScore})`;
+          }
+          mainMatchHeader = <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, marginBottom: 6, color: colors.foreground }}>{getFlag(homeTeam)} {homeTeam} vs {getFlag(awayTeam)} {awayTeam}{scoreText}</Text>;
+      }
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -207,6 +276,20 @@ export default function PostScreen() {
                 <Text style={[styles.mainContent, { color: colors.foreground }]}>{post.content}</Text>
                 <Text style={[styles.timeAgo, { color: colors.mutedForeground }]}>{formatTimeAgo(post.created_at)}</Text>
                 
+                {post.wager && (
+                  <View style={[styles.miniReceipt, { borderColor: colors.border, backgroundColor: post.wager.status === "won" ? "rgba(52, 199, 89, 0.05)" : post.wager.status === "lost" ? "rgba(255, 59, 48, 0.05)" : colors.background }]}>
+                    <View style={styles.miniReceiptTop}>
+                      <Text style={[styles.miniReceiptLabel, { color: colors.mutedForeground }]}>Prediction</Text>
+                      <View style={[styles.miniReceiptBadge, { backgroundColor: post.wager.status === "won" ? colors.primary : post.wager.status === "lost" ? colors.secondary : colors.border }]}>
+                        <Text style={[styles.miniReceiptStatus, { color: post.wager.status === "won" ? colors.primaryForeground : colors.foreground }]}>{post.wager.status === "won" ? "WON" : post.wager.status === "lost" ? "LOST" : "PENDING"}</Text>
+                      </View>
+                    </View>
+                    {mainMatchHeader}
+                    <Text style={[styles.miniReceiptPred, { color: colors.foreground }]}>{post.wager.prediction || post.wager.choice === "Draw" ? "⚖️ Draw" : `${getFlag(post.wager.prediction || post.wager.choice)} ${post.wager.prediction || post.wager.choice}`}</Text>
+                    <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>{post.wager.status === "won" ? `+${post.wager.payout} pts` : post.wager.status === "lost" ? `-${post.wager.amount} pts` : `${post.wager.amount} pts at stake`}</Text>
+                  </View>
+                )}
+
                 <View style={[styles.statsRow, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
                   <Text style={[styles.statText, { color: colors.foreground }]}><Text style={styles.statBold}>{likesCount}</Text> Likes</Text>
                   <Text style={[styles.statText, { color: colors.foreground, marginLeft: 16 }]}><Text style={styles.statBold}>{commentsCount}</Text> Comments</Text>
@@ -217,7 +300,7 @@ export default function PostScreen() {
                     <FontAwesome5 name="heart" size={22} color={hasLikedMain ? "#FF3B30" : colors.foreground} solid={hasLikedMain} />
                   </Pressable>
                   <Feather name="message-circle" size={22} color={colors.foreground} />
-                  <Pressable onPress={openFireModal}>
+                  <Pressable onPress={openPostFireModal}>
                     <FontAwesome5 name="fire" size={22} color={isLit ? "#FF6B00" : colors.foreground} solid={isLit} />
                   </Pressable>
                 </View>
@@ -238,24 +321,43 @@ export default function PostScreen() {
             const safeCommentLikes = item.likes || [];
             const commentLikesCount = safeCommentLikes.length;
             const hasLikedComment = safeCommentLikes.some((l: any) => l.user_id === user?.id);
+            const commentLit = (item.fire_count || 0) > 0;
+            const isMyComment = finalCommentUserId === user?.id;
 
             return (
               <View style={[styles.commentRow, { borderBottomColor: colors.border }]}>
                 <Pressable onPress={() => handleProfileClick(finalCommentUserId)}>
                   <Avatar color={finalCommentColor} username={finalCommentUsername} size={36} />
                 </Pressable>
-                <View style={styles.commentContent}>
+                
+                {/* NEW: Double Tap wrapper around the entire comment body! */}
+                <Pressable style={styles.commentContent} onPress={() => handleCommentDoubleTap(item.id, hasLikedComment)}>
                   <View style={styles.commentHeader}>
                     <Text style={[styles.commentDisplayName, { color: colors.foreground }]}>{finalCommentName}</Text>
                     <Text style={[styles.commentUsername, { color: colors.mutedForeground }]}>@{finalCommentUsername} · {formatTimeAgo(item.created_at)}</Text>
                   </View>
                   <Text style={[styles.commentText, { color: colors.foreground }]}>{item.content}</Text>
                   
-                  <Pressable style={styles.commentActions} onPress={() => handleCommentLike(item.id, hasLikedComment)}>
-                    <FontAwesome5 name="heart" size={14} color={hasLikedComment ? "#FF3B30" : colors.mutedForeground} solid={hasLikedComment} />
-                    <Text style={[styles.commentActionText, { color: hasLikedComment ? "#FF3B30" : colors.mutedForeground }]}>{commentLikesCount}</Text>
-                  </Pressable>
-                </View>
+                  <View style={styles.commentActions}>
+                    <Pressable style={styles.commentActionGroup} onPress={(e) => { e.stopPropagation(); handleCommentLike(item.id, hasLikedComment); }}>
+                      <FontAwesome5 name="heart" size={14} color={hasLikedComment ? "#FF3B30" : colors.mutedForeground} solid={hasLikedComment} />
+                      <Text style={[styles.commentActionText, { color: hasLikedComment ? "#FF3B30" : colors.mutedForeground }]}>{commentLikesCount}</Text>
+                    </Pressable>
+                    
+                    {/* NEW: Comment Fire Button */}
+                    <Pressable style={styles.commentActionGroup} onPress={(e) => { e.stopPropagation(); openCommentFireModal(item.id, item.user_id); }}>
+                      <FontAwesome5 name="fire" size={14} color={commentLit ? "#FF6B00" : colors.mutedForeground} solid={commentLit} />
+                      {commentLit && <Text style={[styles.commentActionText, { color: "#FF6B00" }]}>{item.fire_count}</Text>}
+                    </Pressable>
+
+                    {/* NEW: Trash Can for your own comments */}
+                    {isMyComment && (
+                      <Pressable style={[styles.commentActionGroup, { marginLeft: 16 }]} onPress={(e) => { e.stopPropagation(); handleDeleteComment(item.id); }}>
+                        <Feather name="trash-2" size={14} color={colors.mutedForeground} />
+                      </Pressable>
+                    )}
+                  </View>
+                </Pressable>
               </View>
             );
           }}
@@ -270,7 +372,6 @@ export default function PostScreen() {
         </View>
       </KeyboardAvoidingView>
 
-      {/* RENDER THE PROFILE MODAL HERE */}
       <PublicProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
 
       <Modal visible={fireModalOpen} animationType="fade" transparent>
@@ -321,8 +422,9 @@ const styles = StyleSheet.create({
   commentHeader: { flexDirection: "column", alignItems: "flex-start", marginBottom: 6 },
   commentDisplayName: { fontFamily: "Inter_700Bold", fontSize: 14 },
   commentUsername: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 2 },
-  commentText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 20, marginBottom: 8 },
-  commentActions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  commentText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 20, marginBottom: 10 },
+  commentActions: { flexDirection: "row", alignItems: "center", gap: 16 },
+  commentActionGroup: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
   commentActionText: { fontFamily: "Inter_500Medium", fontSize: 12 },
   emptyText: { textAlign: "center", marginTop: 40, fontFamily: "Inter_400Regular", fontSize: 15 },
   inputContainer: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1 },
@@ -342,4 +444,11 @@ const styles = StyleSheet.create({
   fireCancelText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
   fireSubmitBtn: { flex: 1, paddingVertical: 14, backgroundColor: "#FF6B00", borderRadius: 999, alignItems: "center", justifyContent: "center" },
   fireSubmitText: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: "#FFF" },
+  miniReceipt: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
+  miniReceiptTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  miniReceiptLabel: { fontFamily: "Inter_500Medium", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
+  miniReceiptBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  miniReceiptStatus: { fontFamily: "Inter_700Bold", fontSize: 10, letterSpacing: 0.5 },
+  miniReceiptPred: { fontFamily: "Inter_600SemiBold", fontSize: 16, marginBottom: 4 },
+  miniReceiptPts: { fontFamily: "Inter_400Regular", fontSize: 13 },
 });
