@@ -33,6 +33,21 @@ function statusLabel(status: string): string {
   return "Pending";
 }
 
+const getFlag = (team: string) => {
+  const flags: Record<string, string> = {
+    "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
+    "Canada": "🇨🇦", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    "France": "🇫🇷", "Ghana": "🇬🇭", "Morocco": "🇲🇦", "Norway": "🇳🇴",
+    "Panama": "🇵🇦", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+    "Senegal": "🇸🇳", "Spain": "🇪🇸", "Switzerland": "🇨🇭", "USA": "🇺🇸",
+    "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
+    "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
+    "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
+    "Czech Republic": "🇨🇿", "Draw": "⚖️"
+  };
+  return flags[team] || ""; 
+};
+
 const getCrestUrl = (team: string): string | null => {
   const crests: Record<string, string> = {
     "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
@@ -60,7 +75,6 @@ const getCrestUrl = (team: string): string | null => {
   return crests[team] || null; 
 };
 
-// Kept purely text-based so it doesn't break the ReceiptModal!
 const getFinalResult = (wager: any): string => {
   if (!wager) return "Unknown";
   if (wager.status === "pending") return "Pending";
@@ -382,10 +396,12 @@ export default function ProfileScreen() {
                   const teamsStr = displayQuestion.replace("Who will win: ", "").replace("?", "");
                   const [teamA, teamB] = teamsStr.split(" or ");
                   const aUrl = getCrestUrl(teamA);
+                  const aFlag = getFlag(teamA);
                   const bUrl = getCrestUrl(teamB);
+                  const bFlag = getFlag(teamB);
                   displayQuestion = (
                     <Text>
-                      {aUrl ? <Image source={{ uri: aUrl }} style={{ width: 14, height: 14 }} /> : "⚽"} {teamA} vs {bUrl ? <Image source={{ uri: bUrl }} style={{ width: 14, height: 14 }} /> : "⚽"} {teamB}
+                      {aUrl ? <Image source={{ uri: aUrl as string }} style={{ width: 14, height: 14 }} /> : (aFlag || "⚽")} {teamA} vs {bUrl ? <Image source={{ uri: bUrl as string }} style={{ width: 14, height: 14 }} /> : (bFlag || "⚽")} {teamB}
                     </Text>
                   );
                 }

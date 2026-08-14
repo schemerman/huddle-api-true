@@ -13,6 +13,21 @@ import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicP
 
 const isWeb = Platform.OS === "web";
 
+const getFlag = (team: string) => {
+  const flags: Record<string, string> = {
+    "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
+    "Canada": "🇨🇦", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    "France": "🇫🇷", "Ghana": "🇬🇭", "Morocco": "🇲🇦", "Norway": "🇳🇴",
+    "Panama": "🇵🇦", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+    "Senegal": "🇸🇳", "Spain": "🇪🇸", "Switzerland": "🇨🇭", "USA": "🇺🇸",
+    "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
+    "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
+    "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
+    "Czech Republic": "🇨🇿", "Draw": "⚖️"
+  };
+  return flags[team] || ""; 
+};
+
 const getCrestUrl = (team: string): string | null => {
   const crests: Record<string, string> = {
     "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
@@ -74,7 +89,6 @@ export default function HomeScreen() {
   
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
 
-  // FIX: Explicitly typed as 'any' to stop TypeScript from crashing over NodeJS.Timeout
   const tapTimers = useRef<Record<string, any>>({});
   const lastTapRef = useRef<Record<string, number>>({});
 
@@ -179,6 +193,10 @@ export default function HomeScreen() {
 
   const openFireModal = (post: any) => {
     if (!user) return;
+    if (post.user_id === user.id) {
+      Alert.alert("Nice try!", "You cannot award fire to your own posts.");
+      return;
+    }
     if (!isDesktop && Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedPost(post); setFireAmount("50"); setFireModalOpen(true);
   };
@@ -247,11 +265,12 @@ export default function HomeScreen() {
       const lost = item.wager.status === "lost";
       const predictionStr = item.wager.prediction || item.wager.choice;
       const isDraw = predictionStr === "Draw";
-      const pUrl = getCrestUrl(predictionStr);
       
-      let matchHeader: React.ReactNode = null;
+      let matchHeader = null;
       const homeTeam = item.wager.homeTeam || item.wager.home_team;
       const awayTeam = item.wager.awayTeam || item.wager.away_team;
+      
+      // SAFE WRAPPERS: Flex-row views so Images don't crash inside Text components
       if (homeTeam && awayTeam) {
           const homeScore = item.wager.homeScore ?? item.wager.home_score;
           const awayScore = item.wager.awayScore ?? item.wager.away_score;
@@ -260,14 +279,22 @@ export default function HomeScreen() {
               scoreText = ` (${homeScore} - ${awayScore})`;
           }
           const hUrl = getCrestUrl(homeTeam);
+          const hFlag = getFlag(homeTeam);
           const aUrl = getCrestUrl(awayTeam);
-          // FIX: Explicitly cast 'as string' to make TypeScript happy!
+          const aFlag = getFlag(awayTeam);
+          
           matchHeader = (
-            <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, marginBottom: 6, color: colors.foreground }}>
-              {hUrl ? <Image source={{ uri: hUrl as string }} style={{ width: 14, height: 14 }} /> : "⚽"} {homeTeam} vs {aUrl ? <Image source={{ uri: aUrl as string }} style={{ width: 14, height: 14 }} /> : "⚽"} {awayTeam}{scoreText}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+              {hUrl ? <Image source={{ uri: hUrl }} style={{ width: 14, height: 14, marginRight: 4 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{hFlag || "⚽"} </Text>}
+              <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: colors.foreground }}>{homeTeam} vs </Text>
+              {aUrl ? <Image source={{ uri: aUrl }} style={{ width: 14, height: 14, marginRight: 4, marginLeft: 2 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{aFlag || "⚽"} </Text>}
+              <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: colors.foreground }}>{awayTeam}{scoreText}</Text>
+            </View>
           );
       }
+
+      const pUrl = getCrestUrl(predictionStr);
+      const pFlag = getFlag(predictionStr);
 
       miniReceipt = (
         <View style={[styles.miniReceipt, { borderColor: colors.border, backgroundColor: won ? "rgba(52, 199, 89, 0.05)" : lost ? "rgba(255, 59, 48, 0.05)" : colors.background }]}>
@@ -278,11 +305,19 @@ export default function HomeScreen() {
             </View>
           </View>
           {matchHeader}
-          <Text style={[styles.miniReceiptPred, { color: colors.foreground }]}>
-            {isDraw ? "⚖️ Draw" : (
-              <Text>{pUrl ? <Image source={{ uri: pUrl as string }} style={{ width: 16, height: 16 }} /> : "⚽"} {predictionStr}</Text>
+          
+          {/* SAFE WRAPPER: Flex-row view for the prediction result */}
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+            {isDraw ? (
+              <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>⚖️ Draw</Text>
+            ) : (
+              <>
+                {pUrl ? <Image source={{ uri: pUrl }} style={{ width: 16, height: 16, marginRight: 6 }} /> : <Text style={{ fontSize: 16, marginRight: 4, color: colors.foreground }}>{pFlag || "⚽"}</Text>}
+                <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>{predictionStr}</Text>
+              </>
             )}
-          </Text>
+          </View>
+
           <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>{won ? `+${item.wager.payout} pts` : lost ? `-${item.wager.amount} pts` : `${item.wager.amount} pts at stake`}</Text>
         </View>
       );
@@ -304,23 +339,23 @@ export default function HomeScreen() {
           {miniReceipt}
           
           <View style={styles.actionRow}>
-            <Pressable style={styles.actionButton} onPress={(e) => { e.stopPropagation(); handleLike(item.id, hasLiked); }}>
+            <Pressable style={styles.actionButton} onPress={() => handleLike(item.id, hasLiked)}>
               <FontAwesome5 name="heart" size={18} color={hasLiked ? "#FF3B30" : colors.mutedForeground} solid={hasLiked} />
               <Text style={[styles.actionText, { color: colors.mutedForeground }]}>{likesCount}</Text>
             </Pressable>
             
-            <Pressable style={styles.actionButton} onPress={(e) => { e.stopPropagation(); router.push(`/post/${item.id}`); }}>
+            <Pressable style={styles.actionButton} onPress={() => router.push(`/post/${item.id}`)}>
               <Feather name="message-circle" size={18} color={colors.mutedForeground} />
               <Text style={[styles.actionText, { color: colors.mutedForeground }]}>{item.commentsCount}</Text>
             </Pressable>
             
-            <Pressable style={styles.actionButton} onPress={(e) => { e.stopPropagation(); openFireModal(item); }}>
+            <Pressable style={styles.actionButton} onPress={() => openFireModal(item)}>
               <FontAwesome5 name="fire" size={18} color={isLit ? "#FF6B00" : colors.mutedForeground} solid={isLit} />
               {isLit && <Text style={[styles.actionText, { color: "#FF6B00" }]}>{item.fire_count}</Text>}
             </Pressable>
 
             {isMyPost && (
-              <Pressable style={[styles.actionButton, { marginLeft: 'auto' }]} onPress={(e) => { e.stopPropagation(); handleDeletePost(item.id); }}>
+              <Pressable style={[styles.actionButton, { marginLeft: 'auto' }]} onPress={() => handleDeletePost(item.id)}>
                 <Feather name="trash-2" size={16} color={colors.mutedForeground} />
               </Pressable>
             )}

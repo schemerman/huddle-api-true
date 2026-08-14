@@ -19,6 +19,21 @@ const formatTimeAgo = (dateString: string) => {
   return `${Math.floor(diffInSeconds / 86400)}d`;
 };
 
+const getFlag = (team: string) => {
+  const flags: Record<string, string> = {
+    "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
+    "Canada": "🇨🇦", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    "France": "🇫🇷", "Ghana": "🇬🇭", "Morocco": "🇲🇦", "Norway": "🇳🇴",
+    "Panama": "🇵🇦", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+    "Senegal": "🇸🇳", "Spain": "🇪🇸", "Switzerland": "🇨🇭", "USA": "🇺🇸",
+    "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
+    "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
+    "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
+    "Czech Republic": "🇨🇿", "Draw": "⚖️"
+  };
+  return flags[team] || ""; 
+};
+
 const getCrestUrl = (team: string): string | null => {
   const crests: Record<string, string> = {
     "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
@@ -198,6 +213,10 @@ export default function PostScreen() {
 
   const openPostFireModal = () => {
     if (!user || !post) return;
+    if (post.user_id === user.id) {
+      Alert.alert("Nice try!", "You cannot award fire to your own posts.");
+      return;
+    }
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setFireTarget({ id: post.id, type: 'post', authorId: post.user_id });
     setFireAmount("50"); setFireModalOpen(true);
@@ -205,6 +224,10 @@ export default function PostScreen() {
 
   const openCommentFireModal = (commentId: string, authorId: string) => {
     if (!user) return;
+    if (authorId === user.id) {
+      Alert.alert("Nice try!", "You cannot award fire to your own replies.");
+      return;
+    }
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setFireTarget({ id: commentId, type: 'comment', authorId });
     setFireAmount("50"); setFireModalOpen(true);
@@ -273,6 +296,7 @@ export default function PostScreen() {
   if (post.wager) {
       const homeTeam = post.wager.homeTeam || post.wager.home_team;
       const awayTeam = post.wager.awayTeam || post.wager.away_team;
+      
       if (homeTeam && awayTeam) {
           const homeScore = post.wager.homeScore ?? post.wager.home_score;
           const awayScore = post.wager.awayScore ?? post.wager.away_score;
@@ -281,19 +305,26 @@ export default function PostScreen() {
               scoreText = ` (${homeScore} - ${awayScore})`;
           }
           const hUrl = getCrestUrl(homeTeam);
+          const hFlag = getFlag(homeTeam);
           const aUrl = getCrestUrl(awayTeam);
+          const aFlag = getFlag(awayTeam);
+          
+          // SAFE WRAPPER: Replaces Text so Image is completely safely nested 
           mainMatchHeader = (
-            <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, marginBottom: 6, color: colors.foreground }}>
-              {hUrl ? <Image source={{ uri: hUrl as string }} style={{ width: 14, height: 14 }} /> : "⚽"} {homeTeam} vs {aUrl ? <Image source={{ uri: aUrl as string }} style={{ width: 14, height: 14 }} /> : "⚽"} {awayTeam}{scoreText}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+              {hUrl ? <Image source={{ uri: hUrl }} style={{ width: 14, height: 14, marginRight: 4 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{hFlag || "⚽"} </Text>}
+              <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: colors.foreground }}>{homeTeam} vs </Text>
+              {aUrl ? <Image source={{ uri: aUrl }} style={{ width: 14, height: 14, marginRight: 4, marginLeft: 2 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{aFlag || "⚽"} </Text>}
+              <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: colors.foreground }}>{awayTeam}{scoreText}</Text>
+            </View>
           );
       }
   }
 
-  // FIX: Properly handle rendering "Draw" without hijacking all string values!
   const predStr = post.wager?.prediction || post.wager?.choice || "";
   const isDraw = predStr === "Draw";
   const pUrl = getCrestUrl(predStr);
+  const pFlag = getFlag(predStr);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -333,13 +364,19 @@ export default function PostScreen() {
                       </View>
                     </View>
                     {mainMatchHeader}
-                    <Text style={[styles.miniReceiptPred, { color: colors.foreground }]}>
-                      {isDraw ? "⚖️ Draw" : (
-                        <Text>
-                          {pUrl ? <Image source={{ uri: pUrl as string }} style={{ width: 16, height: 16 }} /> : "⚽"} {predStr}
-                        </Text>
+                    
+                    {/* SAFE WRAPPER: Replaces Text so Image is completely safely nested */}
+                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                      {isDraw ? (
+                        <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>⚖️ Draw</Text>
+                      ) : (
+                        <>
+                          {pUrl ? <Image source={{ uri: pUrl }} style={{ width: 16, height: 16, marginRight: 6 }} /> : <Text style={{ fontSize: 16, marginRight: 4, color: colors.foreground }}>{pFlag || "⚽"}</Text>}
+                          <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>{predStr}</Text>
+                        </>
                       )}
-                    </Text>
+                    </View>
+
                     <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>{post.wager.status === "won" ? `+${post.wager.payout} pts` : post.wager.status === "lost" ? `-${post.wager.amount} pts` : `${post.wager.amount} pts at stake`}</Text>
                   </View>
                 )}
@@ -350,18 +387,18 @@ export default function PostScreen() {
                 </View>
 
                 <View style={styles.actionRow}>
-                  <Pressable style={styles.commentActionGroup} onPress={(e) => { e.stopPropagation(); handleLikeMainPost(); }}>
+                  <Pressable style={styles.commentActionGroup} onPress={() => handleLikeMainPost()}>
                     <FontAwesome5 name="heart" size={22} color={hasLikedMain ? "#FF3B30" : colors.foreground} solid={hasLikedMain} />
                   </Pressable>
                   <View style={styles.commentActionGroup}>
                     <Feather name="message-circle" size={22} color={colors.foreground} />
                   </View>
-                  <Pressable style={styles.commentActionGroup} onPress={(e) => { e.stopPropagation(); openPostFireModal(); }}>
+                  <Pressable style={styles.commentActionGroup} onPress={() => openPostFireModal()}>
                     <FontAwesome5 name="fire" size={22} color={isLit ? "#FF6B00" : colors.foreground} solid={isLit} />
                   </Pressable>
 
                   {isMyPost && (
-                    <Pressable style={[styles.commentActionGroup, { marginLeft: 'auto' }]} onPress={(e) => { e.stopPropagation(); handleDeleteMainPost(); }}>
+                    <Pressable style={[styles.commentActionGroup, { marginLeft: 'auto' }]} onPress={() => handleDeleteMainPost()}>
                       <Feather name="trash-2" size={20} color={colors.mutedForeground} />
                     </Pressable>
                   )}
@@ -400,18 +437,18 @@ export default function PostScreen() {
                   <Text style={[styles.commentText, { color: colors.foreground }]}>{item.content}</Text>
                   
                   <View style={styles.commentActions}>
-                    <Pressable style={styles.commentActionGroup} onPress={(e) => { e.stopPropagation(); handleCommentLike(item.id, hasLikedComment); }}>
+                    <Pressable style={styles.commentActionGroup} onPress={() => handleCommentLike(item.id, hasLikedComment)}>
                       <FontAwesome5 name="heart" size={14} color={hasLikedComment ? "#FF3B30" : colors.mutedForeground} solid={hasLikedComment} />
                       <Text style={[styles.commentActionText, { color: hasLikedComment ? "#FF3B30" : colors.mutedForeground }]}>{commentLikesCount}</Text>
                     </Pressable>
                     
-                    <Pressable style={styles.commentActionGroup} onPress={(e) => { e.stopPropagation(); openCommentFireModal(item.id, item.user_id); }}>
+                    <Pressable style={styles.commentActionGroup} onPress={() => openCommentFireModal(item.id, item.user_id)}>
                       <FontAwesome5 name="fire" size={14} color={commentLit ? "#FF6B00" : colors.mutedForeground} solid={commentLit} />
                       {commentLit && <Text style={[styles.commentActionText, { color: "#FF6B00" }]}>{item.fire_count}</Text>}
                     </Pressable>
 
                     {isMyComment && (
-                      <Pressable style={[styles.commentActionGroup, { marginLeft: 'auto' }]} onPress={(e) => { e.stopPropagation(); handleDeleteComment(item.id); }}>
+                      <Pressable style={[styles.commentActionGroup, { marginLeft: 'auto' }]} onPress={() => handleDeleteComment(item.id)}>
                         <Feather name="trash-2" size={14} color={colors.mutedForeground} />
                       </Pressable>
                     )}
@@ -508,6 +545,6 @@ const styles = StyleSheet.create({
   miniReceiptLabel: { fontFamily: "Inter_500Medium", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
   miniReceiptBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   miniReceiptStatus: { fontFamily: "Inter_700Bold", fontSize: 10, letterSpacing: 0.5 },
-  miniReceiptPred: { fontFamily: "Inter_600SemiBold", fontSize: 16, marginBottom: 4 },
+  miniReceiptPred: { fontFamily: "Inter_600SemiBold", fontSize: 16, marginBottom: 0 },
   miniReceiptPts: { fontFamily: "Inter_400Regular", fontSize: 13 },
 });
