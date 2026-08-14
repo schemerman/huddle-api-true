@@ -191,30 +191,50 @@ export default function PostScreen() {
     lastTapRef.current[commentId] = now;
   };
 
+  // FIX: Web & Mobile safe deletion for main post
   const handleDeleteMainPost = () => {
-    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: async () => {
-          await supabase.from("posts").delete().eq("id", id);
+    if (Platform.OS === "web") {
+      if (window.confirm("Are you sure you want to delete this post?")) {
+        supabase.from("posts").delete().eq("id", id).then(() => {
           router.back();
-      }}
-    ]);
+        });
+      }
+    } else {
+      Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: async () => {
+            await supabase.from("posts").delete().eq("id", id);
+            router.back();
+        }}
+      ]);
+    }
   };
 
+  // FIX: Web & Mobile safe deletion for comments
   const handleDeleteComment = (commentId: string) => {
-    Alert.alert("Delete Reply", "Are you sure you want to delete this reply?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: async () => {
-          await supabase.from("comments").delete().eq("id", commentId);
+    if (Platform.OS === "web") {
+      if (window.confirm("Are you sure you want to delete this reply?")) {
+        supabase.from("comments").delete().eq("id", commentId).then(() => {
           setComments(prev => prev.filter(c => c.id !== commentId));
-      }}
-    ]);
+        });
+      }
+    } else {
+      Alert.alert("Delete Reply", "Are you sure you want to delete this reply?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: async () => {
+            await supabase.from("comments").delete().eq("id", commentId);
+            setComments(prev => prev.filter(c => c.id !== commentId));
+        }}
+      ]);
+    }
   };
 
+  // FIX: Web safe self-award block
   const openPostFireModal = () => {
     if (!user || !post) return;
     if (post.user_id === user.id) {
-      Alert.alert("Nice try!", "You cannot award fire to your own posts.");
+      if (Platform.OS === "web") window.alert("Nice try! You cannot award fire to your own posts.");
+      else Alert.alert("Nice try!", "You cannot award fire to your own posts.");
       return;
     }
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -222,10 +242,12 @@ export default function PostScreen() {
     setFireAmount("50"); setFireModalOpen(true);
   };
 
+  // FIX: Web safe self-award block
   const openCommentFireModal = (commentId: string, authorId: string) => {
     if (!user) return;
     if (authorId === user.id) {
-      Alert.alert("Nice try!", "You cannot award fire to your own replies.");
+      if (Platform.OS === "web") window.alert("Nice try! You cannot award fire to your own replies.");
+      else Alert.alert("Nice try!", "You cannot award fire to your own replies.");
       return;
     }
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -244,6 +266,7 @@ export default function PostScreen() {
         setPost((current: any) => ({ ...current, fire_count: (current.fire_count || 0) + 1 }));
       } else if (fireTarget?.type === 'comment') {
         await supabase.rpc('award_comment_fire', { comment_id_param: fireTarget.id, giver_id_param: user?.id, author_id_param: fireTarget.authorId, tip_amount: amount });
+        // Correctly updates state so the icon lights up!
         setComments(current => current.map(c => c.id === fireTarget.id ? { ...c, fire_count: (c.fire_count || 0) + 1 } : c));
       }
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -309,12 +332,11 @@ export default function PostScreen() {
           const aUrl = getCrestUrl(awayTeam);
           const aFlag = getFlag(awayTeam);
           
-          // SAFE WRAPPER: Replaces Text so Image is completely safely nested 
           mainMatchHeader = (
             <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
-              {hUrl ? <Image source={{ uri: hUrl }} style={{ width: 14, height: 14, marginRight: 4 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{hFlag || "⚽"} </Text>}
+              {hUrl ? <Image source={{ uri: hUrl as string }} style={{ width: 14, height: 14, marginRight: 4 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{hFlag || "⚽"} </Text>}
               <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: colors.foreground }}>{homeTeam} vs </Text>
-              {aUrl ? <Image source={{ uri: aUrl }} style={{ width: 14, height: 14, marginRight: 4, marginLeft: 2 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{aFlag || "⚽"} </Text>}
+              {aUrl ? <Image source={{ uri: aUrl as string }} style={{ width: 14, height: 14, marginRight: 4, marginLeft: 2 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{aFlag || "⚽"} </Text>}
               <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: colors.foreground }}>{awayTeam}{scoreText}</Text>
             </View>
           );
@@ -343,43 +365,45 @@ export default function PostScreen() {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <View>
-              <Pressable style={styles.mainPost} onPress={() => handleMainPostPress()}>
-                <Pressable style={styles.authorRow} onPress={() => handleProfileClick(finalUserId)}>
-                  <Avatar color={finalColor} username={finalUsername} size={48} />
-                  <View style={styles.authorText}>
-                    <Text style={[styles.displayName, { color: colors.foreground }]}>{finalDisplayName}</Text>
-                    <Text style={[styles.username, { color: colors.mutedForeground }]}>@{finalUsername}</Text>
-                  </View>
-                </Pressable>
-                
-                <Text style={[styles.mainContent, { color: colors.foreground }]}>{post.content}</Text>
-                <Text style={[styles.timeAgo, { color: colors.mutedForeground }]}>{formatTimeAgo(post.created_at)}</Text>
-                
-                {post.wager && (
-                  <View style={[styles.miniReceipt, { borderColor: colors.border, backgroundColor: post.wager.status === "won" ? "rgba(52, 199, 89, 0.05)" : post.wager.status === "lost" ? "rgba(255, 59, 48, 0.05)" : colors.background }]}>
-                    <View style={styles.miniReceiptTop}>
-                      <Text style={[styles.miniReceiptLabel, { color: colors.mutedForeground }]}>Prediction</Text>
-                      <View style={[styles.miniReceiptBadge, { backgroundColor: post.wager.status === "won" ? colors.primary : post.wager.status === "lost" ? colors.secondary : colors.border }]}>
-                        <Text style={[styles.miniReceiptStatus, { color: post.wager.status === "won" ? colors.primaryForeground : colors.foreground }]}>{post.wager.status === "won" ? "WON" : post.wager.status === "lost" ? "LOST" : "PENDING"}</Text>
+              {/* FIX: Un-nested Pressables! */}
+              <View style={styles.mainPost}>
+                <Pressable onPress={() => handleMainPostPress()}>
+                  <Pressable style={styles.authorRow} onPress={() => handleProfileClick(finalUserId)}>
+                    <Avatar color={finalColor} username={finalUsername} size={48} />
+                    <View style={styles.authorText}>
+                      <Text style={[styles.displayName, { color: colors.foreground }]}>{finalDisplayName}</Text>
+                      <Text style={[styles.username, { color: colors.mutedForeground }]}>@{finalUsername}</Text>
+                    </View>
+                  </Pressable>
+                  
+                  <Text style={[styles.mainContent, { color: colors.foreground }]}>{post.content}</Text>
+                  <Text style={[styles.timeAgo, { color: colors.mutedForeground }]}>{formatTimeAgo(post.created_at)}</Text>
+                  
+                  {post.wager && (
+                    <View style={[styles.miniReceipt, { borderColor: colors.border, backgroundColor: post.wager.status === "won" ? "rgba(52, 199, 89, 0.05)" : post.wager.status === "lost" ? "rgba(255, 59, 48, 0.05)" : colors.background }]}>
+                      <View style={styles.miniReceiptTop}>
+                        <Text style={[styles.miniReceiptLabel, { color: colors.mutedForeground }]}>Prediction</Text>
+                        <View style={[styles.miniReceiptBadge, { backgroundColor: post.wager.status === "won" ? colors.primary : post.wager.status === "lost" ? colors.secondary : colors.border }]}>
+                          <Text style={[styles.miniReceiptStatus, { color: post.wager.status === "won" ? colors.primaryForeground : colors.foreground }]}>{post.wager.status === "won" ? "WON" : post.wager.status === "lost" ? "LOST" : "PENDING"}</Text>
+                        </View>
                       </View>
-                    </View>
-                    {mainMatchHeader}
-                    
-                    {/* SAFE WRAPPER: Replaces Text so Image is completely safely nested */}
-                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
-                      {isDraw ? (
-                        <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>⚖️ Draw</Text>
-                      ) : (
-                        <>
-                          {pUrl ? <Image source={{ uri: pUrl }} style={{ width: 16, height: 16, marginRight: 6 }} /> : <Text style={{ fontSize: 16, marginRight: 4, color: colors.foreground }}>{pFlag || "⚽"}</Text>}
-                          <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>{predStr}</Text>
-                        </>
-                      )}
-                    </View>
+                      {mainMatchHeader}
+                      
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                        {isDraw ? (
+                          <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>⚖️ Draw</Text>
+                        ) : (
+                          <>
+                            {pUrl ? <Image source={{ uri: pUrl as string }} style={{ width: 16, height: 16, marginRight: 6 }} /> : <Text style={{ fontSize: 16, marginRight: 4, color: colors.foreground }}>{pFlag || "⚽"}</Text>}
+                            <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>{predStr}</Text>
+                          </>
+                        )}
+                      </View>
 
-                    <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>{post.wager.status === "won" ? `+${post.wager.payout} pts` : post.wager.status === "lost" ? `-${post.wager.amount} pts` : `${post.wager.amount} pts at stake`}</Text>
-                  </View>
-                )}
+                      <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>{post.wager.status === "won" ? `+${post.wager.payout} pts` : post.wager.status === "lost" ? `-${post.wager.amount} pts` : `${post.wager.amount} pts at stake`}</Text>
+                    </View>
+                  )}
+                </Pressable>
 
                 <View style={[styles.statsRow, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
                   <Text style={[styles.statText, { color: colors.foreground }]}><Text style={styles.statBold}>{likesCount}</Text> Likes</Text>
@@ -403,7 +427,7 @@ export default function PostScreen() {
                     </Pressable>
                   )}
                 </View>
-              </Pressable>
+              </View>
 
               <View style={[styles.commentsHeader, { backgroundColor: colors.background }]}>
                 <Text style={[styles.commentsHeaderText, { color: colors.mutedForeground }]}>COMMENTS</Text>
@@ -429,12 +453,15 @@ export default function PostScreen() {
                   <Avatar color={finalCommentColor} username={finalCommentUsername} size={36} />
                 </Pressable>
                 
-                <Pressable style={styles.commentContent} onPress={() => handleCommentPress(item.id, hasLikedComment)}>
-                  <View style={styles.commentHeader}>
-                    <Text style={[styles.commentDisplayName, { color: colors.foreground }]}>{finalCommentName}</Text>
-                    <Text style={[styles.commentUsername, { color: colors.mutedForeground }]}>@{finalCommentUsername} · {formatTimeAgo(item.created_at)}</Text>
-                  </View>
-                  <Text style={[styles.commentText, { color: colors.foreground }]}>{item.content}</Text>
+                {/* FIX: Un-nested Pressables! */}
+                <View style={styles.commentContent}>
+                  <Pressable onPress={() => handleCommentPress(item.id, hasLikedComment)}>
+                    <View style={styles.commentHeader}>
+                      <Text style={[styles.commentDisplayName, { color: colors.foreground }]}>{finalCommentName}</Text>
+                      <Text style={[styles.commentUsername, { color: colors.mutedForeground }]}>@{finalCommentUsername} · {formatTimeAgo(item.created_at)}</Text>
+                    </View>
+                    <Text style={[styles.commentText, { color: colors.foreground }]}>{item.content}</Text>
+                  </Pressable>
                   
                   <View style={styles.commentActions}>
                     <Pressable style={styles.commentActionGroup} onPress={() => handleCommentLike(item.id, hasLikedComment)}>
@@ -453,7 +480,7 @@ export default function PostScreen() {
                       </Pressable>
                     )}
                   </View>
-                </Pressable>
+                </View>
               </View>
             );
           }}
