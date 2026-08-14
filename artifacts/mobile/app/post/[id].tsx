@@ -191,45 +191,48 @@ export default function PostScreen() {
     lastTapRef.current[commentId] = now;
   };
 
-  // FIX: Web & Mobile safe deletion for main post
+  // ADDED ERROR CATCHING TO MAIN DELETE FUNCTION
   const handleDeleteMainPost = () => {
     if (Platform.OS === "web") {
       if (window.confirm("Are you sure you want to delete this post?")) {
-        supabase.from("posts").delete().eq("id", id).then(() => {
-          router.back();
+        supabase.from("posts").delete().eq("id", id as string).then(({ error }) => {
+          if (error) window.alert("Error deleting: " + error.message);
+          else router.replace('/');
         });
       }
     } else {
       Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
         { text: "Cancel", style: "cancel" },
         { text: "Delete", style: "destructive", onPress: async () => {
-            await supabase.from("posts").delete().eq("id", id);
-            router.back();
+            const { error } = await supabase.from("posts").delete().eq("id", id as string);
+            if (error) Alert.alert("Error deleting", error.message);
+            else router.replace('/');
         }}
       ]);
     }
   };
 
-  // FIX: Web & Mobile safe deletion for comments
+  // ADDED ERROR CATCHING TO COMMENT DELETE FUNCTION
   const handleDeleteComment = (commentId: string) => {
     if (Platform.OS === "web") {
       if (window.confirm("Are you sure you want to delete this reply?")) {
-        supabase.from("comments").delete().eq("id", commentId).then(() => {
-          setComments(prev => prev.filter(c => c.id !== commentId));
+        supabase.from("comments").delete().eq("id", commentId).then(({ error }) => {
+          if (error) window.alert("Error deleting: " + error.message);
+          else setComments(prev => prev.filter(c => c.id !== commentId));
         });
       }
     } else {
       Alert.alert("Delete Reply", "Are you sure you want to delete this reply?", [
         { text: "Cancel", style: "cancel" },
         { text: "Delete", style: "destructive", onPress: async () => {
-            await supabase.from("comments").delete().eq("id", commentId);
-            setComments(prev => prev.filter(c => c.id !== commentId));
+            const { error } = await supabase.from("comments").delete().eq("id", commentId);
+            if (error) Alert.alert("Error deleting", error.message);
+            else setComments(prev => prev.filter(c => c.id !== commentId));
         }}
       ]);
     }
   };
 
-  // FIX: Web safe self-award block
   const openPostFireModal = () => {
     if (!user || !post) return;
     if (post.user_id === user.id) {
@@ -242,7 +245,6 @@ export default function PostScreen() {
     setFireAmount("50"); setFireModalOpen(true);
   };
 
-  // FIX: Web safe self-award block
   const openCommentFireModal = (commentId: string, authorId: string) => {
     if (!user) return;
     if (authorId === user.id) {
@@ -266,7 +268,6 @@ export default function PostScreen() {
         setPost((current: any) => ({ ...current, fire_count: (current.fire_count || 0) + 1 }));
       } else if (fireTarget?.type === 'comment') {
         await supabase.rpc('award_comment_fire', { comment_id_param: fireTarget.id, giver_id_param: user?.id, author_id_param: fireTarget.authorId, tip_amount: amount });
-        // Correctly updates state so the icon lights up!
         setComments(current => current.map(c => c.id === fireTarget.id ? { ...c, fire_count: (c.fire_count || 0) + 1 } : c));
       }
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -348,6 +349,7 @@ export default function PostScreen() {
   const pUrl = getCrestUrl(predStr);
   const pFlag = getFlag(predStr);
 
+  // FIX: Un-nested the main post container!
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
@@ -365,7 +367,6 @@ export default function PostScreen() {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <View>
-              {/* FIX: Un-nested Pressables! */}
               <View style={styles.mainPost}>
                 <Pressable onPress={() => handleMainPostPress()}>
                   <Pressable style={styles.authorRow} onPress={() => handleProfileClick(finalUserId)}>
@@ -453,7 +454,6 @@ export default function PostScreen() {
                   <Avatar color={finalCommentColor} username={finalCommentUsername} size={36} />
                 </Pressable>
                 
-                {/* FIX: Un-nested Pressables! */}
                 <View style={styles.commentContent}>
                   <Pressable onPress={() => handleCommentPress(item.id, hasLikedComment)}>
                     <View style={styles.commentHeader}>

@@ -181,20 +181,32 @@ export default function HomeScreen() {
     lastTapRef.current[postId] = now;
   };
 
+  // ADDED ERROR CATCHING TO DELETE FUNCTION
   const handleDeletePost = (postId: string) => {
-    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: async () => {
-          await supabase.from("posts").delete().eq("id", postId);
-          setPosts(prev => prev.filter(p => p.id !== postId));
-      }}
-    ]);
+    if (Platform.OS === "web") {
+      if (window.confirm("Are you sure you want to delete this post?")) {
+        supabase.from("posts").delete().eq("id", postId).then(({ error }) => {
+          if (error) window.alert("Error deleting: " + error.message);
+          else setPosts(prev => prev.filter(p => p.id !== postId));
+        });
+      }
+    } else {
+      Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: async () => {
+            const { error } = await supabase.from("posts").delete().eq("id", postId);
+            if (error) Alert.alert("Error", error.message);
+            else setPosts(prev => prev.filter(p => p.id !== postId));
+        }}
+      ]);
+    }
   };
 
   const openFireModal = (post: any) => {
     if (!user) return;
     if (post.user_id === user.id) {
-      Alert.alert("Nice try!", "You cannot award fire to your own posts.");
+      if (Platform.OS === "web") window.alert("Nice try! You cannot award fire to your own posts.");
+      else Alert.alert("Nice try!", "You cannot award fire to your own posts.");
       return;
     }
     if (!isDesktop && Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -269,8 +281,6 @@ export default function HomeScreen() {
       let matchHeader = null;
       const homeTeam = item.wager.homeTeam || item.wager.home_team;
       const awayTeam = item.wager.awayTeam || item.wager.away_team;
-      
-      // SAFE WRAPPERS: Flex-row views so Images don't crash inside Text components
       if (homeTeam && awayTeam) {
           const homeScore = item.wager.homeScore ?? item.wager.home_score;
           const awayScore = item.wager.awayScore ?? item.wager.away_score;
@@ -306,7 +316,6 @@ export default function HomeScreen() {
           </View>
           {matchHeader}
           
-          {/* SAFE WRAPPER: Flex-row view for the prediction result */}
           <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
             {isDraw ? (
               <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>⚖️ Draw</Text>
@@ -323,20 +332,23 @@ export default function HomeScreen() {
       );
     }
 
+    // THE FIX: The post content is a View, and the Navigation Pressable wraps ONLY the text! The ActionRow is completely independent now.
     return (
       <View style={[styles.postContainer, { borderBottomColor: colors.border }, isLit && styles.postLit]}>
         <Pressable onPress={() => handleProfileClick(finalUserId)}>
           <Avatar color={finalColor} username={finalUsername} size={48} />
         </Pressable>
 
-        <Pressable style={styles.postContent} onPress={() => handlePostPress(item.id, hasLiked)}>
-          <View style={styles.postHeader}>
-            <Text style={[styles.displayName, { color: colors.foreground }]}>{finalDisplayName}</Text>
-            <Text style={[styles.username, { color: colors.mutedForeground }]}>@{finalUsername} · {formatTimeAgo(item.created_at)}</Text>
-          </View>
-          
-          <Text style={[styles.postText, { color: colors.foreground }]}>{item.content}</Text>
-          {miniReceipt}
+        <View style={styles.postContent}>
+          <Pressable onPress={() => handlePostPress(item.id, hasLiked)}>
+            <View style={styles.postHeader}>
+              <Text style={[styles.displayName, { color: colors.foreground }]}>{finalDisplayName}</Text>
+              <Text style={[styles.username, { color: colors.mutedForeground }]}>@{finalUsername} · {formatTimeAgo(item.created_at)}</Text>
+            </View>
+            
+            <Text style={[styles.postText, { color: colors.foreground }]}>{item.content}</Text>
+            {miniReceipt}
+          </Pressable>
           
           <View style={styles.actionRow}>
             <Pressable style={styles.actionButton} onPress={() => handleLike(item.id, hasLiked)}>
@@ -360,7 +372,7 @@ export default function HomeScreen() {
               </Pressable>
             )}
           </View>
-        </Pressable>
+        </View>
       </View>
     );
   }, [user, colors]);
@@ -510,6 +522,6 @@ const styles = StyleSheet.create({
   miniReceiptLabel: { fontFamily: "Inter_500Medium", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
   miniReceiptBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   miniReceiptStatus: { fontFamily: "Inter_700Bold", fontSize: 10, letterSpacing: 0.5 },
-  miniReceiptPred: { fontFamily: "Inter_600SemiBold", fontSize: 16, marginBottom: 4 },
+  miniReceiptPred: { fontFamily: "Inter_600SemiBold", fontSize: 16, marginBottom: 0 },
   miniReceiptPts: { fontFamily: "Inter_400Regular", fontSize: 13 },
 });
