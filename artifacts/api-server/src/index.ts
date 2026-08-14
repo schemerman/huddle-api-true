@@ -4,25 +4,18 @@ import { startFixturesScheduler } from "./lib/scheduler";
 import { refreshFixtures } from "./lib/apiFootball";
 import { settleFinishedMatches } from "./lib/settlement";
 
-const rawPort = process.env["PORT"];
+// Safely grab the Render port, or fallback to 8080 so it NEVER crashes
+const port = Number(process.env.PORT) || 8080;
 
-if (!rawPort) {
-  throw new Error("PORT environment variable is required but was not provided.");
-}
-
-const port = Number(rawPort);
-
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
-}
-
-app.listen(port, "0.0.0.0", (err) => {
+// Modern object binding: { port, host }. 
+// This is strictly required by modern frameworks to securely open to the public internet.
+app.listen({ port: port, host: "0.0.0.0" }, (err: any) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
     process.exit(1);
   }
 
-  logger.info({ port }, "Server listening");
+  logger.info({ port }, "Server successfully bound to 0.0.0.0 and listening!");
   
   // 1. Start the background repeating schedulers
   startFixturesScheduler();
