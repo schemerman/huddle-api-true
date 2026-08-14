@@ -94,7 +94,8 @@ export default function HomeScreen() {
 
   const fetchPosts = async () => {
     try {
-      const { data: postsData, error: postsError } = await supabase.from("posts").select(`*`).order("created_at", { ascending: false });
+      // SOFT DELETE FIX: Exclude any posts that have been soft-deleted
+      const { data: postsData, error: postsError } = await supabase.from("posts").select(`*`).neq("is_deleted", true).order("created_at", { ascending: false });
       if (postsError) return;
       if (!postsData || postsData.length === 0) { setPosts([]); return; }
 
@@ -181,11 +182,11 @@ export default function HomeScreen() {
     lastTapRef.current[postId] = now;
   };
 
-  // ADDED ERROR CATCHING TO DELETE FUNCTION
+  // SOFT DELETE FIX: Using .update({ is_deleted: true }) instead of .delete()
   const handleDeletePost = (postId: string) => {
     if (Platform.OS === "web") {
       if (window.confirm("Are you sure you want to delete this post?")) {
-        supabase.from("posts").delete().eq("id", postId).then(({ error }) => {
+        supabase.from("posts").update({ is_deleted: true }).eq("id", postId).then(({ error }) => {
           if (error) window.alert("Error deleting: " + error.message);
           else setPosts(prev => prev.filter(p => p.id !== postId));
         });
@@ -194,7 +195,7 @@ export default function HomeScreen() {
       Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
         { text: "Cancel", style: "cancel" },
         { text: "Delete", style: "destructive", onPress: async () => {
-            const { error } = await supabase.from("posts").delete().eq("id", postId);
+            const { error } = await supabase.from("posts").update({ is_deleted: true }).eq("id", postId);
             if (error) Alert.alert("Error", error.message);
             else setPosts(prev => prev.filter(p => p.id !== postId));
         }}
@@ -295,9 +296,9 @@ export default function HomeScreen() {
           
           matchHeader = (
             <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
-              {hUrl ? <Image source={{ uri: hUrl }} style={{ width: 14, height: 14, marginRight: 4 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{hFlag || "⚽"} </Text>}
+              {hUrl ? <Image source={{ uri: hUrl as string }} style={{ width: 14, height: 14, marginRight: 4 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{hFlag || "⚽"} </Text>}
               <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: colors.foreground }}>{homeTeam} vs </Text>
-              {aUrl ? <Image source={{ uri: aUrl }} style={{ width: 14, height: 14, marginRight: 4, marginLeft: 2 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{aFlag || "⚽"} </Text>}
+              {aUrl ? <Image source={{ uri: aUrl as string }} style={{ width: 14, height: 14, marginRight: 4, marginLeft: 2 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{aFlag || "⚽"} </Text>}
               <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: colors.foreground }}>{awayTeam}{scoreText}</Text>
             </View>
           );
@@ -321,7 +322,7 @@ export default function HomeScreen() {
               <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>⚖️ Draw</Text>
             ) : (
               <>
-                {pUrl ? <Image source={{ uri: pUrl }} style={{ width: 16, height: 16, marginRight: 6 }} /> : <Text style={{ fontSize: 16, marginRight: 4, color: colors.foreground }}>{pFlag || "⚽"}</Text>}
+                {pUrl ? <Image source={{ uri: pUrl as string }} style={{ width: 16, height: 16, marginRight: 6 }} /> : <Text style={{ fontSize: 16, marginRight: 4, color: colors.foreground }}>{pFlag || "⚽"}</Text>}
                 <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>{predictionStr}</Text>
               </>
             )}
@@ -332,7 +333,6 @@ export default function HomeScreen() {
       );
     }
 
-    // THE FIX: The post content is a View, and the Navigation Pressable wraps ONLY the text! The ActionRow is completely independent now.
     return (
       <View style={[styles.postContainer, { borderBottomColor: colors.border }, isLit && styles.postLit]}>
         <Pressable onPress={() => handleProfileClick(finalUserId)}>
