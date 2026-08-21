@@ -69,7 +69,8 @@ const getCrestUrl = (team: string): string | null => {
     "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
     "Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
     "AFC Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
-    "Brentford": "https://a.espncdn.com/i/teamlogos/soccer/500/139026.png",
+    "Brentford": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/hx8g3Hj4Z2a5v7Z1h1x8g3_500x500.png",
+    "Brentford FC": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/hx8g3Hj4Z2a5v7Z1h1x8g3_500x500.png",
     "Brighton": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
     "Brighton and Hove Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
     "Brighton & Hove Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
@@ -96,20 +97,23 @@ const getCrestUrl = (team: string): string | null => {
     "Wolverhampton Wanderers": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
     "Leicester": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
     "Leicester City": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
-    
-    // GOOGLE HD CRESTS FOR PROBLEMATIC TEAMS
     "Ipswich": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/56vquJBk5U16Dng7txLXCw_500x500.png",
     "Ipswich Town": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/56vquJBk5U16Dng7txLXCw_500x500.png",
     "Coventry": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/KHpmY4tIwqiutl8Cfl0MAw_500x500.png",
     "Coventry City": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/KHpmY4tIwqiutl8Cfl0MAw_500x500.png",
-    "Coventry City Football Club": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/KHpmY4tIwqiutl8Cfl0MAw_500x500.png",
     "Hull": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/riiyZbb1JHuFQgZ3831jUQ_500x500.png",
     "Hull City": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/riiyZbb1JHuFQgZ3831jUQ_500x500.png",
-    "Hull City A.F.C.": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/riiyZbb1JHuFQgZ3831jUQ_500x500.png",
-    "Sunderland": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/CQFeTfHrtxqgr3VKWtTwfA_500x500.png",
-    "Sunderland A.F.C.": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/CQFeTfHrtxqgr3VKWtTwfA_500x500.png",
+    "Sheffield Utd": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
+    "Sheffield United": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
+    "Burnley": "https://a.espncdn.com/i/teamlogos/soccer/500/379.png",
+    "Luton": "https://a.espncdn.com/i/teamlogos/soccer/500/394.png",
+    "Luton Town": "https://a.espncdn.com/i/teamlogos/soccer/500/394.png",
+    "Norwich": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
+    "Norwich City": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
+    "Watford": "https://a.espncdn.com/i/teamlogos/soccer/500/392.png",
     "Leeds": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/5dqfOKpjjW6EwTAx_FysKQ_500x500.png",
-    "Leeds United": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/5dqfOKpjjW6EwTAx_FysKQ_500x500.png"
+    "Leeds United": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/5dqfOKpjjW6EwTAx_FysKQ_500x500.png",
+    "Sunderland": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/CQFeTfHrtxqgr3VKWtTwfA_500x500.png"
   };
   return crests[team] || null; 
 };

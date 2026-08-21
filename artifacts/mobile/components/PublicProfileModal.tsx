@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Platform, FlatList, ActivityIndicator, KeyboardAvoidingView, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/Avatar';
+import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 
 export interface PublicProfileUser {
@@ -19,7 +22,7 @@ interface PublicProfileModalProps {
   onClose: () => void;
 }
 
-export const getRank = (winRate: number, totalPicks: number = 0) => {
+const getRank = (winRate: number, totalPicks: number = 0) => {
   if (totalPicks < 5) return "Rookie";
   if (winRate >= 95 && totalPicks >= 30) return "Oracle";
   if (winRate >= 85 && totalPicks >= 25) return "GOAT";
@@ -36,14 +39,14 @@ const getFlag = (team: string) => {
   return flags[team] || ""; 
 };
 
-// FULLY EXPANDED DICTIONARY TO CATCH ALL API VARIATIONS
 const getCrestUrl = (team: string): string | null => {
   const crests: Record<string, string> = {
     "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
     "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
     "Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
     "AFC Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
-    "Brentford": "https://a.espncdn.com/i/teamlogos/soccer/500/139026.png",
+    "Brentford": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/hx8g3Hj4Z2a5v7Z1h1x8g3_500x500.png",
+    "Brentford FC": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/hx8g3Hj4Z2a5v7Z1h1x8g3_500x500.png",
     "Brighton": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
     "Brighton and Hove Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
     "Brighton & Hove Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
@@ -70,12 +73,12 @@ const getCrestUrl = (team: string): string | null => {
     "Wolverhampton Wanderers": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
     "Leicester": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
     "Leicester City": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
-    "Ipswich": "https://a.espncdn.com/i/teamlogos/soccer/500/374.png",
-    "Ipswich Town": "https://a.espncdn.com/i/teamlogos/soccer/500/374.png",
-    "Coventry": "https://a.espncdn.com/i/teamlogos/soccer/500/386.png",
-    "Coventry City": "https://a.espncdn.com/i/teamlogos/soccer/500/386.png",
-    "Hull": "https://a.espncdn.com/i/teamlogos/soccer/500/366.png",
-    "Hull City": "https://a.espncdn.com/i/teamlogos/soccer/500/366.png",
+    "Ipswich": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/56vquJBk5U16Dng7txLXCw_500x500.png",
+    "Ipswich Town": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/56vquJBk5U16Dng7txLXCw_500x500.png",
+    "Coventry": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/KHpmY4tIwqiutl8Cfl0MAw_500x500.png",
+    "Coventry City": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/KHpmY4tIwqiutl8Cfl0MAw_500x500.png",
+    "Hull": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/riiyZbb1JHuFQgZ3831jUQ_500x500.png",
+    "Hull City": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/riiyZbb1JHuFQgZ3831jUQ_500x500.png",
     "Sheffield Utd": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
     "Sheffield United": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
     "Burnley": "https://a.espncdn.com/i/teamlogos/soccer/500/379.png",
@@ -84,31 +87,73 @@ const getCrestUrl = (team: string): string | null => {
     "Norwich": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
     "Norwich City": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
     "Watford": "https://a.espncdn.com/i/teamlogos/soccer/500/392.png",
-    "Leeds": "https://a.espncdn.com/i/teamlogos/soccer/500/357.png",
-    "Leeds United": "https://a.espncdn.com/i/teamlogos/soccer/500/357.png",
-    "Sunderland": "https://a.espncdn.com/i/teamlogos/soccer/500/390.png",
-    "West Brom": "https://a.espncdn.com/i/teamlogos/soccer/500/391.png",
-    "West Bromwich Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/391.png"
+    "Leeds": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/5dqfOKpjjW6EwTAx_FysKQ_500x500.png",
+    "Leeds United": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/5dqfOKpjjW6EwTAx_FysKQ_500x500.png",
+    "Sunderland": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/CQFeTfHrtxqgr3VKWtTwfA_500x500.png"
   };
   return crests[team] || null; 
 };
 
-export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
+export function PublicProfileModal({ user: profileUser, onClose }: PublicProfileModalProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { user: activeUser } = useAuth();
   
   const [picks, setPicks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [dynamicWinRate, setDynamicWinRate] = useState(0);
+  
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
 
   useEffect(() => {
-    if (user?.userId) {
-      fetchUserPicks(user.userId);
+    if (profileUser?.userId) {
+      fetchUserPicks(profileUser.userId);
+      fetchSocialStats(profileUser.userId);
     } else {
       setPicks([]);
       setDynamicWinRate(0);
+      setIsFollowing(false);
     }
-  }, [user]);
+  }, [profileUser]);
+
+  const fetchSocialStats = async (targetId: string) => {
+    if (!activeUser) return;
+    try {
+      const { count: followers } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', targetId);
+      const { count: following } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', targetId);
+      
+      const { data: followStatus } = await supabase.from('follows').select('id').eq('follower_id', activeUser.id).eq('following_id', targetId).maybeSingle();
+
+      setFollowersCount(followers || 0);
+      setFollowingCount(following || 0);
+      setIsFollowing(!!followStatus);
+    } catch (e) {}
+  };
+
+  const handleToggleFollow = async () => {
+    if (!activeUser || !profileUser) return;
+    const previousState = isFollowing;
+    
+    setIsFollowing(!isFollowing);
+    setFollowersCount(prev => isFollowing ? prev - 1 : prev + 1);
+
+    try {
+      if (previousState) {
+        await supabase.from('follows').delete().match({ follower_id: activeUser.id, following_id: profileUser.userId });
+      } else {
+        await supabase.from('follows').insert({ follower_id: activeUser.id, following_id: profileUser.userId });
+      }
+    } catch (e) {
+      setIsFollowing(previousState);
+    }
+  };
+
+  const handleMessage = () => {
+    onClose();
+    router.push(`/dm/${profileUser?.userId}` as any);
+  };
 
   const fetchUserPicks = async (userId: string) => {
     setLoading(true);
@@ -145,7 +190,7 @@ export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
     }
   };
 
-  if (!user) return null;
+  if (!profileUser) return null;
 
   const renderPick = ({ item }: { item: any }) => {
     const f = item.fixture || {};
@@ -195,7 +240,7 @@ export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
   };
 
   return (
-    <Modal visible={!!user} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={!!profileUser} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
         <View style={[styles.modalContent, { backgroundColor: colors.background, paddingBottom: insets.bottom || 24 }]}>
           
@@ -207,25 +252,41 @@ export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
               <View>
                 <View style={styles.headerSpacer} />
                 <View style={styles.profileHeader}>
-                  <Avatar color={user.avatarColor} username={user.username} size={80} />
-                  <Text style={[styles.displayName, { color: colors.foreground }]}>{user.displayName}</Text>
-                  <Text style={[styles.username, { color: colors.mutedForeground }]}>@{user.username}</Text>
+                  <Avatar color={profileUser.avatarColor} username={profileUser.username} size={80} />
+                  <Text style={[styles.displayName, { color: colors.foreground }]}>{profileUser.displayName}</Text>
                   
-                  <View style={[styles.badge, { backgroundColor: colors.secondary }]}>
-                    {/* ALGORITHM FED TOTAL PICKS COUNT HERE */}
-                    <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(user.winRate || dynamicWinRate, picks.length)}</Text>
+                  <View style={styles.socialRow}>
+                    <Text style={[styles.socialText, { color: colors.foreground }]}>{followersCount} <Text style={{ color: colors.mutedForeground }}>Followers</Text></Text>
+                    <Text style={[styles.socialText, { color: colors.foreground }]}>{followingCount} <Text style={{ color: colors.mutedForeground }}>Following</Text></Text>
                   </View>
 
+                  <View style={[styles.badge, { backgroundColor: colors.secondary }]}>
+                    <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(profileUser.winRate || dynamicWinRate, picks.length)}</Text>
+                  </View>
+
+                  {/* ACTION BUTTONS */}
+                  {activeUser?.id !== profileUser.userId && (
+                    <View style={styles.actionRow}>
+                      <Pressable onPress={handleToggleFollow} style={[styles.actionBtn, { backgroundColor: isFollowing ? colors.secondary : colors.foreground }]}>
+                        <Text style={[styles.actionBtnText, { color: isFollowing ? colors.foreground : colors.background }]}>
+                          {isFollowing ? "Following" : "Follow"}
+                        </Text>
+                      </Pressable>
+                      <Pressable onPress={handleMessage} style={[styles.actionBtn, { backgroundColor: colors.secondary, flex: 0, paddingHorizontal: 16 }]}>
+                        <Feather name="message-circle" size={18} color={colors.foreground} />
+                      </Pressable>
+                    </View>
+                  )}
                 </View>
 
                 <View style={[styles.statsContainer, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
                   <View style={styles.statBox}>
-                    <Text style={[styles.statValue, { color: colors.foreground }]}>{user.points.toLocaleString()}</Text>
+                    <Text style={[styles.statValue, { color: colors.foreground }]}>{profileUser.points.toLocaleString()}</Text>
                     <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>POINTS</Text>
                   </View>
                   <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
                   <View style={styles.statBox}>
-                    <Text style={[styles.statValue, { color: colors.foreground }]}>{user.winRate || dynamicWinRate}%</Text>
+                    <Text style={[styles.statValue, { color: colors.foreground }]}>{profileUser.winRate || dynamicWinRate}%</Text>
                     <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>WIN RATE</Text>
                   </View>
                 </View>
@@ -266,10 +327,14 @@ const styles = StyleSheet.create({
   modalContent: { height: '90%', borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
   headerSpacer: { height: 24 },
   profileHeader: { alignItems: 'center', marginBottom: 24 },
-  displayName: { fontFamily: 'Inter_700Bold', fontSize: 22, marginTop: 12, marginBottom: 2 },
-  username: { fontFamily: 'Inter_400Regular', fontSize: 15, marginBottom: 8 },
+  displayName: { fontFamily: 'Inter_700Bold', fontSize: 22, marginTop: 12, marginBottom: 4 },
+  socialRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
+  socialText: { fontFamily: 'Inter_500Medium', fontSize: 13 },
   badge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12 },
   badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 16, width: '100%', paddingHorizontal: 32 },
+  actionBtn: { flex: 1, paddingVertical: 12, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  actionBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
   statsContainer: { flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: 20 },
   statBox: { flex: 1, alignItems: 'center' },
   statDivider: { width: 1, height: '100%' },
