@@ -24,9 +24,9 @@ function NativeTabLayout() {
         <Icon sf={{ default: "person.3", selected: "person.3.fill" }} />
         <Label>Huddles</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="leaderboard">
-        <Icon sf={{ default: "trophy", selected: "trophy.fill" }} />
-        <Label>Rankings</Label>
+      <NativeTabs.Trigger name="messages">
+        <Icon sf={{ default: "message", selected: "message.fill" }} />
+        <Label>Messages</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: "person", selected: "person.fill" }} />
@@ -114,14 +114,14 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="leaderboard"
+        name="messages"
         options={{
-          title: "Rankings",
+          title: "Messages",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="trophy" tintColor={color} size={22} />
+              <SymbolView name="message" tintColor={color} size={22} />
             ) : (
-              <Feather name="award" size={22} color={color} />
+              <Feather name="message-circle" size={22} color={color} />
             ),
         }}
       />
@@ -139,6 +139,10 @@ function ClassicTabLayout() {
       />
       <Tabs.Screen
         name="leagues"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="leaderboard"
         options={{ href: null }}
       />
     </Tabs>

@@ -19,6 +19,8 @@ import { useColors } from "@/hooks/useColors";
 import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
 import { HuddleButton } from "@/components/HuddleButton";
+import { Avatar } from "@/components/Avatar";
+import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import type { League } from "@/context/DataContext";
 
 function HuddleCard({ 
@@ -33,21 +35,27 @@ function HuddleCard({
   const colors = useColors();
   
   const handleLeave = () => {
-    Alert.alert(
-      "Leave This Huddle?",
-      `Are you sure you want to leave ${league.name}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Leave", 
-          style: "destructive", 
-          onPress: () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-            onLeave();
-          } 
-        }
-      ]
-    );
+    if (Platform.OS === "web") {
+      if (window.confirm(`Are you sure you want to leave ${league.name}?`)) {
+        onLeave();
+      }
+    } else {
+      Alert.alert(
+        "Leave This Huddle?",
+        `Are you sure you want to leave ${league.name}?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { 
+            text: "Leave", 
+            style: "destructive", 
+            onPress: () => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              onLeave();
+            } 
+          }
+        ]
+      );
+    }
   };
 
   return (
@@ -68,7 +76,6 @@ function HuddleCard({
         </Text>
       </View>
       
-      {/* The New Leave Button */}
       <Pressable onPress={handleLeave} style={{ padding: 8 }}>
         <Feather name="log-out" size={18} color="#E8533A" />
       </Pressable>
@@ -81,11 +88,15 @@ function HuddleCard({
 export default function HuddlesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { leagues, createLeague, joinLeague, leaveLeague } = useData();
+  const { leagues, leaderboard, createLeague, joinLeague, leaveLeague } = useData();
   const { user } = useAuth();
+  
   const [modal, setModal] = useState<"create" | "join" | null>(null);
   const [huddleName, setHuddleName] = useState("");
   const [joinCode, setJoinCode] = useState("");
+  
+  const [mainTab, setMainTab] = useState<"global" | "huddles">("huddles");
+  const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -101,10 +112,10 @@ export default function HuddlesScreen() {
     const codeToJoin = joinCode.trim().toUpperCase();
     if (!codeToJoin) return;
 
-    // Check if we are already in this Huddle
     const alreadyJoined = leagues.some((l) => l.code === codeToJoin);
     if (alreadyJoined) {
-      Alert.alert("Already Joined", "You are already a member of this Huddle!");
+      if (Platform.OS === "web") window.alert("You are already a member of this Huddle!");
+      else Alert.alert("Already Joined", "You are already a member of this Huddle!");
       setJoinCode("");
       setModal(null);
       return;
@@ -112,64 +123,114 @@ export default function HuddlesScreen() {
 
     const success = await joinLeague(codeToJoin);
     if (!success) {
-      Alert.alert("Not found", "No huddle found with that code. Double-check and try again.");
+      if (Platform.OS === "web") window.alert("No huddle found with that code.");
+      else Alert.alert("Not found", "No huddle found with that code.");
       return;
     }
     
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setJoinCode("");
     setModal(null);
   };
 
+  const getRankSuffix = (i: number) => {
+    const j = i % 10, k = i % 100;
+    if (j == 1 && k != 11) return i + "st";
+    if (j == 2 && k != 12) return i + "nd";
+    if (j == 3 && k != 13) return i + "rd";
+    return i + "th";
+  };
+
+  const sortedLeaderboard = [...leaderboard].sort((a, b) => b.points - a.points);
+  const myHuddles = leagues.filter((league) => user && league.memberIds.includes(user.id));
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.topBar, { paddingTop: topPad, borderBottomColor: colors.border }]}>
+      <View style={[styles.topBar, { paddingTop: topPad }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Huddles</Text>
         <View style={styles.topActions}>
-          <Pressable
-            onPress={() => setModal("join")}
-            style={[styles.iconBtn, { borderColor: colors.border }]}
-          >
+          <Pressable onPress={() => setModal("join")} style={[styles.iconBtn, { borderColor: colors.border }]}>
             <Feather name="log-in" size={18} color={colors.foreground} />
           </Pressable>
-          <Pressable
-            onPress={() => setModal("create")}
-            style={[styles.solidBtn, { backgroundColor: colors.primary }]}
-          >
+          <Pressable onPress={() => setModal("create")} style={[styles.solidBtn, { backgroundColor: colors.primary }]}>
             <Feather name="plus" size={18} color={colors.primaryForeground} />
           </Pressable>
         </View>
       </View>
 
-      <FlatList<League>
-        data={leagues.filter((league) => user && league.memberIds.includes(user.id))}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <HuddleCard
-            league={item}
-            onPress={() => router.push(`/league/${item.id}`)}
-            onLeave={() => leaveLeague(item.id)}
-          />
-        )}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Feather name="users" size={40} color={colors.border} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No huddles yet</Text>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              Start a private huddle or join one with a code.
-            </Text>
-          </View>
-        }
-        contentContainerStyle={{
-          paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80),
-        }}
-      />
+      <View style={[styles.tabRow, { borderBottomColor: colors.border }]}>
+        <Pressable onPress={() => setMainTab("huddles")} style={[styles.tabBtn, mainTab === "huddles" && { borderBottomColor: colors.foreground }]}>
+          <Text style={[styles.tabLabel, { color: mainTab === "huddles" ? colors.foreground : colors.mutedForeground }]}>My Huddles</Text>
+        </Pressable>
+        <Pressable onPress={() => setMainTab("global")} style={[styles.tabBtn, mainTab === "global" && { borderBottomColor: colors.foreground }]}>
+          <Text style={[styles.tabLabel, { color: mainTab === "global" ? colors.foreground : colors.mutedForeground }]}>Global Rankings</Text>
+        </Pressable>
+      </View>
+
+      {mainTab === "huddles" ? (
+        <FlatList<League>
+          data={myHuddles}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <HuddleCard
+              league={item}
+              onPress={() => router.push(`/league/${item.id}`)}
+              onLeave={() => leaveLeague(item.id)}
+            />
+          )}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Feather name="users" size={40} color={colors.border} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No huddles yet</Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                Start a private huddle or join one with a code.
+              </Text>
+            </View>
+          }
+          contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}
+        />
+      ) : (
+        <FlatList
+          data={sortedLeaderboard}
+          keyExtractor={(item) => item.userId}
+          contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}
+          renderItem={({ item, index }) => (
+            <Pressable
+              onPress={() => {
+                if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setProfileUser(item);
+              }}
+              style={({ pressed }) => [styles.memberRow, { borderBottomColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
+            >
+              <View style={styles.rankCol}>
+                <Text style={[styles.rankText, { color: colors.foreground }]}>{getRankSuffix(index + 1)}</Text>
+              </View>
+              <Avatar color={item.avatarColor} username={item.username} size={40} />
+              <View style={styles.memberInfo}>
+                <Text style={[styles.memberName, { color: colors.foreground }]} numberOfLines={1}>
+                  {item.displayName}
+                  {item.userId === user?.id ? " (you)" : ""}
+                </Text>
+                <Text style={[styles.memberHandle, { color: colors.mutedForeground }]} numberOfLines={1}>
+                  @{item.username}
+                </Text>
+              </View>
+              <View style={styles.memberRight}>
+                <View style={styles.pointsContainer}>
+                  <Text style={[styles.memberPoints, { color: colors.foreground }]}>{item.points.toLocaleString()}</Text>
+                  <Text style={[styles.memberPointsLabel, { color: colors.mutedForeground }]}>pts</Text>
+                </View>
+                <Text style={[styles.memberWinRate, { color: colors.mutedForeground }]}>{item.winRate}% win</Text>
+              </View>
+            </Pressable>
+          )}
+        />
+      )}
+
+      <PublicProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
 
       <Modal visible={modal === "create"} transparent animationType="slide">
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <Pressable style={styles.modalDismiss} onPress={() => { setModal(null); setHuddleName(""); }} />
           <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>New Huddle</Text>
@@ -195,10 +256,7 @@ export default function HuddlesScreen() {
       </Modal>
 
       <Modal visible={modal === "join"} transparent animationType="slide">
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <Pressable style={styles.modalDismiss} onPress={() => { setModal(null); setJoinCode(""); }} />
           <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Join a Huddle</Text>
@@ -235,7 +293,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 12,
-    borderBottomWidth: 1,
   },
   title: {
     fontFamily: "Inter_700Bold",
@@ -262,6 +319,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  tabRow: { flexDirection: "row", borderBottomWidth: 1, paddingHorizontal: 4 },
+  tabBtn: { flex: 1, paddingVertical: 14, borderBottomWidth: 2, borderBottomColor: "transparent", alignItems: "center" },
+  tabLabel: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
   card: {
     flexDirection: "row",
     alignItems: "center",
@@ -287,6 +347,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
+  memberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  rankCol: { width: 32, alignItems: "center" },
+  rankText: { fontFamily: "Inter_700Bold", fontSize: 13 },
+  memberInfo: { flex: 1 },
+  memberName: { fontFamily: "Inter_600SemiBold", fontSize: 15, letterSpacing: -0.2 },
+  memberHandle: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 1 },
+  memberRight: { alignItems: "flex-end", marginRight: 4, gap: 2 },
+  pointsContainer: { flexDirection: "row", alignItems: "baseline", gap: 3 },
+  memberPoints: { fontFamily: "Inter_700Bold", fontSize: 15, letterSpacing: -0.3 },
+  memberPointsLabel: { fontFamily: "Inter_400Regular", fontSize: 11 },
+  memberWinRate: { fontFamily: "Inter_500Medium", fontSize: 11 },
   empty: {
     alignItems: "center",
     justifyContent: "center",
