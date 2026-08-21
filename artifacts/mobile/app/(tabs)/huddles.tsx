@@ -23,16 +23,29 @@ import { Avatar } from "@/components/Avatar";
 import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import type { League } from "@/context/DataContext";
 
-export const getRank = (winRate: number) => {
-  if (winRate < 20) return "Benchwarmer";
-  if (winRate < 35) return "Beginner's Luck";
-  if (winRate < 50) return "Coin Flipper";
-  if (winRate < 60) return "Starter";
-  if (winRate < 70) return "All Star";
-  if (winRate < 85) return "Champion";
-  if (winRate < 95) return "GOAT";
-  return "Oracle";
+// UPDATED ALGORITHM FOR THE LEADERBOARD
+export const getRank = (winRate: number, totalPicks: number = 0) => {
+  if (totalPicks < 5) return "Rookie";
+  if (winRate >= 95 && totalPicks >= 30) return "Oracle";
+  if (winRate >= 85 && totalPicks >= 25) return "GOAT";
+  if (winRate >= 70 && totalPicks >= 15) return "Champion";
+  if (winRate >= 60 && totalPicks >= 10) return "All Star";
+  if (winRate >= 50) return "Starter";
+  if (winRate >= 35) return "Coin Flipper";
+  if (winRate >= 20) return "Beginner's Luck";
+  return "Benchwarmer";
 };
+
+interface Member {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarColor: string;
+  points: number;
+  winRate: number;
+  totalPicks: number;
+  isYou: boolean;
+}
 
 function HuddleCard({ 
   league, 
@@ -155,6 +168,37 @@ export default function HuddlesScreen() {
   const sortedLeaderboard = [...leaderboard].sort((a, b) => b.points - a.points);
   const myHuddles = leagues.filter((league) => user && league.memberIds.includes(user.id));
 
+  // MAP OVER LEADERBOARD DATA AND INJECT TOTAL PICKS
+  const getMappedMembers = (uids: string[]): Member[] => {
+    return uids.map((uid) => {
+      const globalData = leaderboard.find((l: any) => l.userId === uid);
+      const picksCounter = globalData?.totalPicks ?? globalData?.picksCount ?? 0;
+      
+      if (uid === user?.id || uid === "me") {
+        return {
+          id: uid,
+          username: globalData?.username || "ceo",
+          displayName: globalData?.displayName || "ceo",
+          avatarColor: globalData?.avatarColor || user?.avatarColor || "#000000",
+          points: globalData?.points ?? user?.points ?? 0,
+          winRate: globalData?.winRate ?? user?.winRate ?? 0,
+          totalPicks: picksCounter,
+          isYou: true,
+        };
+      }
+      return {
+        id: uid,
+        username: globalData?.username || "Player",
+        displayName: globalData?.displayName || "Player",
+        avatarColor: globalData?.avatarColor || "#8A8A8A",
+        points: globalData?.points ?? 0,
+        winRate: globalData?.winRate ?? 0,
+        totalPicks: picksCounter,
+        isYou: false,
+      };
+    });
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.topBar, { paddingTop: topPad }]}>
@@ -223,13 +267,13 @@ export default function HuddlesScreen() {
                   {item.userId === user?.id ? " (you)" : ""}
                 </Text>
                 
-                {/* RANK PILL BADGE ADDED HERE */}
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
                   <Text style={[styles.memberHandle, { color: colors.mutedForeground, marginTop: 0 }]} numberOfLines={1}>
                     @{item.username}
                   </Text>
                   <View style={[styles.rankBadge, { backgroundColor: colors.secondary }]}>
-                    <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(item.winRate)}</Text>
+                    {/* ALGORITHM FED TOTAL PICKS FROM GLOBAL CONTEXT */}
+                    <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(item.winRate, (item as any).totalPicks || (item as any).picksCount || 0)}</Text>
                   </View>
                 </View>
 
@@ -379,11 +423,8 @@ const styles = StyleSheet.create({
   memberInfo: { flex: 1 },
   memberName: { fontFamily: "Inter_600SemiBold", fontSize: 15, letterSpacing: -0.2 },
   memberHandle: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 1 },
-  
-  // NEW STYLES FOR THE RANK PILL
   rankBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeText: { fontFamily: "Inter_600SemiBold", fontSize: 10 },
-
   memberRight: { alignItems: "flex-end", marginRight: 4, gap: 2 },
   pointsContainer: { flexDirection: "row", alignItems: "baseline", gap: 3 },
   memberPoints: { fontFamily: "Inter_700Bold", fontSize: 15, letterSpacing: -0.3 },

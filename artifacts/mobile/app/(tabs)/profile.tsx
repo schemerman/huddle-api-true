@@ -32,15 +32,17 @@ function statusLabel(status: string): string {
   return "Pending";
 }
 
-export const getRank = (winRate: number) => {
-  if (winRate < 20) return "Benchwarmer";
-  if (winRate < 35) return "Beginner's Luck";
-  if (winRate < 50) return "Coin Flipper";
-  if (winRate < 60) return "Starter";
-  if (winRate < 70) return "All Star";
-  if (winRate < 85) return "Champion";
-  if (winRate < 95) return "GOAT";
-  return "Oracle";
+// NEW ALGORITHM: Requires both Win Rate AND Sample Size
+export const getRank = (winRate: number, totalPicks: number = 0) => {
+  if (totalPicks < 5) return "Rookie";
+  if (winRate >= 95 && totalPicks >= 30) return "Oracle";
+  if (winRate >= 85 && totalPicks >= 25) return "GOAT";
+  if (winRate >= 70 && totalPicks >= 15) return "Champion";
+  if (winRate >= 60 && totalPicks >= 10) return "All Star";
+  if (winRate >= 50) return "Starter";
+  if (winRate >= 35) return "Coin Flipper";
+  if (winRate >= 20) return "Beginner's Luck";
+  return "Benchwarmer";
 };
 
 const getFlag = (team: string) => {
@@ -58,7 +60,6 @@ const getFlag = (team: string) => {
   return flags[team] || ""; 
 };
 
-// EXPANDED DICTIONARY
 const getCrestUrl = (team: string): string | null => {
   const crests: Record<string, string> = {
     "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
@@ -318,9 +319,9 @@ export default function ProfileScreen() {
             <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{safeUsername}</Text>
             <View style={styles.perfRow}>
               
-              {/* THE NEW RANK PILL */}
               <View style={[styles.rankBadge, { backgroundColor: colors.secondary }]}>
-                <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(safeWinRate)}</Text>
+                {/* ALGORITHM USES BOTH WIN RATE AND TOTAL WAGERS */}
+                <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(safeWinRate, safeWagersCount)}</Text>
               </View>
 
               {safeStreak >= 3 && <Text style={[styles.streakText, { color: colors.mutedForeground }]}>{safeStreak}-streak heater</Text>}
@@ -534,11 +535,8 @@ const styles = StyleSheet.create({
   perfRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   streakText: { fontFamily: "Inter_500Medium", fontSize: 13, marginTop: 4 },
   dob: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 4 },
-  
-  // NEW PILL BADGE STYLES
   rankBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, marginTop: 6 },
   badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
-
   bankruptBanner: { marginHorizontal: 16, marginBottom: 16, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderRadius: 12 },
   bankruptTag: { fontFamily: "Inter_700Bold", fontSize: 15, letterSpacing: 2 },
   bankruptSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 3 },

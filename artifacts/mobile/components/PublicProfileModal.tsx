@@ -19,15 +19,16 @@ interface PublicProfileModalProps {
   onClose: () => void;
 }
 
-export const getRank = (winRate: number) => {
-  if (winRate < 20) return "Benchwarmer";
-  if (winRate < 35) return "Beginner's Luck";
-  if (winRate < 50) return "Coin Flipper";
-  if (winRate < 60) return "Starter";
-  if (winRate < 70) return "All Star";
-  if (winRate < 85) return "Champion";
-  if (winRate < 95) return "GOAT";
-  return "Oracle";
+export const getRank = (winRate: number, totalPicks: number = 0) => {
+  if (totalPicks < 5) return "Rookie";
+  if (winRate >= 95 && totalPicks >= 30) return "Oracle";
+  if (winRate >= 85 && totalPicks >= 25) return "GOAT";
+  if (winRate >= 70 && totalPicks >= 15) return "Champion";
+  if (winRate >= 60 && totalPicks >= 10) return "All Star";
+  if (winRate >= 50) return "Starter";
+  if (winRate >= 35) return "Coin Flipper";
+  if (winRate >= 20) return "Beginner's Luck";
+  return "Benchwarmer";
 };
 
 const getFlag = (team: string) => {
@@ -206,9 +207,9 @@ export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
                   <Text style={[styles.displayName, { color: colors.foreground }]}>{user.displayName}</Text>
                   <Text style={[styles.username, { color: colors.mutedForeground }]}>@{user.username}</Text>
                   
-                  {/* THE NEW RANK PILL ADDED HERE */}
                   <View style={[styles.badge, { backgroundColor: colors.secondary }]}>
-                    <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(user.winRate || dynamicWinRate)}</Text>
+                    {/* ALGORITHM FED TOTAL PICKS COUNT HERE */}
+                    <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(user.winRate || dynamicWinRate, picks.length)}</Text>
                   </View>
 
                 </View>
@@ -263,11 +264,8 @@ const styles = StyleSheet.create({
   profileHeader: { alignItems: 'center', marginBottom: 24 },
   displayName: { fontFamily: 'Inter_700Bold', fontSize: 22, marginTop: 12, marginBottom: 2 },
   username: { fontFamily: 'Inter_400Regular', fontSize: 15, marginBottom: 8 },
-  
-  // RANK PILL STYLES
   badge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12 },
   badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
-  
   statsContainer: { flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: 20 },
   statBox: { flex: 1, alignItems: 'center' },
   statDivider: { width: 1, height: '100%' },
