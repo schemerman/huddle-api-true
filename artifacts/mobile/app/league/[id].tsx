@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
@@ -21,14 +22,12 @@ import { Avatar } from "@/components/Avatar";
 import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import { supabase } from "@/lib/supabase";
 
-// BULLETPROOF RANK FUNCTION
-export const getRank = (winRate: number, totalPicks?: number) => {
-  const picks = Number(totalPicks) || 0;
-  if (picks < 5) return "Rookie";
-  if (winRate >= 95 && picks >= 30) return "Oracle";
-  if (winRate >= 85 && picks >= 25) return "GOAT";
-  if (winRate >= 70 && picks >= 15) return "Champion";
-  if (winRate >= 60 && picks >= 10) return "All Star";
+export const getRank = (winRate: number, totalPicks: number = 5) => {
+  if (totalPicks < 5) return "Rookie";
+  if (winRate >= 95 && totalPicks >= 30) return "Oracle";
+  if (winRate >= 85 && totalPicks >= 25) return "GOAT";
+  if (winRate >= 70 && totalPicks >= 15) return "Champion";
+  if (winRate >= 60 && totalPicks >= 10) return "All Star";
   if (winRate >= 50) return "Starter";
   if (winRate >= 35) return "Coin Flipper";
   if (winRate >= 20) return "Beginner's Luck";
@@ -54,12 +53,14 @@ export default function LeagueMembersScreen() {
   const { user } = useAuth();
   
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
-  
   const [tab, setTab] = useState<"chat" | "leaderboard">("chat");
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+
+  // NEW: State to hold the shared wager attachment
+  const [attachedWagerId, setAttachedWagerId] = useState<string | null>(null);
 
   const league = leagues.find((l) => l.id === id);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -89,19 +90,37 @@ export default function LeagueMembersScreen() {
     }
   };
 
-  useFocusEffect(useCallback(() => { fetchMessages(); }, [id]));
+  // THIS CATCHES THE WAGER WHEN YOU ENTER THE HUDDLE
+  const checkPendingShares = async () => {
+    const pendingShare = await AsyncStorage.getItem("pending_share_wager_huddle");
+    if (pendingShare) {
+      setAttachedWagerId(pendingShare);
+      await AsyncStorage.removeItem("pending_share_wager_huddle");
+      setTab("chat");
+    }
+  };
+
+  useFocusEffect(useCallback(() => { 
+    fetchMessages(); 
+    checkPendingShares(); 
+  }, [id]));
 
   const handleSend = async () => {
-    if (!newMessage.trim() || !user || !id) return;
+    if ((!newMessage.trim() && !attachedWagerId) || !user || !id) return;
     setIsSubmitting(true);
+    
+    // We send the prediction ID into the new image_url column temporarily to render it as a receipt in chat
     try {
       const { error } = await supabase.from("messages").insert({
         huddle_id: id,
         sender_id: user.id,
-        content: newMessage.trim()
+        content: newMessage.trim() || "Check out my prediction! 👀",
+        image_url: attachedWagerId 
       });
+      
       if (error) throw error;
       setNewMessage("");
+      setAttachedWagerId(null);
       fetchMessages();
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 300);
     } catch (error: any) {
@@ -131,10 +150,9 @@ export default function LeagueMembersScreen() {
     );
   }
 
-  // CORRECTLY EXTRACTS TOTAL PICKS SO THE ALGORITHM CAN READ IT
   const members: Member[] = league.memberIds.map((uid) => {
     const globalData = leaderboard.find((l) => l.userId === uid);
-    const picksCounter = (globalData as any)?.total_picks ?? (globalData as any)?.picksCount ?? 0;
+    const picksCounter = (globalData as any)?.total_picks ?? (globalData as any)?.picksCount ?? 5;
     
     if (uid === user?.id || uid === "me") {
       return {
@@ -178,6 +196,14 @@ export default function LeagueMembersScreen() {
         )}
         <View style={[styles.messageBubble, isMe ? [styles.bubbleMe, { backgroundColor: colors.foreground }] : [styles.bubbleThem, { backgroundColor: "rgba(0,0,0,0.05)" }]]}>
           {!isMe && <Text style={[styles.messageName, { color: colors.foreground }]}>{displayName}</Text>}
+          
+          {item.image_url && (
+            <View style={[styles.miniReceipt, { backgroundColor: isMe ? "rgba(255,255,255,0.15)" : colors.background }]}>
+              <Feather name="file-text" size={14} color={isMe ? colors.background : colors.foreground} style={{ marginBottom: 4 }} />
+              <Text style={[styles.miniReceiptLabel, { color: isMe ? colors.background : colors.foreground }]}>Prediction Attached</Text>
+            </View>
+          )}
+          
           <Text style={[styles.messageText, { color: isMe ? colors.background : colors.foreground }]}>{item.content}</Text>
         </View>
       </View>
@@ -235,7 +261,6 @@ export default function LeagueMembersScreen() {
                       @{item.username}
                     </Text>
                     <View style={[styles.rankBadge, { backgroundColor: colors.secondary }]}>
-                      {/* ALGORITHM CORRECTLY PASSES TOTAL PICKS */}
                       <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(item.winRate, item.totalPicks)}</Text>
                     </View>
                   </View>
@@ -266,22 +291,36 @@ export default function LeagueMembersScreen() {
               ListEmptyComponent={<Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Say what's up to the Huddle! 👋</Text>}
             />
             
-            <View style={[styles.inputContainer, { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? insets.bottom || 16 : 16 }]}>
-              <TextInput 
-                style={[styles.textInput, { backgroundColor: "rgba(0,0,0,0.05)", color: colors.foreground }]} 
-                placeholder="Message group..." 
-                placeholderTextColor={colors.mutedForeground} 
-                value={newMessage} 
-                onChangeText={setNewMessage} 
-                multiline 
-              />
-              <Pressable 
-                onPress={handleSend} 
-                disabled={!newMessage.trim() || isSubmitting} 
-                style={({pressed}) => [{ opacity: !newMessage.trim() || pressed ? 0.5 : 1 }, styles.sendBtn]}
-              >
-                <Text style={[styles.sendText, { color: colors.foreground }]}>Send</Text>
-              </Pressable>
+            <View style={[styles.inputContainer, { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? insets.bottom || 16 : 16, flexDirection: 'column' }]}>
+              
+              {/* THE BLUE ATTACHMENT BADGE */}
+              {attachedWagerId && (
+                <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
+                  <Feather name="paperclip" size={14} color="#3B7BE5" />
+                  <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
+                  <Pressable onPress={() => setAttachedWagerId(null)}>
+                    <Feather name="x" size={16} color="#3B7BE5" />
+                  </Pressable>
+                </View>
+              )}
+
+              <View style={{ flexDirection: "row", alignItems: "flex-end", width: "100%" }}>
+                <TextInput 
+                  style={[styles.textInput, { backgroundColor: "rgba(0,0,0,0.05)", color: colors.foreground }]} 
+                  placeholder="Message group..." 
+                  placeholderTextColor={colors.mutedForeground} 
+                  value={newMessage} 
+                  onChangeText={setNewMessage} 
+                  multiline 
+                />
+                <Pressable 
+                  onPress={handleSend} 
+                  disabled={(!newMessage.trim() && !attachedWagerId) || isSubmitting} 
+                  style={({pressed}) => [{ opacity: (!newMessage.trim() && !attachedWagerId) || pressed ? 0.5 : 1 }, styles.sendBtn]}
+                >
+                  <Text style={[styles.sendText, { color: colors.foreground }]}>Send</Text>
+                </Pressable>
+              </View>
             </View>
           </>
         )}
@@ -323,8 +362,12 @@ const styles = StyleSheet.create({
   bubbleThem: { borderTopLeftRadius: 18, borderTopRightRadius: 18, borderBottomRightRadius: 18, borderBottomLeftRadius: 4, marginLeft: 8 },
   messageName: { fontFamily: "Inter_600SemiBold", fontSize: 12, marginBottom: 4 },
   messageText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 20 },
-  inputContainer: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1 },
+  inputContainer: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1 },
   textInput: { flex: 1, minHeight: 40, maxHeight: 100, borderRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontFamily: "Inter_400Regular", fontSize: 15 },
   sendBtn: { marginLeft: 16, paddingBottom: 10 },
   sendText: { fontFamily: "Inter_700Bold", fontSize: 15 },
+  attachmentBadge: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, marginBottom: 12, gap: 8 },
+  attachmentText: { flex: 1, fontFamily: "Inter_500Medium", fontSize: 14, color: "#3B7BE5" },
+  miniReceipt: { padding: 8, borderRadius: 8, marginBottom: 6 },
+  miniReceiptLabel: { fontFamily: "Inter_600SemiBold", fontSize: 11 },
 });

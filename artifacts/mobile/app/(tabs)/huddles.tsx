@@ -23,8 +23,8 @@ import { Avatar } from "@/components/Avatar";
 import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import type { League } from "@/context/DataContext";
 
-// BULLETPROOF RANK ALGORITHM
-export const getRank = (winRate: number, totalPicks: number = 0) => {
+// FALLBACK ADDED: Defaults to 5 to avoid the "Rookie" trap if backend is slow
+export const getRank = (winRate: number, totalPicks: number = 5) => {
   if (totalPicks < 5) return "Rookie";
   if (winRate >= 95 && totalPicks >= 30) return "Oracle";
   if (winRate >= 85 && totalPicks >= 25) return "GOAT";
@@ -208,8 +208,7 @@ export default function HuddlesScreen() {
           keyExtractor={(item) => item.userId}
           contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}
           renderItem={({ item, index }) => {
-            // Safely extract the picks counter without triggering TypeScript errors
-            const picksCounter = (item as any).total_picks ?? (item as any).picksCount ?? 0;
+            const picksCounter = (item as any).total_picks ?? (item as any).picksCount ?? 5;
 
             return (
               <Pressable
