@@ -23,6 +23,17 @@ import { Avatar } from "@/components/Avatar";
 import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import type { League } from "@/context/DataContext";
 
+export const getRank = (winRate: number) => {
+  if (winRate < 20) return "Benchwarmer";
+  if (winRate < 35) return "Beginner's Luck";
+  if (winRate < 50) return "Coin Flipper";
+  if (winRate < 60) return "Starter";
+  if (winRate < 70) return "All Star";
+  if (winRate < 85) return "Champion";
+  if (winRate < 95) return "GOAT";
+  return "Oracle";
+};
+
 function HuddleCard({ 
   league, 
   onPress, 
@@ -211,9 +222,17 @@ export default function HuddlesScreen() {
                   {item.displayName}
                   {item.userId === user?.id ? " (you)" : ""}
                 </Text>
-                <Text style={[styles.memberHandle, { color: colors.mutedForeground }]} numberOfLines={1}>
-                  @{item.username}
-                </Text>
+                
+                {/* RANK PILL BADGE ADDED HERE */}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+                  <Text style={[styles.memberHandle, { color: colors.mutedForeground, marginTop: 0 }]} numberOfLines={1}>
+                    @{item.username}
+                  </Text>
+                  <View style={[styles.rankBadge, { backgroundColor: colors.secondary }]}>
+                    <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(item.winRate)}</Text>
+                  </View>
+                </View>
+
               </View>
               <View style={styles.memberRight}>
                 <View style={styles.pointsContainer}>
@@ -360,6 +379,11 @@ const styles = StyleSheet.create({
   memberInfo: { flex: 1 },
   memberName: { fontFamily: "Inter_600SemiBold", fontSize: 15, letterSpacing: -0.2 },
   memberHandle: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 1 },
+  
+  // NEW STYLES FOR THE RANK PILL
+  rankBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  badgeText: { fontFamily: "Inter_600SemiBold", fontSize: 10 },
+
   memberRight: { alignItems: "flex-end", marginRight: 4, gap: 2 },
   pointsContainer: { flexDirection: "row", alignItems: "baseline", gap: 3 },
   memberPoints: { fontFamily: "Inter_700Bold", fontSize: 15, letterSpacing: -0.3 },

@@ -19,7 +19,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import palette from "@/constants/colors";
-import { PerformanceTitleBadge } from "@/components/PerformanceTitleBadge";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { ReceiptModal } from "@/components/ReceiptModal";
@@ -32,6 +31,17 @@ function statusLabel(status: string): string {
   if (status === "lost") return "Lost";
   return "Pending";
 }
+
+export const getRank = (winRate: number) => {
+  if (winRate < 20) return "Benchwarmer";
+  if (winRate < 35) return "Beginner's Luck";
+  if (winRate < 50) return "Coin Flipper";
+  if (winRate < 60) return "Starter";
+  if (winRate < 70) return "All Star";
+  if (winRate < 85) return "Champion";
+  if (winRate < 95) return "GOAT";
+  return "Oracle";
+};
 
 const getFlag = (team: string) => {
   const flags: Record<string, string> = {
@@ -48,6 +58,7 @@ const getFlag = (team: string) => {
   return flags[team] || ""; 
 };
 
+// EXPANDED DICTIONARY
 const getCrestUrl = (team: string): string | null => {
   const crests: Record<string, string> = {
     "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
@@ -61,16 +72,42 @@ const getCrestUrl = (team: string): string | null => {
     "Fulham": "https://a.espncdn.com/i/teamlogos/soccer/500/370.png",
     "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
     "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
+    "Manchester City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
     "Man United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
+    "Manchester United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
     "Newcastle": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
+    "Newcastle United": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
     "Nottm Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
+    "Nottingham Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
     "Southampton": "https://a.espncdn.com/i/teamlogos/soccer/500/376.png",
     "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
     "Tottenham": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "Tottenham Hotspur": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
     "West Ham": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
+    "West Ham United": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
     "Wolves": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
+    "Wolverhampton Wanderers": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
     "Leicester": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
+    "Leicester City": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
     "Ipswich": "https://a.espncdn.com/i/teamlogos/soccer/500/374.png",
+    "Ipswich Town": "https://a.espncdn.com/i/teamlogos/soccer/500/374.png",
+    "Coventry": "https://a.espncdn.com/i/teamlogos/soccer/500/386.png",
+    "Coventry City": "https://a.espncdn.com/i/teamlogos/soccer/500/386.png",
+    "Hull": "https://a.espncdn.com/i/teamlogos/soccer/500/366.png",
+    "Hull City": "https://a.espncdn.com/i/teamlogos/soccer/500/366.png",
+    "Sheffield Utd": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
+    "Sheffield United": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
+    "Burnley": "https://a.espncdn.com/i/teamlogos/soccer/500/379.png",
+    "Luton": "https://a.espncdn.com/i/teamlogos/soccer/500/394.png",
+    "Luton Town": "https://a.espncdn.com/i/teamlogos/soccer/500/394.png",
+    "Norwich": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
+    "Norwich City": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
+    "Watford": "https://a.espncdn.com/i/teamlogos/soccer/500/392.png",
+    "Leeds": "https://a.espncdn.com/i/teamlogos/soccer/500/357.png",
+    "Leeds United": "https://a.espncdn.com/i/teamlogos/soccer/500/357.png",
+    "Sunderland": "https://a.espncdn.com/i/teamlogos/soccer/500/390.png",
+    "West Brom": "https://a.espncdn.com/i/teamlogos/soccer/500/391.png",
+    "West Bromwich Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/391.png"
   };
   return crests[team] || null; 
 };
@@ -280,7 +317,12 @@ export default function ProfileScreen() {
             <Text style={[styles.displayName, { color: colors.foreground }]}>{safeDisplayName}</Text>
             <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{safeUsername}</Text>
             <View style={styles.perfRow}>
-              <PerformanceTitleBadge winRate={safeWinRate} />
+              
+              {/* THE NEW RANK PILL */}
+              <View style={[styles.rankBadge, { backgroundColor: colors.secondary }]}>
+                <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(safeWinRate)}</Text>
+              </View>
+
               {safeStreak >= 3 && <Text style={[styles.streakText, { color: colors.mutedForeground }]}>{safeStreak}-streak heater</Text>}
             </View>
             {!!user.dob && <Text style={[styles.dob, { color: colors.mutedForeground }]}>Born {user.dob}</Text>}
@@ -489,9 +531,14 @@ const styles = StyleSheet.create({
   heroText: { flex: 1 },
   displayName: { fontFamily: "Inter_700Bold", fontSize: 20, letterSpacing: -0.3 },
   handle: { fontFamily: "Inter_400Regular", fontSize: 14, marginTop: 2 },
-  perfRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" },
-  streakText: { fontFamily: "Inter_500Medium", fontSize: 13 },
+  perfRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  streakText: { fontFamily: "Inter_500Medium", fontSize: 13, marginTop: 4 },
   dob: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 4 },
+  
+  // NEW PILL BADGE STYLES
+  rankBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, marginTop: 6 },
+  badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+
   bankruptBanner: { marginHorizontal: 16, marginBottom: 16, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderRadius: 12 },
   bankruptTag: { fontFamily: "Inter_700Bold", fontSize: 15, letterSpacing: 2 },
   bankruptSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 3 },

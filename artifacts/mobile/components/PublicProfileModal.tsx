@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, Platform, FlatList, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, Modal, Pressable, Platform, FlatList, ActivityIndicator, KeyboardAvoidingView, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { Avatar } from '@/components/Avatar';
@@ -11,7 +11,7 @@ export interface PublicProfileUser {
   displayName: string;
   avatarColor: string;
   points: number;
-  winRate?: number; // ADDED THIS BACK TO STOP THE RED ERRORS!
+  winRate?: number;
 }
 
 interface PublicProfileModalProps {
@@ -19,9 +19,73 @@ interface PublicProfileModalProps {
   onClose: () => void;
 }
 
+export const getRank = (winRate: number) => {
+  if (winRate < 20) return "Benchwarmer";
+  if (winRate < 35) return "Beginner's Luck";
+  if (winRate < 50) return "Coin Flipper";
+  if (winRate < 60) return "Starter";
+  if (winRate < 70) return "All Star";
+  if (winRate < 85) return "Champion";
+  if (winRate < 95) return "GOAT";
+  return "Oracle";
+};
+
 const getFlag = (team: string) => {
   const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️", "Spain": "🇪🇸", "Belgium": "🇧🇪" };
   return flags[team] || ""; 
+};
+
+const getCrestUrl = (team: string): string | null => {
+  const crests: Record<string, string> = {
+    "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
+    "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
+    "Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
+    "Brentford": "https://a.espncdn.com/i/teamlogos/soccer/500/139026.png",
+    "Brighton": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
+    "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png",
+    "Crystal Palace": "https://a.espncdn.com/i/teamlogos/soccer/500/384.png",
+    "Everton": "https://a.espncdn.com/i/teamlogos/soccer/500/368.png",
+    "Fulham": "https://a.espncdn.com/i/teamlogos/soccer/500/370.png",
+    "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
+    "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
+    "Manchester City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
+    "Man United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
+    "Manchester United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
+    "Newcastle": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
+    "Newcastle United": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
+    "Nottm Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
+    "Nottingham Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
+    "Southampton": "https://a.espncdn.com/i/teamlogos/soccer/500/376.png",
+    "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "Tottenham": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "Tottenham Hotspur": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "West Ham": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
+    "West Ham United": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
+    "Wolves": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
+    "Wolverhampton Wanderers": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
+    "Leicester": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
+    "Leicester City": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
+    "Ipswich": "https://a.espncdn.com/i/teamlogos/soccer/500/374.png",
+    "Ipswich Town": "https://a.espncdn.com/i/teamlogos/soccer/500/374.png",
+    "Coventry": "https://a.espncdn.com/i/teamlogos/soccer/500/386.png",
+    "Coventry City": "https://a.espncdn.com/i/teamlogos/soccer/500/386.png",
+    "Hull": "https://a.espncdn.com/i/teamlogos/soccer/500/366.png",
+    "Hull City": "https://a.espncdn.com/i/teamlogos/soccer/500/366.png",
+    "Sheffield Utd": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
+    "Sheffield United": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
+    "Burnley": "https://a.espncdn.com/i/teamlogos/soccer/500/379.png",
+    "Luton": "https://a.espncdn.com/i/teamlogos/soccer/500/394.png",
+    "Luton Town": "https://a.espncdn.com/i/teamlogos/soccer/500/394.png",
+    "Norwich": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
+    "Norwich City": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
+    "Watford": "https://a.espncdn.com/i/teamlogos/soccer/500/392.png",
+    "Leeds": "https://a.espncdn.com/i/teamlogos/soccer/500/357.png",
+    "Leeds United": "https://a.espncdn.com/i/teamlogos/soccer/500/357.png",
+    "Sunderland": "https://a.espncdn.com/i/teamlogos/soccer/500/390.png",
+    "West Brom": "https://a.espncdn.com/i/teamlogos/soccer/500/391.png",
+    "West Bromwich Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/391.png"
+  };
+  return crests[team] || null; 
 };
 
 export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
@@ -61,7 +125,6 @@ export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
       const fullyBuiltPicks = wagersData.map(w => ({ ...w, fixture: fixturesMap[w.fixture_id || w.fixtureId] || null }));
       setPicks(fullyBuiltPicks);
 
-      // PERFECTED VIDEO GAME MATH
       const resolvedPicks = fullyBuiltPicks.filter(p => p.status === 'won' || p.status === 'lost');
       if (resolvedPicks.length > 0) {
         const wins = resolvedPicks.filter(p => p.status === 'won').length;
@@ -90,10 +153,14 @@ export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
     const isWon = item.status === "won";
     const isLost = item.status === "lost";
 
+    const hUrl = getCrestUrl(homeTeam);
+    const aUrl = getCrestUrl(awayTeam);
+    const cUrl = getCrestUrl(choiceStr);
+
     let winnerStr = "";
     if (isWon || isLost) {
-      if (homeScore > awayScore) winnerStr = `${getFlag(homeTeam)} ${homeTeam} Won`;
-      else if (awayScore > homeScore) winnerStr = `${getFlag(awayTeam)} ${awayTeam} Won`;
+      if (homeScore > awayScore) winnerStr = `${homeTeam} Won`;
+      else if (awayScore > homeScore) winnerStr = `${awayTeam} Won`;
       else winnerStr = `⚖️ Draw`;
       winnerStr += ` (${homeScore} - ${awayScore})`;
     }
@@ -102,10 +169,10 @@ export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
       <View style={[styles.sleekPickContainer, { borderBottomColor: colors.border }]}>
         <View style={styles.sleekPickLeft}>
           <Text style={[styles.sleekMatchText, { color: colors.foreground }]}>
-            {getFlag(homeTeam)} {homeTeam} vs {getFlag(awayTeam)} {awayTeam}
+            {hUrl ? <Image source={{ uri: hUrl }} style={{ width: 14, height: 14 }} /> : (getFlag(homeTeam) || "⚽")} {homeTeam} vs {aUrl ? <Image source={{ uri: aUrl }} style={{ width: 14, height: 14 }} /> : (getFlag(awayTeam) || "⚽")} {awayTeam}
           </Text>
           <Text style={[styles.sleekPickDetails, { color: colors.mutedForeground }]}>
-            Picked: {getFlag(choiceStr)} {choiceStr} ({item.amount} pts)
+            Picked: {cUrl ? <Image source={{ uri: cUrl }} style={{ width: 12, height: 12 }} /> : (getFlag(choiceStr) || "⚽")} {choiceStr} ({item.amount} pts)
           </Text>
           {(isWon || isLost) && (
             <Text style={[styles.sleekResultText, { color: colors.foreground }]}>
@@ -138,19 +205,22 @@ export function PublicProfileModal({ user, onClose }: PublicProfileModalProps) {
                   <Avatar color={user.avatarColor} username={user.username} size={80} />
                   <Text style={[styles.displayName, { color: colors.foreground }]}>{user.displayName}</Text>
                   <Text style={[styles.username, { color: colors.mutedForeground }]}>@{user.username}</Text>
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>Benchwarmer</Text>
+                  
+                  {/* THE NEW RANK PILL ADDED HERE */}
+                  <View style={[styles.badge, { backgroundColor: colors.secondary }]}>
+                    <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(user.winRate || dynamicWinRate)}</Text>
                   </View>
+
                 </View>
 
                 <View style={[styles.statsContainer, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
                   <View style={styles.statBox}>
-                    <Text style={[styles.statValue, { color: colors.foreground }]}>{user.points}</Text>
+                    <Text style={[styles.statValue, { color: colors.foreground }]}>{user.points.toLocaleString()}</Text>
                     <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>POINTS</Text>
                   </View>
                   <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
                   <View style={styles.statBox}>
-                    <Text style={[styles.statValue, { color: colors.foreground }]}>{dynamicWinRate}%</Text>
+                    <Text style={[styles.statValue, { color: colors.foreground }]}>{user.winRate || dynamicWinRate}%</Text>
                     <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>WIN RATE</Text>
                   </View>
                 </View>
@@ -193,8 +263,11 @@ const styles = StyleSheet.create({
   profileHeader: { alignItems: 'center', marginBottom: 24 },
   displayName: { fontFamily: 'Inter_700Bold', fontSize: 22, marginTop: 12, marginBottom: 2 },
   username: { fontFamily: 'Inter_400Regular', fontSize: 15, marginBottom: 8 },
-  badge: { backgroundColor: "rgba(0,0,0,0.05)", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
+  
+  // RANK PILL STYLES
+  badge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12 },
   badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+  
   statsContainer: { flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: 20 },
   statBox: { flex: 1, alignItems: 'center' },
   statDivider: { width: 1, height: '100%' },
