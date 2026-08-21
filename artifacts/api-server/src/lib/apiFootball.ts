@@ -10,8 +10,8 @@ export async function refreshFixtures(): Promise<{ count: number }> {
     return { count: 0 };
   }
 
-  // UPGRADE 1: Cast a wider net across UK, EU, and US sportsbooks to catch odds earlier
-  const url = `${BASE_URL}/sports/soccer_fifa_world_cup/odds/?apiKey=${API_KEY}&regions=uk,eu,us&markets=h2h&oddsFormat=decimal`;
+  // UPGRADE 1: Target the Premier League (soccer_epl) across global sportsbooks
+  const url = `${BASE_URL}/sports/soccer_epl/odds/?apiKey=${API_KEY}&regions=uk,eu,us&markets=h2h&oddsFormat=decimal`;
   
   const res = await fetch(url);
   const data = await res.json();
@@ -20,19 +20,19 @@ export async function refreshFixtures(): Promise<{ count: number }> {
     return { count: 0 };
   }
 
-  const worldCupMatches = data.filter((m: any) => 
-    m.sport_key.includes("fifa_world_cup")
+  // Filter safely for Premier League
+  const plMatches = data.filter((m: any) => 
+    m.sport_key.includes("soccer_epl")
   );
 
-  const rows = worldCupMatches.map((match: any) => {
+  const rows = plMatches.map((match: any) => {
     // UPGRADE 2: Smart Bookmaker Selection
-    // Instead of blindly grabbing the first bookie, find one that actually has the h2h market ready
     let targetMarket = null;
     for (const bookie of match.bookmakers) {
       const foundMarket = bookie.markets.find((m: any) => m.key === 'h2h');
       if (foundMarket) {
         targetMarket = foundMarket;
-        break; // We found the odds, stop looking!
+        break; 
       }
     }
 
@@ -41,7 +41,7 @@ export async function refreshFixtures(): Promise<{ count: number }> {
 
     return {
       id: match.id,
-      competition: "World Cup 2026",
+      competition: "Premier League",
       homeTeam: match.home_team,
       awayTeam: match.away_team,
       startTime: new Date(match.commence_time),

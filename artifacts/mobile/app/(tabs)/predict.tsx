@@ -16,6 +16,7 @@ import {
   Text,
   TextInput,
   View,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { listFixtures, type Fixture as ApiFixture } from "@workspace/api-client-react";
@@ -57,9 +58,36 @@ const getFlag = (team: string) => {
     "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
     "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
     "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
-    "Czech Republic": "🇨🇿"
+    "Czech Republic": "🇨🇿", "Draw": "⚖️"
   };
-  return flags[team] || "🏳️";
+  return flags[team] || "";
+};
+
+const getCrestUrl = (team: string): string | null => {
+  const crests: Record<string, string> = {
+    "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
+    "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
+    "Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
+    "Brentford": "https://a.espncdn.com/i/teamlogos/soccer/500/139026.png",
+    "Brighton": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
+    "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png",
+    "Crystal Palace": "https://a.espncdn.com/i/teamlogos/soccer/500/384.png",
+    "Everton": "https://a.espncdn.com/i/teamlogos/soccer/500/368.png",
+    "Fulham": "https://a.espncdn.com/i/teamlogos/soccer/500/370.png",
+    "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
+    "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
+    "Man United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
+    "Newcastle": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
+    "Nottm Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
+    "Southampton": "https://a.espncdn.com/i/teamlogos/soccer/500/376.png",
+    "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "Tottenham": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "West Ham": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
+    "Wolves": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
+    "Leicester": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
+    "Ipswich": "https://a.espncdn.com/i/teamlogos/soccer/500/374.png",
+  };
+  return crests[team] || null; 
 };
 
 function formatKickoff(iso: string): string {
@@ -104,19 +132,32 @@ function FixtureCard({ fixture, onOpenWager }: { fixture: Fixture; onOpenWager: 
     { choice: "B", label: fixture.teamB, odds: fixture.oddsB },
   ];
 
+  const urlA = getCrestUrl(fixture.teamA);
+  const flagA = getFlag(fixture.teamA);
+  const urlB = getCrestUrl(fixture.teamB);
+  const flagB = getFlag(fixture.teamB);
+
   return (
     <View style={[styles.card, { borderBottomColor: colors.border }]}>
       <View style={styles.cardMeta}>
         <Text style={[styles.competition, { color: colors.mutedForeground }]}>{fixture.competition}</Text>
         <Text style={[styles.kickoff, { color: colors.mutedForeground }]}>{fixture.kickoff}</Text>
       </View>
-      <Text style={[styles.question, { color: colors.foreground }]}>
-        Who will win: {getFlag(fixture.teamA)} {fixture.teamA} or {getFlag(fixture.teamB)} {fixture.teamB}?
-      </Text>
+      
+      <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}>
+        <Text style={[styles.question, { color: colors.foreground, marginBottom: 0 }]}>Who will win: </Text>
+        {urlA ? <Image source={{ uri: urlA as string }} style={{ width: 18, height: 18, marginRight: 6 }} /> : <Text style={[styles.question, { color: colors.foreground, marginRight: 4 }]}>{flagA || "⚽"}</Text>}
+        <Text style={[styles.question, { color: colors.foreground, marginBottom: 0 }]}>{fixture.teamA} or </Text>
+        {urlB ? <Image source={{ uri: urlB as string }} style={{ width: 18, height: 18, marginRight: 6, marginLeft: 2 }} /> : <Text style={[styles.question, { color: colors.foreground, marginRight: 4, marginLeft: 2 }]}>{flagB || "⚽"}</Text>}
+        <Text style={[styles.question, { color: colors.foreground, marginBottom: 0 }]}>{fixture.teamB}?</Text>
+      </View>
+
       <View style={styles.optionsCol}>
         {options.map(({ choice, label, odds }) => {
           const isSelected = fixture.userVote === choice;
-          const displayLabel = label === "Draw" ? "⚖️ Draw" : `${getFlag(label)} ${label}`;
+          const cUrl = getCrestUrl(label);
+          const cFlag = getFlag(label);
+          
           return (
             <Pressable
               key={choice}
@@ -126,7 +167,16 @@ function FixtureCard({ fixture, onOpenWager }: { fixture: Fixture; onOpenWager: 
                 { backgroundColor: isSelected ? colors.primary : colors.secondary, borderColor: colors.border, opacity: pressed && !voted ? 0.7 : 1 },
               ]}
             >
-              <Text style={[styles.optionLabel, { color: isSelected ? colors.primaryForeground : colors.foreground }]} numberOfLines={1}>{displayLabel}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 8 }}>
+                {label === "Draw" ? (
+                  <Text style={[styles.optionLabel, { color: isSelected ? colors.primaryForeground : colors.foreground }]} numberOfLines={1}>⚖️ Draw</Text>
+                ) : (
+                  <>
+                    {cUrl ? <Image source={{ uri: cUrl as string }} style={{ width: 16, height: 16, marginRight: 8 }} /> : <Text style={{ fontSize: 14, marginRight: 8, color: isSelected ? colors.primaryForeground : colors.foreground }}>{cFlag || "⚽"}</Text>}
+                    <Text style={[styles.optionLabel, { color: isSelected ? colors.primaryForeground : colors.foreground, flexShrink: 1 }]} numberOfLines={1}>{label}</Text>
+                  </>
+                )}
+              </View>
               <Text style={[styles.optionOdds, { color: isSelected ? colors.primaryForeground : colors.mutedForeground }]}>{odds}x</Text>
             </Pressable>
           );
@@ -261,10 +311,15 @@ export default function PredictScreen() {
 
   const chosenOdds = wagerTarget ? (wagerTarget.choice === "A" ? wagerTarget.fixture.oddsA : wagerTarget.choice === "D" ? wagerTarget.fixture.oddsD : wagerTarget.fixture.oddsB) : 1;
   const chosenLabelRaw = wagerTarget ? (wagerTarget.choice === "A" ? wagerTarget.fixture.teamA : wagerTarget.choice === "D" ? "Draw" : wagerTarget.fixture.teamB) : "";
-  const chosenLabelDisplay = chosenLabelRaw === "Draw" ? "⚖️ Draw" : `${getFlag(chosenLabelRaw)} ${chosenLabelRaw}`;
   const parsedAmount = parseInt(wagerAmount, 10);
   const canConfirm = !isNaN(parsedAmount) && parsedAmount > 0 && parsedAmount <= (user?.points ?? 0);
   const potentialPayout = canConfirm ? Math.floor(parsedAmount * chosenOdds) : null;
+
+  const tA = wagerTarget?.fixture.teamA || "";
+  const tB = wagerTarget?.fixture.teamB || "";
+  const tAUrl = getCrestUrl(tA);
+  const tBUrl = getCrestUrl(tB);
+  const chosenUrl = getCrestUrl(chosenLabelRaw);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -303,13 +358,29 @@ export default function PredictScreen() {
           <Animated.View style={[styles.modalSheet, { backgroundColor: colors.background, transform: [{ translateY }] }]}>
             <View style={styles.handleWrap} {...panResponder.panHandlers}><View style={[styles.modalHandle, { backgroundColor: colors.border }]} /></View>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Place a Pick</Text>
-            <Text style={[styles.modalPick, { color: colors.mutedForeground }]}>
-              Who will win: {getFlag(wagerTarget?.fixture.teamA || "")} {wagerTarget?.fixture.teamA} or {getFlag(wagerTarget?.fixture.teamB || "")} {wagerTarget?.fixture.teamB}?
-            </Text>
+            
+            <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}>
+              <Text style={[styles.modalPick, { color: colors.mutedForeground, marginBottom: 0 }]}>Who will win: </Text>
+              {tAUrl ? <Image source={{ uri: tAUrl as string }} style={{ width: 14, height: 14, marginRight: 4 }} /> : <Text style={{ fontSize: 14, marginRight: 4 }}>{getFlag(tA) || "⚽"}</Text>}
+              <Text style={[styles.modalPick, { color: colors.mutedForeground, marginBottom: 0 }]}>{tA} or </Text>
+              {tBUrl ? <Image source={{ uri: tBUrl as string }} style={{ width: 14, height: 14, marginRight: 4, marginLeft: 2 }} /> : <Text style={{ fontSize: 14, marginRight: 4, marginLeft: 2 }}>{getFlag(tB) || "⚽"}</Text>}
+              <Text style={[styles.modalPick, { color: colors.mutedForeground, marginBottom: 0 }]}>{tB}?</Text>
+            </View>
+
             <View style={styles.teamOddsRow}>
-              <View style={[styles.chosenTeamBadge, { backgroundColor: colors.primary }]}><Text style={[styles.chosenTeamText, { color: colors.primaryForeground }]}>{chosenLabelDisplay}</Text></View>
+              <View style={[styles.chosenTeamBadge, { backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center' }]}>
+                {chosenLabelRaw === "Draw" ? (
+                  <Text style={[styles.chosenTeamText, { color: colors.primaryForeground }]}>⚖️ Draw</Text>
+                ) : (
+                  <>
+                    {chosenUrl ? <Image source={{ uri: chosenUrl as string }} style={{ width: 14, height: 14, marginRight: 6 }} /> : <Text style={{ fontSize: 13, marginRight: 4 }}>{getFlag(chosenLabelRaw)}</Text>}
+                    <Text style={[styles.chosenTeamText, { color: colors.primaryForeground }]}>{chosenLabelRaw}</Text>
+                  </>
+                )}
+              </View>
               <Text style={[styles.oddsTag, { color: colors.mutedForeground }]}>{chosenOdds}x multiplier</Text>
             </View>
+            
             <Text style={[styles.wagerLabel, { color: colors.foreground }]}>How many points for your pick?</Text>
             <View style={styles.wagerInputRow}>
               <TextInput ref={inputRef} style={[styles.wagerInput, { backgroundColor: colors.secondary, color: colors.foreground, borderColor: colors.border }]} value={wagerAmount} onChangeText={(t) => setWagerAmount(t.replace(/[^0-9]/g, ""))} keyboardType="number-pad" returnKeyType="done" blurOnSubmit maxLength={6} />
@@ -359,7 +430,7 @@ const styles = StyleSheet.create({
   handleWrap: { alignItems: "center", paddingTop: 12, paddingBottom: 16 },
   modalHandle: { width: 36, height: 4, borderRadius: 2 },
   modalTitle: { fontFamily: "Inter_700Bold", fontSize: 20, letterSpacing: -0.3, marginBottom: 6 },
-  modalPick: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  modalPick: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 20 },
   teamOddsRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20 },
   chosenTeamBadge: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999 },
   chosenTeamText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
