@@ -21,13 +21,17 @@ const getFlag = (team: string) => {
   return flags[team] || "";
 };
 
+// FULLY EXPANDED DICTIONARY TO CATCH ALL API VARIATIONS
 const getCrestUrl = (team: string): string | null => {
   const crests: Record<string, string> = {
     "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
     "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
     "Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
+    "AFC Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
     "Brentford": "https://a.espncdn.com/i/teamlogos/soccer/500/139026.png",
     "Brighton": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
+    "Brighton and Hove Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
+    "Brighton & Hove Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
     "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png",
     "Crystal Palace": "https://a.espncdn.com/i/teamlogos/soccer/500/384.png",
     "Everton": "https://a.espncdn.com/i/teamlogos/soccer/500/368.png",

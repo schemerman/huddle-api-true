@@ -21,15 +21,18 @@ import { Avatar } from "@/components/Avatar";
 import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import { supabase } from "@/lib/supabase";
 
-export const getRank = (winRate: number) => {
-  if (winRate < 20) return "Benchwarmer";
-  if (winRate < 35) return "Beginner's Luck";
-  if (winRate < 50) return "Coin Flipper";
-  if (winRate < 60) return "Starter";
-  if (winRate < 70) return "All Star";
-  if (winRate < 85) return "Champion";
-  if (winRate < 95) return "GOAT";
-  return "Oracle";
+// BULLETPROOF RANK FUNCTION
+export const getRank = (winRate: number, totalPicks?: number) => {
+  const picks = Number(totalPicks) || 0;
+  if (picks < 5) return "Rookie";
+  if (winRate >= 95 && picks >= 30) return "Oracle";
+  if (winRate >= 85 && picks >= 25) return "GOAT";
+  if (winRate >= 70 && picks >= 15) return "Champion";
+  if (winRate >= 60 && picks >= 10) return "All Star";
+  if (winRate >= 50) return "Starter";
+  if (winRate >= 35) return "Coin Flipper";
+  if (winRate >= 20) return "Beginner's Luck";
+  return "Benchwarmer";
 };
 
 interface Member {
@@ -39,6 +42,7 @@ interface Member {
   avatarColor: string;
   points: number;
   winRate: number;
+  totalPicks: number;
   isYou: boolean;
 }
 
@@ -127,8 +131,11 @@ export default function LeagueMembersScreen() {
     );
   }
 
+  // CORRECTLY EXTRACTS TOTAL PICKS SO THE ALGORITHM CAN READ IT
   const members: Member[] = league.memberIds.map((uid) => {
     const globalData = leaderboard.find((l) => l.userId === uid);
+    const picksCounter = (globalData as any)?.total_picks ?? (globalData as any)?.picksCount ?? 0;
+    
     if (uid === user?.id || uid === "me") {
       return {
         id: uid,
@@ -137,6 +144,7 @@ export default function LeagueMembersScreen() {
         avatarColor: globalData?.avatarColor || user?.avatarColor || "#000000",
         points: globalData?.points ?? user?.points ?? 0,
         winRate: globalData?.winRate ?? user?.winRate ?? 0,
+        totalPicks: picksCounter,
         isYou: true,
       };
     }
@@ -147,6 +155,7 @@ export default function LeagueMembersScreen() {
       avatarColor: globalData?.avatarColor || "#8A8A8A",
       points: globalData?.points ?? 0,
       winRate: globalData?.winRate ?? 0,
+      totalPicks: picksCounter,
       isYou: false,
     };
   });
@@ -221,13 +230,13 @@ export default function LeagueMembersScreen() {
                     {item.isYou ? " (you)" : ""}
                   </Text>
 
-                  {/* RANK PILL BADGE ADDED HERE */}
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
                     <Text style={[styles.memberHandle, { color: colors.mutedForeground, marginTop: 0 }]} numberOfLines={1}>
                       @{item.username}
                     </Text>
                     <View style={[styles.rankBadge, { backgroundColor: colors.secondary }]}>
-                      <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(item.winRate)}</Text>
+                      {/* ALGORITHM CORRECTLY PASSES TOTAL PICKS */}
+                      <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(item.winRate, item.totalPicks)}</Text>
                     </View>
                   </View>
 
@@ -298,11 +307,8 @@ const styles = StyleSheet.create({
   memberInfo: { flex: 1 },
   memberName: { fontFamily: "Inter_600SemiBold", fontSize: 15, letterSpacing: -0.2 },
   memberHandle: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 1 },
-
-  // NEW STYLES FOR THE RANK PILL
   rankBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeText: { fontFamily: "Inter_600SemiBold", fontSize: 10 },
-
   memberRight: { alignItems: "flex-end", marginRight: 4, gap: 2 },
   pointsContainer: { flexDirection: "row", alignItems: "baseline", gap: 3 },
   memberPoints: { fontFamily: "Inter_700Bold", fontSize: 15, letterSpacing: -0.3 },

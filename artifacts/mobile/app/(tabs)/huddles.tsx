@@ -23,7 +23,7 @@ import { Avatar } from "@/components/Avatar";
 import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import type { League } from "@/context/DataContext";
 
-// UPDATED ALGORITHM FOR THE LEADERBOARD
+// BULLETPROOF RANK ALGORITHM
 export const getRank = (winRate: number, totalPicks: number = 0) => {
   if (totalPicks < 5) return "Rookie";
   if (winRate >= 95 && totalPicks >= 30) return "Oracle";
@@ -35,17 +35,6 @@ export const getRank = (winRate: number, totalPicks: number = 0) => {
   if (winRate >= 20) return "Beginner's Luck";
   return "Benchwarmer";
 };
-
-interface Member {
-  id: string;
-  username: string;
-  displayName: string;
-  avatarColor: string;
-  points: number;
-  winRate: number;
-  totalPicks: number;
-  isYou: boolean;
-}
 
 function HuddleCard({ 
   league, 
@@ -168,37 +157,6 @@ export default function HuddlesScreen() {
   const sortedLeaderboard = [...leaderboard].sort((a, b) => b.points - a.points);
   const myHuddles = leagues.filter((league) => user && league.memberIds.includes(user.id));
 
-  // MAP OVER LEADERBOARD DATA AND INJECT TOTAL PICKS
-  const getMappedMembers = (uids: string[]): Member[] => {
-    return uids.map((uid) => {
-      const globalData = leaderboard.find((l: any) => l.userId === uid);
-      const picksCounter = globalData?.totalPicks ?? globalData?.picksCount ?? 0;
-      
-      if (uid === user?.id || uid === "me") {
-        return {
-          id: uid,
-          username: globalData?.username || "ceo",
-          displayName: globalData?.displayName || "ceo",
-          avatarColor: globalData?.avatarColor || user?.avatarColor || "#000000",
-          points: globalData?.points ?? user?.points ?? 0,
-          winRate: globalData?.winRate ?? user?.winRate ?? 0,
-          totalPicks: picksCounter,
-          isYou: true,
-        };
-      }
-      return {
-        id: uid,
-        username: globalData?.username || "Player",
-        displayName: globalData?.displayName || "Player",
-        avatarColor: globalData?.avatarColor || "#8A8A8A",
-        points: globalData?.points ?? 0,
-        winRate: globalData?.winRate ?? 0,
-        totalPicks: picksCounter,
-        isYou: false,
-      };
-    });
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.topBar, { paddingTop: topPad }]}>
@@ -249,44 +207,50 @@ export default function HuddlesScreen() {
           data={sortedLeaderboard}
           keyExtractor={(item) => item.userId}
           contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}
-          renderItem={({ item, index }) => (
-            <Pressable
-              onPress={() => {
-                if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setProfileUser(item);
-              }}
-              style={({ pressed }) => [styles.memberRow, { borderBottomColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
-            >
-              <View style={styles.rankCol}>
-                <Text style={[styles.rankText, { color: colors.foreground }]}>{getRankSuffix(index + 1)}</Text>
-              </View>
-              <Avatar color={item.avatarColor} username={item.username} size={40} />
-              <View style={styles.memberInfo}>
-                <Text style={[styles.memberName, { color: colors.foreground }]} numberOfLines={1}>
-                  {item.displayName}
-                  {item.userId === user?.id ? " (you)" : ""}
-                </Text>
-                
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
-                  <Text style={[styles.memberHandle, { color: colors.mutedForeground, marginTop: 0 }]} numberOfLines={1}>
-                    @{item.username}
-                  </Text>
-                  <View style={[styles.rankBadge, { backgroundColor: colors.secondary }]}>
-                    {/* ALGORITHM FED TOTAL PICKS FROM GLOBAL CONTEXT */}
-                    <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(item.winRate, (item as any).totalPicks || (item as any).picksCount || 0)}</Text>
-                  </View>
-                </View>
+          renderItem={({ item, index }) => {
+            // Safely extract the picks counter without triggering TypeScript errors
+            const picksCounter = (item as any).total_picks ?? (item as any).picksCount ?? 0;
 
-              </View>
-              <View style={styles.memberRight}>
-                <View style={styles.pointsContainer}>
-                  <Text style={[styles.memberPoints, { color: colors.foreground }]}>{item.points.toLocaleString()}</Text>
-                  <Text style={[styles.memberPointsLabel, { color: colors.mutedForeground }]}>pts</Text>
+            return (
+              <Pressable
+                onPress={() => {
+                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setProfileUser(item);
+                }}
+                style={({ pressed }) => [styles.memberRow, { borderBottomColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
+              >
+                <View style={styles.rankCol}>
+                  <Text style={[styles.rankText, { color: colors.foreground }]}>{getRankSuffix(index + 1)}</Text>
                 </View>
-                <Text style={[styles.memberWinRate, { color: colors.mutedForeground }]}>{item.winRate}% win</Text>
-              </View>
-            </Pressable>
-          )}
+                <Avatar color={item.avatarColor} username={item.username} size={40} />
+                <View style={styles.memberInfo}>
+                  <Text style={[styles.memberName, { color: colors.foreground }]} numberOfLines={1}>
+                    {item.displayName}
+                    {item.userId === user?.id ? " (you)" : ""}
+                  </Text>
+                  
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+                    <Text style={[styles.memberHandle, { color: colors.mutedForeground, marginTop: 0 }]} numberOfLines={1}>
+                      @{item.username}
+                    </Text>
+                    <View style={[styles.rankBadge, { backgroundColor: colors.secondary }]}>
+                      <Text style={[styles.badgeText, { color: colors.foreground }]}>
+                        {getRank(item.winRate, picksCounter)}
+                      </Text>
+                    </View>
+                  </View>
+
+                </View>
+                <View style={styles.memberRight}>
+                  <View style={styles.pointsContainer}>
+                    <Text style={[styles.memberPoints, { color: colors.foreground }]}>{item.points.toLocaleString()}</Text>
+                    <Text style={[styles.memberPointsLabel, { color: colors.mutedForeground }]}>pts</Text>
+                  </View>
+                  <Text style={[styles.memberWinRate, { color: colors.mutedForeground }]}>{item.winRate}% win</Text>
+                </View>
+              </Pressable>
+            );
+          }}
         />
       )}
 
