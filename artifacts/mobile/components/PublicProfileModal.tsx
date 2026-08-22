@@ -43,17 +43,7 @@ const getCrestUrl = (team: string): string | null => {
   const crests: Record<string, string> = {
     "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
     "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
-    "Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
-    "AFC Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
-    "Brentford": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/hx8g3Hj4Z2a5v7Z1h1x8g3_500x500.png",
-    "Brentford FC": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/hx8g3Hj4Z2a5v7Z1h1x8g3_500x500.png",
-    "Brighton": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
-    "Brighton and Hove Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
-    "Brighton & Hove Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
     "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png",
-    "Crystal Palace": "https://a.espncdn.com/i/teamlogos/soccer/500/384.png",
-    "Everton": "https://a.espncdn.com/i/teamlogos/soccer/500/368.png",
-    "Fulham": "https://a.espncdn.com/i/teamlogos/soccer/500/370.png",
     "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
     "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
     "Manchester City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
@@ -61,35 +51,19 @@ const getCrestUrl = (team: string): string | null => {
     "Manchester United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
     "Newcastle": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
     "Newcastle United": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
-    "Nottm Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
-    "Nottingham Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
-    "Southampton": "https://a.espncdn.com/i/teamlogos/soccer/500/376.png",
     "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
     "Tottenham": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
     "Tottenham Hotspur": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
-    "West Ham": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
-    "West Ham United": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
-    "Wolves": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
-    "Wolverhampton Wanderers": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
-    "Leicester": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
-    "Leicester City": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
-    "Ipswich": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/56vquJBk5U16Dng7txLXCw_500x500.png",
-    "Ipswich Town": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/56vquJBk5U16Dng7txLXCw_500x500.png",
-    "Coventry": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/KHpmY4tIwqiutl8Cfl0MAw_500x500.png",
-    "Coventry City": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/KHpmY4tIwqiutl8Cfl0MAw_500x500.png",
-    "Hull": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/riiyZbb1JHuFQgZ3831jUQ_500x500.png",
-    "Hull City": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/riiyZbb1JHuFQgZ3831jUQ_500x500.png",
-    "Sheffield Utd": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
-    "Sheffield United": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
-    "Burnley": "https://a.espncdn.com/i/teamlogos/soccer/500/379.png",
-    "Luton": "https://a.espncdn.com/i/teamlogos/soccer/500/394.png",
-    "Luton Town": "https://a.espncdn.com/i/teamlogos/soccer/500/394.png",
-    "Norwich": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
-    "Norwich City": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
-    "Watford": "https://a.espncdn.com/i/teamlogos/soccer/500/392.png",
-    "Leeds": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/5dqfOKpjjW6EwTAx_FysKQ_500x500.png",
-    "Leeds United": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/5dqfOKpjjW6EwTAx_FysKQ_500x500.png",
-    "Sunderland": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/CQFeTfHrtxqgr3VKWtTwfA_500x500.png"
+    "Brentford": "https://upload.wikimedia.org/wikipedia/en/thumb/2/2a/Brentford_FC_crest.svg/1200px-Brentford_FC_crest.svg.png",
+    "Brentford FC": "https://upload.wikimedia.org/wikipedia/en/thumb/2/2a/Brentford_FC_crest.svg/1200px-Brentford_FC_crest.svg.png",
+    "Ipswich": "https://upload.wikimedia.org/wikipedia/en/thumb/4/43/Ipswich_Town.svg/1200px-Ipswich_Town.svg.png",
+    "Ipswich Town": "https://upload.wikimedia.org/wikipedia/en/thumb/4/43/Ipswich_Town.svg/1200px-Ipswich_Town.svg.png",
+    "Hull": "https://upload.wikimedia.org/wikipedia/en/thumb/5/54/Hull_City_A.F.C._logo.svg/1200px-Hull_City_A.F.C._logo.svg.png",
+    "Hull City": "https://upload.wikimedia.org/wikipedia/en/thumb/5/54/Hull_City_A.F.C._logo.svg/1200px-Hull_City_A.F.C._logo.svg.png",
+    "Sunderland": "https://upload.wikimedia.org/wikipedia/en/thumb/7/77/Logo_Sunderland.svg/1200px-Logo_Sunderland.svg.png",
+    "Sunderland A.F.C.": "https://upload.wikimedia.org/wikipedia/en/thumb/7/77/Logo_Sunderland.svg/1200px-Logo_Sunderland.svg.png",
+    "Coventry": "https://upload.wikimedia.org/wikipedia/en/thumb/9/94/Coventry_City_FC_logo.svg/1200px-Coventry_City_FC_logo.svg.png",
+    "Coventry City": "https://upload.wikimedia.org/wikipedia/en/thumb/9/94/Coventry_City_FC_logo.svg/1200px-Coventry_City_FC_logo.svg.png"
   };
   return crests[team] || null; 
 };
@@ -112,9 +86,7 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
       fetchUserPicks(profileUser.userId);
       fetchSocialStats(profileUser.userId);
     } else {
-      setPicks([]);
-      setDynamicWinRate(0);
-      setIsFollowing(false);
+      setPicks([]); setDynamicWinRate(0); setIsFollowing(false);
     }
   }, [profileUser]);
 
@@ -123,31 +95,22 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
     try {
       const { count: followers } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', targetId);
       const { count: following } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', targetId);
-      
       const { data: followStatus } = await supabase.from('follows').select('id').eq('follower_id', activeUser.id).eq('following_id', targetId).maybeSingle();
 
-      setFollowersCount(followers || 0);
-      setFollowingCount(following || 0);
-      setIsFollowing(!!followStatus);
+      setFollowersCount(followers || 0); setFollowingCount(following || 0); setIsFollowing(!!followStatus);
     } catch (e) {}
   };
 
   const handleToggleFollow = async () => {
     if (!activeUser || !profileUser) return;
     const previousState = isFollowing;
-    
     setIsFollowing(!isFollowing);
     setFollowersCount(prev => isFollowing ? prev - 1 : prev + 1);
 
     try {
-      if (previousState) {
-        await supabase.from('follows').delete().match({ follower_id: activeUser.id, following_id: profileUser.userId });
-      } else {
-        await supabase.from('follows').insert({ follower_id: activeUser.id, following_id: profileUser.userId });
-      }
-    } catch (e) {
-      setIsFollowing(previousState);
-    }
+      if (previousState) await supabase.from('follows').delete().match({ follower_id: activeUser.id, following_id: profileUser.userId });
+      else await supabase.from('follows').insert({ follower_id: activeUser.id, following_id: profileUser.userId });
+    } catch (e) { setIsFollowing(previousState); }
   };
 
   const handleMessage = () => {
@@ -155,18 +118,19 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
     router.push(`/dm/${profileUser?.userId}` as any);
   };
 
+  const handleViewFullProfile = () => {
+    onClose();
+    router.push(`/user/${profileUser?.userId}` as any);
+  };
+
   const fetchUserPicks = async (userId: string) => {
     setLoading(true);
     try {
       const { data: wagersData } = await supabase.from('wagers').select('*').eq('user_id', userId).order('created_at', { ascending: false });
-      
-      if (!wagersData || wagersData.length === 0) {
-        setPicks([]); setDynamicWinRate(0); return;
-      }
+      if (!wagersData || wagersData.length === 0) { setPicks([]); setDynamicWinRate(0); return; }
 
       const fixtureIds = wagersData.map(w => w.fixture_id || w.fixtureId).filter(Boolean);
       let fixturesMap: Record<string, any> = {};
-      
       if (fixtureIds.length > 0) {
         const { data: fixturesData } = await supabase.from('fixtures').select('*').in('id', fixtureIds);
         fixturesData?.forEach(f => fixturesMap[f.id] = f);
@@ -176,18 +140,10 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
       setPicks(fullyBuiltPicks);
 
       const resolvedPicks = fullyBuiltPicks.filter(p => p.status === 'won' || p.status === 'lost');
-      if (resolvedPicks.length > 0) {
-        const wins = resolvedPicks.filter(p => p.status === 'won').length;
-        setDynamicWinRate(Math.round((wins / resolvedPicks.length) * 100));
-      } else {
-        setDynamicWinRate(0);
-      }
+      if (resolvedPicks.length > 0) setDynamicWinRate(Math.round((resolvedPicks.filter(p => p.status === 'won').length / resolvedPicks.length) * 100));
+      else setDynamicWinRate(0);
 
-    } catch (error) {
-      console.log("Error loading modal picks", error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) {} finally { setLoading(false); }
   };
 
   if (!profileUser) return null;
@@ -198,14 +154,11 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
     const awayTeam = f.awayTeam || f.away_team || "Away";
     const homeScore = f.homeScore ?? f.home_score ?? 0;
     const awayScore = f.awayScore ?? f.away_score ?? 0;
-    
     const choiceStr = item.prediction || item.choice;
     const isWon = item.status === "won";
     const isLost = item.status === "lost";
 
-    const hUrl = getCrestUrl(homeTeam);
-    const aUrl = getCrestUrl(awayTeam);
-    const cUrl = getCrestUrl(choiceStr);
+    const hUrl = getCrestUrl(homeTeam); const aUrl = getCrestUrl(awayTeam); const cUrl = getCrestUrl(choiceStr);
 
     let winnerStr = "";
     if (isWon || isLost) {
@@ -224,16 +177,10 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
           <Text style={[styles.sleekPickDetails, { color: colors.mutedForeground }]}>
             Picked: {cUrl ? <Image source={{ uri: cUrl }} style={{ width: 12, height: 12 }} /> : (getFlag(choiceStr) || "⚽")} {choiceStr} ({item.amount} pts)
           </Text>
-          {(isWon || isLost) && (
-            <Text style={[styles.sleekResultText, { color: colors.foreground }]}>
-              {winnerStr}
-            </Text>
-          )}
+          {(isWon || isLost) && <Text style={[styles.sleekResultText, { color: colors.foreground }]}>{winnerStr}</Text>}
         </View>
         <View style={[styles.sleekBadge, { backgroundColor: isWon ? colors.foreground : "rgba(0,0,0,0.05)" }]}>
-          <Text style={[styles.sleekBadgeText, { color: isWon ? colors.background : colors.foreground }]}>
-            {isWon ? "Won" : isLost ? "Lost" : "Pending"}
-          </Text>
+          <Text style={[styles.sleekBadgeText, { color: isWon ? colors.background : colors.foreground }]}>{isWon ? "Won" : isLost ? "Lost" : "Pending"}</Text>
         </View>
       </View>
     );
@@ -277,6 +224,10 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
                       </Pressable>
                     </View>
                   )}
+                  
+                  <Pressable onPress={handleViewFullProfile} style={[styles.viewFullBtn, { borderColor: colors.border }]}>
+                    <Text style={[styles.viewFullBtnText, { color: colors.foreground }]}>View Full Profile</Text>
+                  </Pressable>
                 </View>
 
                 <View style={[styles.statsContainer, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
@@ -294,20 +245,11 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
                 <View style={styles.recentPicksHeader}>
                   <Text style={[styles.recentPicksTitle, { color: colors.foreground }]}>Recent Picks</Text>
                 </View>
-
-                {loading && (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator color={colors.foreground} />
-                  </View>
-                )}
+                {loading && <View style={styles.loadingContainer}><ActivityIndicator color={colors.foreground} /></View>}
               </View>
             }
             renderItem={renderPick}
-            ListEmptyComponent={
-              !loading ? (
-                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No picks found.</Text>
-              ) : null
-            }
+            ListEmptyComponent={!loading ? <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No picks found.</Text> : null}
           />
 
           <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
@@ -335,6 +277,8 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 16, width: '100%', paddingHorizontal: 32 },
   actionBtn: { flex: 1, paddingVertical: 12, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   actionBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+  viewFullBtn: { marginTop: 12, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 999, borderWidth: 1 },
+  viewFullBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
   statsContainer: { flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: 20 },
   statBox: { flex: 1, alignItems: 'center' },
   statDivider: { width: 1, height: '100%' },
