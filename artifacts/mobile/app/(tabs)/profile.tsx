@@ -136,7 +136,7 @@ export default function ProfileScreen() {
           // STRICT SOFT DELETE FILTERING
           const { data: postsData } = await supabase.from("posts")
             .select("*").eq("user_id", user.id)
-            .is("is_deleted", false)
+            .neq("is_deleted", true)
             .order("created_at", { ascending: false });
             
           if (postsData && isMounted) setPosts(postsData);
@@ -178,14 +178,21 @@ export default function ProfileScreen() {
   };
 
   const handleDeletePost = async (postId: string) => {
-    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: async () => {
-          await supabase.from('posts').update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq('id', postId);
-          setPosts(prev => prev.filter(p => p.id !== postId));
-        }
+    if (Platform.OS === "web") {
+      if (window.confirm("Are you sure you want to delete this post?")) {
+        await supabase.from('posts').update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq('id', postId);
+        setPosts(prev => prev.filter(p => p.id !== postId));
       }
-    ]);
+    } else {
+      Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: async () => {
+            await supabase.from('posts').update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq('id', postId);
+            setPosts(prev => prev.filter(p => p.id !== postId));
+          }
+        }
+      ]);
+    }
   };
 
   const handleLogout = async () => {

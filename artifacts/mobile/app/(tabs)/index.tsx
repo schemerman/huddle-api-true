@@ -4,8 +4,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import { decode } from 'base64-arraybuffer';
 import { useFocusEffect, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
@@ -149,15 +147,19 @@ export default function HomeScreen() {
 
     if (selectedImage) {
       try {
-        const base64 = await FileSystem.readAsStringAsync(selectedImage, { encoding: FileSystem.EncodingType.Base64 });
+        const response = await fetch(selectedImage);
+        const blob = await response.blob();
         const filePath = `${user.id}/${Date.now()}.jpg`;
-        const { data, error } = await supabase.storage.from('posts').upload(filePath, decode(base64), { contentType: 'image/jpeg' });
+        
+        const { data, error } = await supabase.storage.from('posts').upload(filePath, blob, { contentType: 'image/jpeg' });
+        
+        if (error) throw error;
         
         if (data) {
           const { data: publicUrlData } = supabase.storage.from('posts').getPublicUrl(filePath);
           finalImageUrl = publicUrlData.publicUrl;
         }
-      } catch (e) {
+      } catch (e: any) {
         Alert.alert("Upload Failed", "Could not upload image.");
         setUploading(false);
         return;
@@ -298,11 +300,13 @@ export default function HomeScreen() {
               scoreText = ` (${homeScore} - ${awayScore})`;
           }
           const hUrl = getCrestUrl(homeTeam);
+          const aUrl = getCrestUrl(awayTeam);
           
           matchHeader = (
             <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
               {hUrl ? <Image source={{ uri: hUrl as string }} style={{ width: 14, height: 14, marginRight: 4 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{getFlag(homeTeam) || "⚽"} </Text>}
               <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: colors.foreground }}>{homeTeam} vs </Text>
+              {aUrl ? <Image source={{ uri: aUrl as string }} style={{ width: 14, height: 14, marginRight: 4, marginLeft: 2 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{getFlag(awayTeam) || "⚽"} </Text>}
               <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: colors.foreground }}>{awayTeam}{scoreText}</Text>
             </View>
           );

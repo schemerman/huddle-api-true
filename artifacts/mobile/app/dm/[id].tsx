@@ -73,7 +73,6 @@ export default function DirectMessageScreen() {
     const messageContent = newMessage.trim() || "Check out my prediction! 👀";
     const wagerAttachment = attachedWagerId;
     
-    // OPTIMISTIC UI: Show it immediately without waiting for database confirmation
     const optimisticMessage = {
       id: Math.random().toString(),
       sender_id: user.id,
@@ -153,7 +152,7 @@ export default function DirectMessageScreen() {
           <View style={{ flexDirection: "row", alignItems: "flex-end", width: "100%" }}>
             <TextInput style={[styles.textInput, { backgroundColor: "rgba(0,0,0,0.05)", color: colors.foreground }]} placeholder="Message..." placeholderTextColor={colors.mutedForeground} value={newMessage} onChangeText={setNewMessage} multiline />
             <Pressable onPress={handleSend} disabled={(!newMessage.trim() && !attachedWagerId) || isSubmitting} style={({pressed}) => [{ opacity: (!newMessage.trim() && !attachedWagerId) || pressed ? 0.5 : 1 }, styles.sendBtn]}>
-              {isSubmitting ? <ActivityIndicator size="small" color={colors.foreground} /> : <Text style={[styles.sendText, { color: colors.foreground }]}>Send</Text>}
+              {isSubmitting ? <ActivityIndicator size="small" color={colors.foreground as string} /> : <Text style={[styles.sendText, { color: colors.foreground }]}>Send</Text>}
             </Pressable>
           </View>
         </View>

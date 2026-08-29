@@ -25,6 +25,7 @@ export function AttachedWager({ wagerId }: { wagerId: string }) {
 
   useEffect(() => {
     const fetchWager = async () => {
+      if (!wagerId) return;
       const { data: wData } = await supabase.from('wagers').select('*').eq('id', wagerId).single();
       if (wData) {
         const fId = wData.fixture_id || wData.fixtureId;
