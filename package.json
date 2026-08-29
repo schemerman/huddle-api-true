@@ -12,5 +12,11 @@
     "lightningcss-win32-x64-msvc": "^1.32.0",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2"
+  },
+  "dependencies": {
+    "base64-arraybuffer": "^1.0.2",
+    "expo": "^57.0.17",
+    "expo-file-system": "^57.0.6",
+    "expo-image-picker": "^57.0.14"
   }
 }

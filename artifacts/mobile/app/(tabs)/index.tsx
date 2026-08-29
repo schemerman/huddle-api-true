@@ -1,8 +1,11 @@
 import React, { useState, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, Platform, Alert, TextInput, Modal, KeyboardAvoidingView, RefreshControl, useWindowDimensions, Image } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, Alert, TextInput, Modal, KeyboardAvoidingView, RefreshControl, useWindowDimensions, Image, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import { useFocusEffect, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
@@ -14,73 +17,21 @@ import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicP
 const isWeb = Platform.OS === "web";
 
 const getFlag = (team: string) => {
-  const flags: Record<string, string> = {
-    "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
-    "Canada": "🇨🇦", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-    "France": "🇫🇷", "Ghana": "🇬🇭", "Morocco": "🇲🇦", "Norway": "🇳🇴",
-    "Panama": "🇵🇦", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-    "Senegal": "🇸🇳", "Spain": "🇪🇸", "Switzerland": "🇨🇭", "USA": "🇺🇸",
-    "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
-    "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
-    "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
-    "Czech Republic": "🇨🇿", "Draw": "⚖️"
-  };
+  const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️" };
   return flags[team] || ""; 
 };
 
-// FULLY EXPANDED DICTIONARY TO CATCH ALL API VARIATIONS
 const getCrestUrl = (team: string): string | null => {
   const crests: Record<string, string> = {
-    "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
-    "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
-    "Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
-    "AFC Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
-    "Brentford": "https://a.espncdn.com/i/teamlogos/soccer/500/139026.png",
-    "Brighton": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
-    "Brighton and Hove Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
-    "Brighton & Hove Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
-    "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png",
-    "Crystal Palace": "https://a.espncdn.com/i/teamlogos/soccer/500/384.png",
-    "Everton": "https://a.espncdn.com/i/teamlogos/soccer/500/368.png",
-    "Fulham": "https://a.espncdn.com/i/teamlogos/soccer/500/370.png",
-    "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
-    "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
-    "Manchester City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
-    "Man United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
-    "Manchester United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
-    "Newcastle": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
-    "Newcastle United": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
-    "Nottm Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
-    "Nottingham Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
-    "Southampton": "https://a.espncdn.com/i/teamlogos/soccer/500/376.png",
-    "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
-    "Tottenham": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
-    "Tottenham Hotspur": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
-    "West Ham": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
-    "West Ham United": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
-    "Wolves": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
-    "Wolverhampton Wanderers": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
-    "Leicester": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
-    "Leicester City": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
-    "Ipswich": "https://a.espncdn.com/i/teamlogos/soccer/500/374.png",
-    "Ipswich Town": "https://a.espncdn.com/i/teamlogos/soccer/500/374.png",
-    "Coventry": "https://a.espncdn.com/i/teamlogos/soccer/500/386.png",
-    "Coventry City": "https://a.espncdn.com/i/teamlogos/soccer/500/386.png",
-    "Hull": "https://a.espncdn.com/i/teamlogos/soccer/500/366.png",
-    "Hull City": "https://a.espncdn.com/i/teamlogos/soccer/500/366.png",
-    "Sheffield Utd": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
-    "Sheffield United": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
-    "Burnley": "https://a.espncdn.com/i/teamlogos/soccer/500/379.png",
-    "Luton": "https://a.espncdn.com/i/teamlogos/soccer/500/394.png",
-    "Luton Town": "https://a.espncdn.com/i/teamlogos/soccer/500/394.png",
-    "Norwich": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
-    "Norwich City": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
-    "Watford": "https://a.espncdn.com/i/teamlogos/soccer/500/392.png",
-    "Leeds": "https://a.espncdn.com/i/teamlogos/soccer/500/357.png",
-    "Leeds United": "https://a.espncdn.com/i/teamlogos/soccer/500/357.png",
-    "Sunderland": "https://a.espncdn.com/i/teamlogos/soccer/500/390.png",
-    "West Brom": "https://a.espncdn.com/i/teamlogos/soccer/500/391.png",
-    "West Bromwich Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/391.png"
+    "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png", "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
+    "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png", "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
+    "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png", "Manchester United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
+    "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png", "Tottenham Hotspur": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "Brentford": "https://upload.wikimedia.org/wikipedia/en/thumb/2/2a/Brentford_FC_crest.svg/1200px-Brentford_FC_crest.svg.png",
+    "Ipswich Town": "https://upload.wikimedia.org/wikipedia/en/thumb/4/43/Ipswich_Town.svg/1200px-Ipswich_Town.svg.png",
+    "Hull City": "https://upload.wikimedia.org/wikipedia/en/thumb/5/54/Hull_City_A.F.C._logo.svg/1200px-Hull_City_A.F.C._logo.svg.png",
+    "Sunderland": "https://upload.wikimedia.org/wikipedia/en/thumb/7/77/Logo_Sunderland.svg/1200px-Logo_Sunderland.svg.png",
+    "Coventry City": "https://upload.wikimedia.org/wikipedia/en/thumb/9/94/Coventry_City_FC_logo.svg/1200px-Coventry_City_FC_logo.svg.png"
   };
   return crests[team] || null; 
 };
@@ -108,15 +59,16 @@ export default function HomeScreen() {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [uploading, setUploading] = useState(false);
   
   const [composeOpen, setComposeOpen] = useState(false);
   const [newPostText, setNewPostText] = useState("");
   const [attachedWagerId, setAttachedWagerId] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const [fireModalOpen, setFireModalOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any>(null);
   const [fireAmount, setFireAmount] = useState<string>("50");
-  
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
 
   const tapTimers = useRef<Record<string, any>>({});
@@ -124,8 +76,7 @@ export default function HomeScreen() {
 
   const fetchPosts = async () => {
     try {
-      // SOFT DELETE FIX: Exclude any posts that have been soft-deleted
-      const { data: postsData, error: postsError } = await supabase.from("posts").select(`*`).neq("is_deleted", true).order("created_at", { ascending: false });
+      const { data: postsData, error: postsError } = await supabase.from("posts").select(`*`).is("is_deleted", false).order("created_at", { ascending: false });
       if (postsError) return;
       if (!postsData || postsData.length === 0) { setPosts([]); return; }
 
@@ -160,7 +111,6 @@ export default function HomeScreen() {
         const postLikes = likesData?.filter(l => l.post_id === post.id) || [];
         const postCommentsCount = commentsData?.filter(c => c.post_id === post.id).length || 0;
         const postWager = post.wager_id ? wagersMap[post.wager_id] : null;
-        
         return { ...post, users: author, post_likes: postLikes, commentsCount: postCommentsCount, wager: postWager };
       });
 
@@ -178,6 +128,46 @@ export default function HomeScreen() {
       await AsyncStorage.removeItem("pending_share_wager");
       setTimeout(() => { if (isDesktop) inputRef.current?.focus(); else setComposeOpen(true); }, 300);
     }
+  };
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7,
+    });
+    if (!result.canceled) setSelectedImage(result.assets[0].uri);
+  };
+
+  const submitPost = async () => {
+    if (!user) return Alert.alert("Auth Error", "Are you logged in?");
+    const finalContent = newPostText.trim() || (attachedWagerId ? "Check out my prediction! 👀" : "");
+    if (!finalContent && !selectedImage) return;
+    
+    setUploading(true);
+    let finalImageUrl = null;
+
+    if (selectedImage) {
+      try {
+        const base64 = await FileSystem.readAsStringAsync(selectedImage, { encoding: FileSystem.EncodingType.Base64 });
+        const filePath = `${user.id}/${Date.now()}.jpg`;
+        const { data, error } = await supabase.storage.from('posts').upload(filePath, decode(base64), { contentType: 'image/jpeg' });
+        
+        if (data) {
+          const { data: publicUrlData } = supabase.storage.from('posts').getPublicUrl(filePath);
+          finalImageUrl = publicUrlData.publicUrl;
+        }
+      } catch (e) {
+        Alert.alert("Upload Failed", "Could not upload image.");
+        setUploading(false);
+        return;
+      }
+    }
+
+    try {
+      await supabase.from("posts").insert({ user_id: user.id, content: finalContent, wager_id: attachedWagerId, image_url: finalImageUrl });
+      setNewPostText(""); setAttachedWagerId(null); setSelectedImage(null); setComposeOpen(false); fetchPosts(); 
+    } catch (error: any) { Alert.alert("Crash", error.message); } finally { setUploading(false); }
   };
 
   const handleLike = async (postId: string, hasLiked: boolean) => {
@@ -212,7 +202,6 @@ export default function HomeScreen() {
     lastTapRef.current[postId] = now;
   };
 
-  // SOFT DELETE FIX: Using .update({ is_deleted: true }) instead of .delete()
   const handleDeletePost = (postId: string) => {
     if (Platform.OS === "web") {
       if (window.confirm("Are you sure you want to delete this post?")) {
@@ -254,17 +243,6 @@ export default function HomeScreen() {
       setPosts(current => current.map(p => p.id === selectedPost.id ? { ...p, fire_count: (p.fire_count || 0) + 1 } : p));
       if (!isDesktop && Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) { Alert.alert("Error", err.message); }
-  };
-
-  const submitPost = async () => {
-    if (!user) return Alert.alert("Auth Error", "Are you logged in?");
-    const finalContent = newPostText.trim() || (attachedWagerId ? "Check out my prediction! 👀" : "");
-    if (!finalContent) return;
-    
-    try {
-      await supabase.from("posts").insert({ user_id: user.id, content: finalContent, wager_id: attachedWagerId });
-      setNewPostText(""); setAttachedWagerId(null); setComposeOpen(false); fetchPosts(); 
-    } catch (error: any) { Alert.alert("Crash", error.message); }
   };
 
   const handleProfileClick = async (userId: string) => {
@@ -320,22 +298,17 @@ export default function HomeScreen() {
               scoreText = ` (${homeScore} - ${awayScore})`;
           }
           const hUrl = getCrestUrl(homeTeam);
-          const hFlag = getFlag(homeTeam);
-          const aUrl = getCrestUrl(awayTeam);
-          const aFlag = getFlag(awayTeam);
           
           matchHeader = (
             <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
-              {hUrl ? <Image source={{ uri: hUrl as string }} style={{ width: 14, height: 14, marginRight: 4 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{hFlag || "⚽"} </Text>}
+              {hUrl ? <Image source={{ uri: hUrl as string }} style={{ width: 14, height: 14, marginRight: 4 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{getFlag(homeTeam) || "⚽"} </Text>}
               <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: colors.foreground }}>{homeTeam} vs </Text>
-              {aUrl ? <Image source={{ uri: aUrl as string }} style={{ width: 14, height: 14, marginRight: 4, marginLeft: 2 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{aFlag || "⚽"} </Text>}
               <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: colors.foreground }}>{awayTeam}{scoreText}</Text>
             </View>
           );
       }
 
       const pUrl = getCrestUrl(predictionStr);
-      const pFlag = getFlag(predictionStr);
 
       miniReceipt = (
         <View style={[styles.miniReceipt, { borderColor: colors.border, backgroundColor: won ? "rgba(52, 199, 89, 0.05)" : lost ? "rgba(255, 59, 48, 0.05)" : colors.background }]}>
@@ -352,12 +325,11 @@ export default function HomeScreen() {
               <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>⚖️ Draw</Text>
             ) : (
               <>
-                {pUrl ? <Image source={{ uri: pUrl as string }} style={{ width: 16, height: 16, marginRight: 6 }} /> : <Text style={{ fontSize: 16, marginRight: 4, color: colors.foreground }}>{pFlag || "⚽"}</Text>}
+                {pUrl ? <Image source={{ uri: pUrl as string }} style={{ width: 16, height: 16, marginRight: 6 }} /> : <Text style={{ fontSize: 16, marginRight: 4, color: colors.foreground }}>{getFlag(predictionStr) || "⚽"}</Text>}
                 <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>{predictionStr}</Text>
               </>
             )}
           </View>
-
           <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>{won ? `+${item.wager.payout} pts` : lost ? `-${item.wager.amount} pts` : `${item.wager.amount} pts at stake`}</Text>
         </View>
       );
@@ -377,6 +349,7 @@ export default function HomeScreen() {
             </View>
             
             <Text style={[styles.postText, { color: colors.foreground }]}>{item.content}</Text>
+            {item.image_url && <Image source={{ uri: item.image_url }} style={styles.postImage} />}
             {miniReceipt}
           </Pressable>
           
@@ -385,17 +358,14 @@ export default function HomeScreen() {
               <FontAwesome5 name="heart" size={18} color={hasLiked ? "#FF3B30" : colors.mutedForeground} solid={hasLiked} />
               <Text style={[styles.actionText, { color: colors.mutedForeground }]}>{likesCount}</Text>
             </Pressable>
-            
             <Pressable style={styles.actionButton} onPress={() => router.push(`/post/${item.id}`)}>
               <Feather name="message-circle" size={18} color={colors.mutedForeground} />
               <Text style={[styles.actionText, { color: colors.mutedForeground }]}>{item.commentsCount}</Text>
             </Pressable>
-            
             <Pressable style={styles.actionButton} onPress={() => openFireModal(item)}>
               <FontAwesome5 name="fire" size={18} color={isLit ? "#FF6B00" : colors.mutedForeground} solid={isLit} />
               {isLit && <Text style={[styles.actionText, { color: "#FF6B00" }]}>{item.fire_count}</Text>}
             </Pressable>
-
             {isMyPost && (
               <Pressable style={[styles.actionButton, { marginLeft: 'auto' }]} onPress={() => handleDeletePost(item.id)}>
                 <Feather name="trash-2" size={16} color={colors.mutedForeground} />
@@ -421,25 +391,25 @@ export default function HomeScreen() {
             isDesktop ? (
               <View style={[styles.composeContainer, { borderBottomColor: colors.border }]}>
                 <TextInput ref={inputRef} style={[styles.composeInput, { color: colors.foreground }]} placeholder="What's your latest prediction?" placeholderTextColor={colors.mutedForeground} multiline value={newPostText} onChangeText={setNewPostText} />
+                {selectedImage && <Image source={{ uri: selectedImage }} style={styles.previewImage} />}
                 {attachedWagerId && (
                   <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
                     <Feather name="paperclip" size={14} color="#3B7BE5" />
                     <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
-                    <Pressable onPress={() => setAttachedWagerId(null)}>
-                      <Feather name="x" size={16} color="#3B7BE5" />
-                    </Pressable>
+                    <Pressable onPress={() => setAttachedWagerId(null)}><Feather name="x" size={16} color="#3B7BE5" /></Pressable>
                   </View>
                 )}
                 <View style={styles.composeFooter}>
-                  <Pressable style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} onPress={submitPost} disabled={!newPostText.trim() && !attachedWagerId}>
-                    <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
+                  <Pressable onPress={pickImage} style={{ padding: 8, marginRight: 'auto' }}><Feather name="image" size={20} color={colors.primary} /></Pressable>
+                  <Pressable style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId || selectedImage ? colors.foreground : colors.mutedForeground }]} onPress={submitPost} disabled={(!newPostText.trim() && !attachedWagerId && !selectedImage) || uploading}>
+                    {uploading ? <ActivityIndicator color={colors.background as string} size="small" /> : <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>}
                   </Pressable>
                 </View>
               </View>
             ) : null
           }
           renderItem={renderPost}
-          contentContainerStyle={{ paddingBottom: 120 }}
+          contentContainerStyle={{ paddingBottom: 150 }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />}
           ListEmptyComponent={!loading ? <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No posts yet. Start the conversation!</Text> : null}
@@ -459,11 +429,11 @@ export default function HomeScreen() {
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayBottom}>
             <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
               <View style={styles.modalHeader}>
-                <Pressable onPress={() => { setComposeOpen(false); setAttachedWagerId(null); }}>
+                <Pressable onPress={() => { setComposeOpen(false); setAttachedWagerId(null); setSelectedImage(null); }}>
                   <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancel</Text>
                 </Pressable>
-                <Pressable style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId ? colors.foreground : colors.mutedForeground }]} onPress={submitPost} disabled={!newPostText.trim() && !attachedWagerId}>
-                  <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>
+                <Pressable style={[styles.postBtn, { backgroundColor: newPostText.trim() || attachedWagerId || selectedImage ? colors.foreground : colors.mutedForeground }]} onPress={submitPost} disabled={(!newPostText.trim() && !attachedWagerId && !selectedImage) || uploading}>
+                  {uploading ? <ActivityIndicator color={colors.background as string} size="small" /> : <Text style={[styles.postBtnText, { color: colors.background }]}>Post</Text>}
                 </Pressable>
               </View>
               
@@ -471,13 +441,16 @@ export default function HomeScreen() {
                 <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
                   <Feather name="paperclip" size={14} color="#3B7BE5" />
                   <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
-                  <Pressable onPress={() => setAttachedWagerId(null)}>
-                    <Feather name="x" size={16} color="#3B7BE5" />
-                  </Pressable>
+                  <Pressable onPress={() => setAttachedWagerId(null)}><Feather name="x" size={16} color="#3B7BE5" /></Pressable>
                 </View>
               )}
 
+              {selectedImage && <Image source={{ uri: selectedImage }} style={styles.previewImage} />}
               <TextInput style={[styles.composeInput, { color: colors.foreground }]} placeholder="What's your latest prediction?" placeholderTextColor={colors.mutedForeground} multiline autoFocus value={newPostText} onChangeText={setNewPostText} />
+              
+              <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
+                <Pressable onPress={pickImage} style={{ padding: 8 }}><Feather name="image" size={22} color={colors.primary} /></Pressable>
+              </View>
             </View>
           </KeyboardAvoidingView>
         </Modal>
@@ -518,6 +491,8 @@ const styles = StyleSheet.create({
   postContainer: { flexDirection: "row", padding: 16, borderBottomWidth: 1, gap: 12 },
   postLit: { backgroundColor: "rgba(255, 107, 0, 0.04)" },
   postContent: { flex: 1 },
+  postImage: { width: '100%', height: 200, borderRadius: 12, marginTop: 8, marginBottom: 8 },
+  previewImage: { width: 100, height: 100, borderRadius: 8, marginBottom: 12 },
   postHeader: { flexDirection: "column", alignItems: "flex-start", marginBottom: 6 },
   displayName: { fontFamily: "Inter_700Bold", fontSize: 16 },
   username: { fontFamily: "Inter_400Regular", fontSize: 14, marginTop: 2 },

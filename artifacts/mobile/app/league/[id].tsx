@@ -1,3 +1,4 @@
+import { AttachedWager } from "@/components/AttachedWager";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";

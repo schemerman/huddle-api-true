@@ -2,19 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState, useEffect } from "react";
-import {
-  Alert,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  Linking,
-  Image
-} from "react-native";
+import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, Linking, Image, FlatList } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
@@ -45,34 +33,20 @@ export const getRank = (winRate: number, totalPicks: number = 0) => {
 };
 
 const getFlag = (team: string) => {
-  const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️", "Spain": "🇪🇸", "Belgium": "🇧🇪" };
+  const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️" };
   return flags[team] || ""; 
 };
 
 const getCrestUrl = (team: string): string | null => {
   const crests: Record<string, string> = {
-    "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
-    "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
-    "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png",
-    "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
-    "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
-    "Manchester City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
-    "Man United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
-    "Manchester United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
-    "Newcastle": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
-    "Newcastle United": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
-    "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
-    "Tottenham": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
-    "Tottenham Hotspur": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
+    "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png", "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
+    "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png", "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
+    "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png", "Manchester United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
+    "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png", "Tottenham Hotspur": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
     "Brentford": "https://upload.wikimedia.org/wikipedia/en/thumb/2/2a/Brentford_FC_crest.svg/1200px-Brentford_FC_crest.svg.png",
-    "Brentford FC": "https://upload.wikimedia.org/wikipedia/en/thumb/2/2a/Brentford_FC_crest.svg/1200px-Brentford_FC_crest.svg.png",
-    "Ipswich": "https://upload.wikimedia.org/wikipedia/en/thumb/4/43/Ipswich_Town.svg/1200px-Ipswich_Town.svg.png",
     "Ipswich Town": "https://upload.wikimedia.org/wikipedia/en/thumb/4/43/Ipswich_Town.svg/1200px-Ipswich_Town.svg.png",
-    "Hull": "https://upload.wikimedia.org/wikipedia/en/thumb/5/54/Hull_City_A.F.C._logo.svg/1200px-Hull_City_A.F.C._logo.svg.png",
     "Hull City": "https://upload.wikimedia.org/wikipedia/en/thumb/5/54/Hull_City_A.F.C._logo.svg/1200px-Hull_City_A.F.C._logo.svg.png",
     "Sunderland": "https://upload.wikimedia.org/wikipedia/en/thumb/7/77/Logo_Sunderland.svg/1200px-Logo_Sunderland.svg.png",
-    "Sunderland A.F.C.": "https://upload.wikimedia.org/wikipedia/en/thumb/7/77/Logo_Sunderland.svg/1200px-Logo_Sunderland.svg.png",
-    "Coventry": "https://upload.wikimedia.org/wikipedia/en/thumb/9/94/Coventry_City_FC_logo.svg/1200px-Coventry_City_FC_logo.svg.png",
     "Coventry City": "https://upload.wikimedia.org/wikipedia/en/thumb/9/94/Coventry_City_FC_logo.svg/1200px-Coventry_City_FC_logo.svg.png"
   };
   return crests[team] || null; 
@@ -104,6 +78,8 @@ export default function ProfileScreen() {
   const [tab, setTab] = useState<"stats" | "wagers" | "posts">("stats");
   const [agreementOpen, setAgreementOpen] = useState(false);
   const [receiptWager, setReceiptWager] = useState<any | null>(null);
+  
+  const [socialModal, setSocialModal] = useState<{ visible: boolean; type: 'followers' | 'following'; data: any[] }>({ visible: false, type: 'followers', data: [] });
   
   const [wagers, setWagers] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
@@ -142,7 +118,6 @@ export default function ProfileScreen() {
 
       const fetchFreshData = async () => {
         try {
-          // 1. Fetch Wagers
           const { data: wagersData } = await supabase.from("wagers").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
           if (wagersData) {
             const fixtureIds = wagersData.map((w: any) => w.fixture_id || w.fixtureId).filter(Boolean);
@@ -158,18 +133,20 @@ export default function ProfileScreen() {
             if (isMounted) setWagers(mergedWagers);
           }
 
-          // 2. Fetch Posts
-          const { data: postsData } = await supabase.from("posts").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+          // STRICT SOFT DELETE FILTERING
+          const { data: postsData } = await supabase.from("posts")
+            .select("*").eq("user_id", user.id)
+            .is("is_deleted", false)
+            .order("created_at", { ascending: false });
+            
           if (postsData && isMounted) setPosts(postsData);
 
-          // 3. Fetch Social Stats
           const { count: followers } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', user.id);
           const { count: following } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', user.id);
           if (isMounted) {
             setFollowersCount(followers || 0);
             setFollowingCount(following || 0);
           }
-
         } catch (e) { } finally {
           if (isMounted) setWagersLoaded(true);
         }
@@ -180,11 +157,31 @@ export default function ProfileScreen() {
     }, [user?.id])
   );
 
+  const openSocialList = async (type: 'followers' | 'following') => {
+    if (!user) return;
+    let targetIds: string[] = [];
+    
+    if (type === 'followers') {
+      const { data } = await supabase.from('follows').select('follower_id').eq('following_id', user.id);
+      targetIds = data?.map(d => d.follower_id) || [];
+    } else {
+      const { data } = await supabase.from('follows').select('following_id').eq('follower_id', user.id);
+      targetIds = data?.map(d => d.following_id) || [];
+    }
+
+    if (targetIds.length > 0) {
+      const { data: usersData } = await supabase.from('users').select('*').in('id', targetIds);
+      setSocialModal({ visible: true, type, data: usersData || [] });
+    } else {
+      setSocialModal({ visible: true, type, data: [] });
+    }
+  };
+
   const handleDeletePost = async (postId: string) => {
     Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: async () => {
-          await supabase.from('posts').delete().eq('id', postId);
+          await supabase.from('posts').update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq('id', postId);
           setPosts(prev => prev.filter(p => p.id !== postId));
         }
       }
@@ -224,16 +221,6 @@ export default function ProfileScreen() {
   const safeColor = activeUser.avatar_color || activeUser.avatarColor || colors.primary;
   const safeWagersCount = wagers?.length || 0;
 
-  const handleDailyBonus = async () => {
-    if (isBonusLocked) return;
-    setIsBonusLocked(true);
-    setVisualPoints((prev: number) => prev + 100);
-    await AsyncStorage.setItem('last_bonus_claim_time', Date.now().toString());
-    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    else window.alert("Daily bonus claimed! +100 points.");
-    try { await claimDailyBonus(); } catch (error) {}
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.topBar, { paddingTop: topPad, borderBottomColor: colors.border }]}>
@@ -243,7 +230,7 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 150 }}>
         
         <View style={styles.heroSection}>
           <Avatar color={safeColor} username={safeUsername} size={80} highlight={safeStreak >= 3} />
@@ -252,8 +239,12 @@ export default function ProfileScreen() {
             <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{safeUsername}</Text>
             
             <View style={styles.socialRow}>
-              <Text style={[styles.socialText, { color: colors.foreground }]}>{followersCount} <Text style={{ color: colors.mutedForeground }}>Followers</Text></Text>
-              <Text style={[styles.socialText, { color: colors.foreground }]}>{followingCount} <Text style={{ color: colors.mutedForeground }}>Following</Text></Text>
+              <Pressable onPress={() => openSocialList('followers')}>
+                <Text style={[styles.socialText, { color: colors.foreground }]}>{followersCount} <Text style={{ color: colors.mutedForeground }}>Followers</Text></Text>
+              </Pressable>
+              <Pressable onPress={() => openSocialList('following')}>
+                <Text style={[styles.socialText, { color: colors.foreground }]}>{followingCount} <Text style={{ color: colors.mutedForeground }}>Following</Text></Text>
+              </Pressable>
             </View>
 
             <View style={styles.perfRow}>
@@ -288,7 +279,7 @@ export default function ProfileScreen() {
         </View>
 
         <Pressable
-          onPress={handleDailyBonus}
+          onPress={() => handleDailyBonus()}
           disabled={isBonusLocked}
           style={({ pressed }) => ({
             flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 15, marginHorizontal: 16, marginTop: 20, marginBottom: 8,
@@ -327,9 +318,7 @@ export default function ProfileScreen() {
                     </Pressable>
                   </View>
                   <Text style={[styles.postContent, { color: colors.foreground }]}>{p.content}</Text>
-                  {p.image_url && (
-                    <Image source={{ uri: p.image_url }} style={styles.postImage} />
-                  )}
+                  {p.image_url && <Image source={{ uri: p.image_url }} style={styles.postImage} />}
                   <View style={styles.postActionRow}>
                     <Feather name="heart" size={16} color={colors.mutedForeground} />
                     <Feather name="message-circle" size={16} color={colors.mutedForeground} />
@@ -403,11 +392,6 @@ export default function ProfileScreen() {
                   <Text style={[styles.settingsLabel, { color: colors.foreground }]}>Privacy Policy</Text>
                   <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
                 </Pressable>
-                <Pressable onPress={() => Linking.openURL('mailto:huddleappsupport@gmail.com?subject=Huddle App Feedback')} style={styles.settingsRow}>
-                  <Feather name="message-square" size={18} color={colors.foreground} />
-                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>Give Feedback</Text>
-                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-                </Pressable>
               </View>
             </View>
             <Pressable onPress={handleLogout} style={[styles.signOutBtn, { borderColor: colors.border }]}>
@@ -418,19 +402,30 @@ export default function ProfileScreen() {
         )}
       </ScrollView>
 
-      <Modal visible={agreementOpen} transparent animationType="slide">
+      <Modal visible={socialModal.visible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalDismiss} onPress={() => setAgreementOpen(false)} />
-          <View style={[styles.modalSheet, { backgroundColor: colors.background, maxHeight: "90%" }]}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.background }]}>
             <View style={styles.modalHead}>
-              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Terms & Privacy</Text>
-              <Pressable onPress={() => setAgreementOpen(false)}><Feather name="x" size={22} color={colors.foreground} /></Pressable>
+              <Text style={[styles.modalTitle, { color: colors.foreground, textTransform: 'capitalize' }]}>{socialModal.type}</Text>
+              <Pressable onPress={() => setSocialModal({ ...socialModal, visible: false })}><Feather name="x" size={22} color={colors.foreground} /></Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.agreementScroll}>
-              <Text style={[styles.agreementHeading, { color: colors.foreground }]}>1. No Real Money Gambling</Text>
-              <Text style={[styles.agreementText, { color: colors.mutedForeground }]}>Huddle is a strictly free-to-play sports prediction simulator.</Text>
-              <View style={{ height: 40 }} />
-            </ScrollView>
+            <FlatList
+              data={socialModal.data}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <Pressable 
+                  onPress={() => { setSocialModal({ ...socialModal, visible: false }); router.push(`/user/${item.id}` as any); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}
+                >
+                  <Avatar color={item.avatar_color || colors.primary} username={item.username} size={40} />
+                  <View style={{ marginLeft: 12 }}>
+                    <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 16, color: colors.foreground }}>{item.display_name || item.username}</Text>
+                    <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.mutedForeground }}>@{item.username}</Text>
+                  </View>
+                </Pressable>
+              )}
+              ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 40, color: colors.mutedForeground }}>No users found.</Text>}
+            />
           </View>
         </View>
       </Modal>
@@ -452,7 +447,6 @@ const styles = StyleSheet.create({
   socialText: { fontFamily: 'Inter_500Medium', fontSize: 13 },
   perfRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   streakText: { fontFamily: "Inter_500Medium", fontSize: 13, marginTop: 4 },
-  dob: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 4 },
   rankBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, marginTop: 6 },
   badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
   bankruptBanner: { marginHorizontal: 16, marginBottom: 16, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderRadius: 12 },
@@ -473,7 +467,6 @@ const styles = StyleSheet.create({
   signOutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, margin: 20, paddingVertical: 14, borderWidth: 1, borderRadius: 999, borderColor: "#E8E8E8" },
   signOutText: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: "#FF3B30" },
   wagersSection: { paddingHorizontal: 16, paddingTop: 12 },
-  wagersHeading: { fontFamily: "Inter_700Bold", fontSize: 16, letterSpacing: -0.2, marginBottom: 14 },
   wagersEmpty: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 21, paddingVertical: 8 },
   wagerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 13, borderBottomWidth: 1 },
   wagerLeft: { flex: 1 },
@@ -490,12 +483,9 @@ const styles = StyleSheet.create({
   postContent: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, marginBottom: 12 },
   postImage: { width: "100%", height: 200, borderRadius: 12, marginBottom: 12 },
   postActionRow: { flexDirection: "row", alignItems: "center", gap: 20 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  modalDismiss: { flex: 1 },
-  modalSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40, maxHeight: "80%" },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalSheet: { height: '80%', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   modalHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-  modalTitle: { fontFamily: "Inter_700Bold", fontSize: 20, letterSpacing: -0.3 },
+  modalTitle: { fontFamily: "Inter_700Bold", fontSize: 18 },
   agreementScroll: { flexGrow: 0 },
-  agreementHeading: { fontFamily: "Inter_600SemiBold", fontSize: 15, marginBottom: 6, marginTop: 14 },
-  agreementText: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 21 },
 });
