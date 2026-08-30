@@ -102,13 +102,20 @@ export default function DirectMessageScreen() {
     }
   };
 
-  const renderMessage = ({ item }: { item: any }) => {
+ const renderMessage = ({ item }: { item: any }) => {
     const isMe = item.sender_id === user?.id;
+    
+    const isPhoto = item.image_url && item.image_url.startsWith('http');
+    const isWager = item.image_url && !item.image_url.startsWith('http');
+
     return (
       <View style={[styles.messageRow, isMe ? styles.messageMe : styles.messageThem]}>
         <View style={[styles.messageBubble, isMe ? [styles.bubbleMe, { backgroundColor: colors.foreground }] : [styles.bubbleThem, { backgroundColor: "rgba(0,0,0,0.05)" }]]}>
-          {item.image_url && <AttachedWager wagerId={item.image_url} />}
-          <Text style={[styles.messageText, { color: isMe ? colors.background : colors.foreground }]}>{item.content}</Text>
+          
+          {isPhoto && <Image source={{ uri: item.image_url }} style={{ width: 200, height: 200, borderRadius: 12, marginBottom: 8 }} />}
+          {isWager && <AttachedWager wagerId={item.image_url} />}
+          
+          {item.content ? <Text style={[styles.messageText, { color: isMe ? colors.background : colors.foreground }]}>{item.content}</Text> : null}
         </View>
       </View>
     );

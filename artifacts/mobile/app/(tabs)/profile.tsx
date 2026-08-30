@@ -10,6 +10,7 @@ import palette from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { ReceiptModal } from "@/components/ReceiptModal";
+import { AttachedWager } from "@/components/AttachedWager";
 import { supabase } from "@/lib/supabase";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -286,7 +287,7 @@ export default function ProfileScreen() {
         </View>
 
         <Pressable
-          onPress={() => handleDailyBonus()}
+          onPress={() => claimDailyBonus && claimDailyBonus()}
           disabled={isBonusLocked}
           style={({ pressed }) => ({
             flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 15, marginHorizontal: 16, marginTop: 20, marginBottom: 8,
@@ -326,6 +327,10 @@ export default function ProfileScreen() {
                   </View>
                   <Text style={[styles.postContent, { color: colors.foreground }]}>{p.content}</Text>
                   {p.image_url && <Image source={{ uri: p.image_url }} style={styles.postImage} />}
+                  
+                  {/* Added this component to display the receipt */}
+                  {p.wager_id && <AttachedWager wagerId={p.wager_id} />}
+                  
                   <View style={styles.postActionRow}>
                     <Feather name="heart" size={16} color={colors.mutedForeground} />
                     <Feather name="message-circle" size={16} color={colors.mutedForeground} />
