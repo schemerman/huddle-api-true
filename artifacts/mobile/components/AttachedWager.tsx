@@ -37,7 +37,7 @@ export function AttachedWager({ wagerId }: { wagerId: string }) {
     fetchWager();
   }, [wagerId]);
 
-  if (loading) return <View style={{ padding: 10 }}><ActivityIndicator color={colors.foreground as string} /></View>;
+  if (loading) return <View style={{ padding: 12 }}><ActivityIndicator color={colors.mutedForeground as string} size="small" /></View>;
   if (!wager) return null;
 
   const f = wager.fixture || {};
@@ -48,8 +48,8 @@ export function AttachedWager({ wagerId }: { wagerId: string }) {
   const choice = wager.prediction || wager.choice;
   const isDraw = choice === "Draw";
 
-  const isWon = wager.status === 'won';
-  const isLost = wager.status === 'lost';
+  const won = wager.status === 'won';
+  const lost = wager.status === 'lost';
 
   const hCrest = getCrestUrl(home);
   const aCrest = getCrestUrl(away);
@@ -60,50 +60,48 @@ export function AttachedWager({ wagerId }: { wagerId: string }) {
       scoreText = ` (${hScore} - ${aScore})`;
   }
 
+  // Forces the component to adopt a light card background so it is readable inside dark DM bubbles
+  const textColor = colors.foreground;
+  const muteColor = colors.mutedForeground;
+  const bgColor = won ? "rgba(52, 199, 89, 0.05)" : lost ? "rgba(255, 59, 48, 0.05)" : colors.background;
+
   return (
-    <View style={[styles.receipt, { borderColor: colors.border, backgroundColor: isWon ? "rgba(52, 199, 89, 0.05)" : isLost ? "rgba(255, 59, 48, 0.05)" : colors.background }]}>
-      <View style={styles.top}>
-        <Text style={[styles.label, { color: colors.mutedForeground }]}>PREDICTION</Text>
-        <View style={[styles.badge, { backgroundColor: isWon ? colors.primary : isLost ? colors.secondary : colors.border }]}>
-           <Text style={[styles.status, { color: isWon ? colors.primaryForeground : colors.foreground }]}>{isWon ? "WON" : isLost ? "LOST" : "PENDING"}</Text>
+    <View style={[styles.miniReceipt, { borderColor: colors.border, backgroundColor: bgColor }]}>
+      <View style={styles.miniReceiptTop}>
+        <Text style={[styles.miniReceiptLabel, { color: muteColor }]}>Prediction</Text>
+        <View style={[styles.miniReceiptBadge, { backgroundColor: won ? colors.primary : lost ? colors.secondary : colors.border }]}>
+           <Text style={[styles.miniReceiptStatus, { color: won ? colors.primaryForeground : colors.foreground }]}>{won ? "WON" : lost ? "LOST" : "PENDING"}</Text>
         </View>
       </View>
 
-      <View style={styles.matchRow}>
-        {hCrest ? <Image source={{ uri: hCrest }} style={styles.crest} /> : <Text style={styles.flag}>{getFlag(home) || "⚽"} </Text>}
-        <Text style={[styles.matchText, { color: colors.foreground }]}>{home} vs </Text>
-        {aCrest ? <Image source={{ uri: aCrest }} style={styles.crest} /> : <Text style={styles.flag}>{getFlag(away) || "⚽"} </Text>}
-        <Text style={[styles.matchText, { color: colors.foreground }]}>{away}{scoreText}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+        {hCrest ? <Image source={{ uri: hCrest as string }} style={{ width: 14, height: 14, marginRight: 4 }} /> : <Text style={{ fontSize: 13, color: textColor }}>{getFlag(home) || "⚽"} </Text>}
+        <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: textColor }}>{home} vs </Text>
+        {aCrest ? <Image source={{ uri: aCrest as string }} style={{ width: 14, height: 14, marginRight: 4, marginLeft: 2 }} /> : <Text style={{ fontSize: 13, color: textColor }}>{getFlag(away) || "⚽"} </Text>}
+        <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: textColor }}>{away}{scoreText}</Text>
       </View>
 
-      <View style={styles.choiceRow}>
+      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
         {isDraw ? (
-          <Text style={[styles.choiceText, { color: colors.foreground }]}>⚖️ Draw</Text>
+          <Text style={[styles.miniReceiptPred, { color: textColor }]}>⚖️ Draw</Text>
         ) : (
           <>
-            {cCrest ? <Image source={{ uri: cCrest }} style={styles.crestLarge} /> : <Text style={styles.flagLarge}>{getFlag(choice) || "⚽"} </Text>}
-            <Text style={[styles.choiceText, { color: colors.foreground }]}>{choice}</Text>
+            {cCrest ? <Image source={{ uri: cCrest as string }} style={{ width: 16, height: 16, marginRight: 6 }} /> : <Text style={{ fontSize: 16, marginRight: 4, color: textColor }}>{getFlag(choice) || "⚽"}</Text>}
+            <Text style={[styles.miniReceiptPred, { color: textColor }]}>{choice}</Text>
           </>
         )}
       </View>
-      <Text style={[styles.pts, { color: colors.mutedForeground }]}>{isWon ? `+${wager.payout} pts` : isLost ? `-${wager.amount} pts` : `${wager.amount} pts at stake`}</Text>
+      <Text style={[styles.miniReceiptPts, { color: muteColor }]}>{won ? `+${wager.payout} pts` : lost ? `-${wager.amount} pts` : `${wager.amount} pts at stake`}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  receipt: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8, marginTop: 4, width: '100%', minWidth: 240 },
-  top: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  label: { fontFamily: "Inter_500Medium", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 },
-  badge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  status: { fontFamily: "Inter_700Bold", fontSize: 9, letterSpacing: 0.5 },
-  matchRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginBottom: 6 },
-  crest: { width: 14, height: 14, marginRight: 4 },
-  flag: { fontSize: 13, marginRight: 2 },
-  matchText: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
-  choiceRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
-  crestLarge: { width: 16, height: 16, marginRight: 6 },
-  flagLarge: { fontSize: 16, marginRight: 4 },
-  choiceText: { fontFamily: "Inter_600SemiBold", fontSize: 16 },
-  pts: { fontFamily: "Inter_400Regular", fontSize: 13 },
+  miniReceipt: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, marginTop: 4, minWidth: 260 },
+  miniReceiptTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  miniReceiptLabel: { fontFamily: "Inter_500Medium", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
+  miniReceiptBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  miniReceiptStatus: { fontFamily: "Inter_700Bold", fontSize: 10, letterSpacing: 0.5 },
+  miniReceiptPred: { fontFamily: "Inter_600SemiBold", fontSize: 16, marginBottom: 0 },
+  miniReceiptPts: { fontFamily: "Inter_400Regular", fontSize: 13 },
 });
