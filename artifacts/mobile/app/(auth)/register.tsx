@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
+import { showError } from '@/lib/alerts';
+import { Feather } from '@expo/vector-icons';
 
 // Generates a random color for new users
 const getRandomColor = () => {
@@ -24,15 +26,16 @@ export default function RegisterScreen() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [agreed, setAgreed] = useState(false);
 
   const handleRegister = async () => {
     if (!email || !dob || !displayName || !username || !password) {
-      return Alert.alert("Missing Fields", "Please fill out all fields to create your account.");
+      return showError("Missing Fields", "Please fill out all fields to create your account.");
     }
 
     // Age Verification (Must be 18+)
     const dobRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dobRegex.test(dob)) return Alert.alert("Invalid Format", "Please use YYYY-MM-DD format for your birthday.");
+    if (!dobRegex.test(dob)) return showError("Invalid Format", "Please use YYYY-MM-DD format for your birthday.");
     
     const birthDate = new Date(dob);
     const today = new Date();
@@ -40,7 +43,11 @@ export default function RegisterScreen() {
     const m = today.getMonth() - birthDate.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
     
-    if (age < 18) return Alert.alert("Age Restriction", "You must be at least 18 years old to join.");
+    if (age < 18) return showError("Age Restriction", "You must be at least 18 years old to join.");
+
+    if (!agreed) {
+      return showError("Please agree to continue", "Tick the box to confirm you're 18 or over and agree to the Terms of Use and Privacy Policy.");
+    }
 
     setLoading(true);
 
@@ -55,7 +62,7 @@ export default function RegisterScreen() {
       
       // The auth listener will automatically push them to Home now!
     } catch (err: any) {
-      Alert.alert("Registration Error", err.message);
+      showError("Registration Error", err.message);
     } finally {
       setLoading(false);
     }
@@ -86,7 +93,26 @@ export default function RegisterScreen() {
           <TextInput style={[styles.input, { borderColor: colors.border, color: colors.foreground }]} placeholder="Secure password" placeholderTextColor={colors.mutedForeground} value={password} onChangeText={setPassword} secureTextEntry />
         </View>
 
-        <Pressable style={[styles.submitBtn, { backgroundColor: loading ? colors.mutedForeground : colors.foreground }]} onPress={handleRegister} disabled={loading}>
+        <View style={styles.consentRow}>
+          <Pressable
+            onPress={() => setAgreed((v) => !v)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: agreed }}
+            accessibilityLabel="I'm 18 or over and agree to the Terms of Use and Privacy Policy"
+            hitSlop={8}
+            style={[styles.checkbox, { borderColor: colors.foreground, backgroundColor: agreed ? colors.foreground : "transparent" }]}
+          >
+            {agreed ? <Feather name="check" size={14} color={colors.background} /> : null}
+          </Pressable>
+          <Text style={[styles.consentText, { color: colors.foreground }]} onPress={() => setAgreed((v) => !v)}>
+            I'm 18 or over and I agree to the{" "}
+            <Text style={styles.consentLink} onPress={() => router.push('/terms' as any)}>Terms of Use</Text>
+            {" "}and{" "}
+            <Text style={styles.consentLink} onPress={() => router.push('/privacy' as any)}>Privacy Policy</Text>.
+          </Text>
+        </View>
+
+        <Pressable style={[styles.submitBtn, { backgroundColor: loading || !agreed ? colors.mutedForeground : colors.foreground }]} onPress={handleRegister} disabled={loading}>
           <Text style={[styles.submitBtnText, { color: colors.background }]}>{loading ? "Creating Account..." : "Sign up"}</Text>
         </Pressable>
 
@@ -111,6 +137,10 @@ const styles = StyleSheet.create({
   label: { fontFamily: 'Inter_600SemiBold', fontSize: 14, marginBottom: -8, marginLeft: 4 },
   input: { borderWidth: 1, borderRadius: 12, padding: 16, fontSize: 16, fontFamily: 'Inter_400Regular' },
   submitBtn: { padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 24 },
+  consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: -12, marginBottom: 24 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  consentText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21 },
+  consentLink: { fontFamily: 'Inter_600SemiBold', textDecorationLine: 'underline' },
   submitBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
   footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   footerText: { fontFamily: 'Inter_400Regular', fontSize: 15 },

@@ -19,40 +19,8 @@ import { Avatar } from "@/components/Avatar";
 import { supabase } from "@/lib/supabase";
 
 import { getRank, winRateOf } from "@/utils/ranks";
-
-const getFlag = (team: string) => {
-  const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️", "Spain": "🇪🇸", "Belgium": "🇧🇪" };
-  return flags[team] || ""; 
-};
-
-const getCrestUrl = (team: string): string | null => {
-  const crests: Record<string, string> = {
-    "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
-    "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
-    "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png",
-    "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
-    "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
-    "Manchester City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
-    "Man United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
-    "Manchester United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
-    "Newcastle": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
-    "Newcastle United": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
-    "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
-    "Tottenham": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
-    "Tottenham Hotspur": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
-    "Brentford": "https://upload.wikimedia.org/wikipedia/en/thumb/2/2a/Brentford_FC_crest.svg/1200px-Brentford_FC_crest.svg.png",
-    "Brentford FC": "https://upload.wikimedia.org/wikipedia/en/thumb/2/2a/Brentford_FC_crest.svg/1200px-Brentford_FC_crest.svg.png",
-    "Ipswich": "https://upload.wikimedia.org/wikipedia/en/thumb/4/43/Ipswich_Town.svg/1200px-Ipswich_Town.svg.png",
-    "Ipswich Town": "https://upload.wikimedia.org/wikipedia/en/thumb/4/43/Ipswich_Town.svg/1200px-Ipswich_Town.svg.png",
-    "Hull": "https://upload.wikimedia.org/wikipedia/en/thumb/5/54/Hull_City_A.F.C._logo.svg/1200px-Hull_City_A.F.C._logo.svg.png",
-    "Hull City": "https://upload.wikimedia.org/wikipedia/en/thumb/5/54/Hull_City_A.F.C._logo.svg/1200px-Hull_City_A.F.C._logo.svg.png",
-    "Sunderland": "https://upload.wikimedia.org/wikipedia/en/thumb/7/77/Logo_Sunderland.svg/1200px-Logo_Sunderland.svg.png",
-    "Sunderland A.F.C.": "https://upload.wikimedia.org/wikipedia/en/thumb/7/77/Logo_Sunderland.svg/1200px-Logo_Sunderland.svg.png",
-    "Coventry": "https://upload.wikimedia.org/wikipedia/en/thumb/9/94/Coventry_City_FC_logo.svg/1200px-Coventry_City_FC_logo.svg.png",
-    "Coventry City": "https://upload.wikimedia.org/wikipedia/en/thumb/9/94/Coventry_City_FC_logo.svg/1200px-Coventry_City_FC_logo.svg.png"
-  };
-  return crests[team] || null; 
-};
+import { getCrestUrl, getFlag } from "@/utils/teams";
+import { USER_COLUMNS } from "@/lib/users";
 
 function statusLabel(status: string): string {
   if (status === "won") return "Won";
@@ -85,7 +53,7 @@ export default function UserProfileScreen() {
 
       const fetchTargetData = async () => {
         try {
-          const { data: userData } = await supabase.from('users').select('*').eq('id', targetUserId).single();
+          const { data: userData } = await supabase.from("users").select(USER_COLUMNS).eq('id', targetUserId).single();
           if (userData && isMounted) setTargetUser(userData);
 
           const { data: wagersData } = await supabase.from("wagers").select("*").eq("user_id", targetUserId).order("created_at", { ascending: false });

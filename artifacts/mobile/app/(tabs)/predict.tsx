@@ -23,12 +23,25 @@ import { listFixtures, type Fixture as ApiFixture } from "@workspace/api-client-
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { getCrestUrl, getFlag } from "@/utils/teams";
 
 type Choice = "A" | "D" | "B";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Sections at the top of the Predict tab. `name` must match fixtures.competition, which the
+// API sets in artifacts/api-server/src/lib/apiFootball.ts. Champions League rounds are 2-3
+// weeks apart, so that section looks further ahead.
+const LEAGUES = [
+  { name: "Premier League", logo: "https://a.espncdn.com/i/leaguelogos/soccer/500/23.png", days: 7, emptyWhen: "this week" },
+  { name: "Champions League", logo: "https://a.espncdn.com/i/leaguelogos/soccer/500/2.png", days: 14, emptyWhen: "in the next 2 weeks" },
+] as const;
+type LeagueName = (typeof LEAGUES)[number]["name"];
 
 interface Fixture {
   id: string;
   competition: string;
+  startsAt: number;
   kickoff: string;
   question: string;
   teamA: string;
@@ -48,76 +61,6 @@ interface FixtureOverlay {
   userWager: number;
 }
 
-const getFlag = (team: string) => {
-  const flags: Record<string, string> = {
-    "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
-    "Canada": "🇨🇦", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-    "France": "🇫🇷", "Ghana": "🇬🇭", "Morocco": "🇲🇦", "Norway": "🇳🇴",
-    "Panama": "🇵🇦", "Portugal": "🇵🇹", "Qatar": "🇶🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-    "Senegal": "🇸🇳", "Spain": "🇪🇸", "Switzerland": "🇨🇭", "USA": "🇺🇸",
-    "Uzbekistan": "🇺🇿", "Algeria": "🇩🇿", "Bosnia & Herzegovina": "🇧🇦",
-    "DR Congo": "🇨🇩", "Haiti": "🇭🇹", "Iraq": "🇮🇶", "Jordan": "🇯🇴",
-    "Saudi Arabia": "🇸🇦", "South Africa": "🇿🇦", "Uruguay": "🇺🇾",
-    "Czech Republic": "🇨🇿", "Draw": "⚖️"
-  };
-  return flags[team] || "";
-};
-
-const getCrestUrl = (team: string): string | null => {
-  const crests: Record<string, string> = {
-    "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
-    "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
-    "Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
-    "AFC Bournemouth": "https://a.espncdn.com/i/teamlogos/soccer/500/349.png",
-    "Brentford": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/hx8g3Hj4Z2a5v7Z1h1x8g3_500x500.png",
-    "Brentford FC": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/hx8g3Hj4Z2a5v7Z1h1x8g3_500x500.png",
-    "Brighton": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
-    "Brighton and Hove Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
-    "Brighton & Hove Albion": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png",
-    "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png",
-    "Crystal Palace": "https://a.espncdn.com/i/teamlogos/soccer/500/384.png",
-    "Everton": "https://a.espncdn.com/i/teamlogos/soccer/500/368.png",
-    "Fulham": "https://a.espncdn.com/i/teamlogos/soccer/500/370.png",
-    "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
-    "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
-    "Manchester City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png",
-    "Man United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
-    "Manchester United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
-    "Newcastle": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
-    "Newcastle United": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png",
-    "Nottm Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
-    "Nottingham Forest": "https://a.espncdn.com/i/teamlogos/soccer/500/393.png",
-    "Southampton": "https://a.espncdn.com/i/teamlogos/soccer/500/376.png",
-    "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
-    "Tottenham": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
-    "Tottenham Hotspur": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
-    "West Ham": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
-    "West Ham United": "https://a.espncdn.com/i/teamlogos/soccer/500/371.png",
-    "Wolves": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
-    "Wolverhampton Wanderers": "https://a.espncdn.com/i/teamlogos/soccer/500/380.png",
-    "Leicester": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
-    "Leicester City": "https://a.espncdn.com/i/teamlogos/soccer/500/375.png",
-    "Ipswich": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/56vquJBk5U16Dng7txLXCw_500x500.png",
-    "Ipswich Town": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/56vquJBk5U16Dng7txLXCw_500x500.png",
-    "Coventry": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/KHpmY4tIwqiutl8Cfl0MAw_500x500.png",
-    "Coventry City": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/KHpmY4tIwqiutl8Cfl0MAw_500x500.png",
-    "Hull": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/riiyZbb1JHuFQgZ3831jUQ_500x500.png",
-    "Hull City": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/riiyZbb1JHuFQgZ3831jUQ_500x500.png",
-    "Sheffield Utd": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
-    "Sheffield United": "https://a.espncdn.com/i/teamlogos/soccer/500/398.png",
-    "Burnley": "https://a.espncdn.com/i/teamlogos/soccer/500/379.png",
-    "Luton": "https://a.espncdn.com/i/teamlogos/soccer/500/394.png",
-    "Luton Town": "https://a.espncdn.com/i/teamlogos/soccer/500/394.png",
-    "Norwich": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
-    "Norwich City": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png",
-    "Watford": "https://a.espncdn.com/i/teamlogos/soccer/500/392.png",
-    "Leeds": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/5dqfOKpjjW6EwTAx_FysKQ_500x500.png",
-    "Leeds United": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/5dqfOKpjjW6EwTAx_FysKQ_500x500.png",
-    "Sunderland": "https://ssl.gstatic.com/onebox/media/sports/logos/optimized/CQFeTfHrtxqgr3VKWtTwfA_500x500.png"
-  };
-  return crests[team] || null; 
-};
-
 function formatKickoff(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
@@ -129,6 +72,7 @@ function toFixture(api: ApiFixture, overlay: Record<string, FixtureOverlay>): Fi
   return {
     id: api.id,
     competition: api.competition,
+    startsAt: Date.parse(api.startTime),
     kickoff: formatKickoff(api.startTime),
     question: `Who will win: ${api.homeTeam} or ${api.awayTeam}?`,
     teamA: api.homeTeam,
@@ -226,6 +170,7 @@ export default function PredictScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
+  const [league, setLeague] = useState<LeagueName>("Premier League");
   const [loading, setLoading] = useState(true);
   const [wagerTarget, setWagerTarget] = useState<WagerTarget | null>(null);
   const [wagerAmount, setWagerAmount] = useState("10");
@@ -349,9 +294,14 @@ export default function PredictScreen() {
   const tBUrl = getCrestUrl(tB);
   const chosenUrl = getCrestUrl(chosenLabelRaw);
 
+  // Only the selected league's games, within that league's window (PL 7 days, CL 14).
+  const activeLeague = LEAGUES.find((l) => l.name === league) ?? LEAGUES[0];
+  const horizon = Date.now() + activeLeague.days * DAY_MS;
+  const visibleFixtures = fixtures.filter((f) => f.competition === league && !(f.startsAt > horizon));
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.topBar, { paddingTop: topPad, borderBottomColor: colors.border }]}>
+      <View style={[styles.topBar, { paddingTop: topPad, borderBottomWidth: 0 }]}>
         <View>
           <Text style={[styles.title, { color: colors.foreground }]}>Predict</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Upcoming fixtures</Text>
@@ -362,19 +312,38 @@ export default function PredictScreen() {
         </View>
       </View>
 
+      <View style={[styles.leagueRow, { borderBottomColor: colors.border }]} accessibilityRole="tablist">
+        {LEAGUES.map((l) => {
+          const active = l.name === league;
+          return (
+            <Pressable
+              key={l.name}
+              onPress={() => setLeague(l.name)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              style={[styles.leagueBtn, active && { borderBottomColor: colors.foreground }]}
+            >
+              <Image source={{ uri: l.logo }} style={[styles.leagueLogo, !active && { opacity: 0.45 }]} resizeMode="contain" />
+              <Text style={[styles.leagueLabel, { color: active ? colors.foreground : colors.mutedForeground }]} numberOfLines={1}>{l.name}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       {loading ? (
         <View style={styles.stateWrap}><ActivityIndicator size="small" color={colors.mutedForeground} /></View>
       ) : (
         <FlatList<Fixture>
-          data={fixtures}
+          data={visibleFixtures}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <FixtureCard fixture={item} onOpenWager={handleOpenWager} />}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={fixtures.length === 0 ? styles.emptyContent : { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}
+          contentContainerStyle={visibleFixtures.length === 0 ? styles.emptyContent : { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}
           ListEmptyComponent={
             <View style={styles.stateWrap}>
-              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No fixtures yet</Text>
-              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>Upcoming matches will appear here once they're available. Check back soon.</Text>
+              <Image source={{ uri: activeLeague.logo }} style={styles.emptyLogo} resizeMode="contain" />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No {league} games {activeLeague.emptyWhen}</Text>
+              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>New matches appear here as soon as odds are available. Check back soon.</Text>
             </View>
           }
         />
@@ -450,6 +419,11 @@ const styles = StyleSheet.create({
   votesMeta: { fontFamily: "Inter_400Regular", fontSize: 12 },
   stateWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingVertical: 64, gap: 8 },
   emptyContent: { flexGrow: 1 },
+  emptyLogo: { width: 44, height: 44, marginBottom: 8, opacity: 0.6 },
+  leagueRow: { flexDirection: "row", borderBottomWidth: 1, paddingHorizontal: 4 },
+  leagueBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  leagueLogo: { width: 22, height: 22 },
+  leagueLabel: { fontFamily: "Inter_600SemiBold", fontSize: 14, flexShrink: 1 },
   emptyTitle: { fontFamily: "Inter_700Bold", fontSize: 17, letterSpacing: -0.3 },
   emptyBody: { fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 20, textAlign: "center" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },

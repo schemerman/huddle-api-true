@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import type { ChatMessage } from "@/lib/chat";
+import { USER_COLUMNS } from "@/lib/users";
 
 export type ChatUser = Record<string, any> & { id: string };
 
@@ -54,7 +55,7 @@ export async function loadConversations(me: string): Promise<Conversation[]> {
   }
   if (latest.size === 0) return [];
 
-  const { data: users } = await supabase.from("users").select("*").in("id", [...latest.keys()]);
+  const { data: users } = await supabase.from("users").select(USER_COLUMNS).in("id", [...latest.keys()]);
   const lastRead = await getLastRead(me);
   return [...latest.entries()].map(([partnerId, message]) => {
     const readAt = lastRead[partnerId];
@@ -70,7 +71,7 @@ export async function loadFollowing(me: string): Promise<ChatUser[]> {
   const { data: follows } = await supabase.from("follows").select("following_id").eq("follower_id", me);
   const ids = (follows ?? []).map((f: any) => f.following_id).filter(Boolean);
   if (ids.length === 0) return [];
-  const { data: users } = await supabase.from("users").select("*").in("id", ids);
+  const { data: users } = await supabase.from("users").select(USER_COLUMNS).in("id", ids);
   return (users ?? []) as ChatUser[];
 }
 
@@ -80,7 +81,7 @@ export async function searchUsers(query: string, me: string): Promise<ChatUser[]
   if (q.length < 2) return [];
   const { data } = await supabase
     .from("users")
-    .select("*")
+    .select(USER_COLUMNS)
     .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
     .neq("id", me)
     .limit(15);

@@ -2,9 +2,8 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState, useEffect } from "react";
-import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, Linking, Image, FlatList } from "react-native";
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, Linking, Image, FlatList } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import palette from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -13,8 +12,18 @@ import { ReceiptModal } from "@/components/ReceiptModal";
 import { AttachedWager } from "@/components/AttachedWager";
 import { supabase } from "@/lib/supabase";
 import { requestSettlement } from "@/lib/api";
+import { showError } from "@/lib/alerts";
+import { SUPPORT_EMAIL } from "@/constants/legal";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const DAILY_BONUS_POINTS = 100;
+
+// Time until the daily bonus unlocks, e.g. "5h 12m" or "12m".
+const formatCountdown = (ms: number): string => {
+  const mins = Math.max(1, Math.ceil(ms / 60000));
+  const hours = Math.floor(mins / 60);
+  return hours > 0 ? `${hours}h ${mins % 60}m` : `${mins}m`;
+};
 
 function statusLabel(status: string): string {
   if (status === "won") return "Won";
@@ -23,26 +32,8 @@ function statusLabel(status: string): string {
 }
 
 import { getRank, winRateOf } from "@/utils/ranks";
-
-const getFlag = (team: string) => {
-  const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️" };
-  return flags[team] || ""; 
-};
-
-const getCrestUrl = (team: string): string | null => {
-  const crests: Record<string, string> = {
-    "Arsenal": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png", "Aston Villa": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png",
-    "Chelsea": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png", "Liverpool": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
-    "Man City": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png", "Manchester United": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
-    "Spurs": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png", "Tottenham Hotspur": "https://a.espncdn.com/i/teamlogos/soccer/500/367.png",
-    "Brentford": "https://upload.wikimedia.org/wikipedia/en/thumb/2/2a/Brentford_FC_crest.svg/1200px-Brentford_FC_crest.svg.png",
-    "Ipswich Town": "https://upload.wikimedia.org/wikipedia/en/thumb/4/43/Ipswich_Town.svg/1200px-Ipswich_Town.svg.png",
-    "Hull City": "https://upload.wikimedia.org/wikipedia/en/thumb/5/54/Hull_City_A.F.C._logo.svg/1200px-Hull_City_A.F.C._logo.svg.png",
-    "Sunderland": "https://upload.wikimedia.org/wikipedia/en/thumb/7/77/Logo_Sunderland.svg/1200px-Logo_Sunderland.svg.png",
-    "Coventry City": "https://upload.wikimedia.org/wikipedia/en/thumb/9/94/Coventry_City_FC_logo.svg/1200px-Coventry_City_FC_logo.svg.png"
-  };
-  return crests[team] || null; 
-};
+import { getCrestUrl, getFlag } from "@/utils/teams";
+import { USER_COLUMNS } from "@/lib/users";
 
 // Matches are treated as over two hours after kick-off (same rule as the server).
 const SETTLE_AFTER_MS = 2 * 60 * 60 * 1000;
@@ -77,7 +68,6 @@ export default function ProfileScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [tab, setTab] = useState<"stats" | "wagers" | "posts">("stats");
-  const [agreementOpen, setAgreementOpen] = useState(false);
   const [receiptWager, setReceiptWager] = useState<any | null>(null);
   
   const [socialModal, setSocialModal] = useState<{ visible: boolean; type: 'followers' | 'following'; data: any[] }>({ visible: false, type: 'followers', data: [] });
@@ -89,28 +79,22 @@ export default function ProfileScreen() {
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
 
-  const [isBonusLocked, setIsBonusLocked] = useState(true);
   const [visualPoints, setVisualPoints] = useState(user?.points || 0);
+  const [claimingBonus, setClaimingBonus] = useState(false);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     if (user?.points !== undefined) setVisualPoints(user.points);
   }, [user?.points]);
 
-  useEffect(() => {
-    const checkLock = async () => {
-      try {
-        const lastClaim = await AsyncStorage.getItem('last_bonus_claim_time');
-        if (lastClaim) {
-          const timePassed = Date.now() - parseInt(lastClaim, 10);
-          if (timePassed < DAY_MS) setIsBonusLocked(true);
-          else { setIsBonusLocked(false); await AsyncStorage.removeItem('last_bonus_claim_time'); }
-        } else {
-          setIsBonusLocked(false);
-        }
-      } catch (e) { setIsBonusLocked(false); }
-    };
-    checkLock();
-  }, []);
+  // Tick while Profile is open, so the bonus button unlocks by itself when the 24 hours are up.
+  useFocusEffect(
+    useCallback(() => {
+      setNow(Date.now());
+      const timer = setInterval(() => setNow(Date.now()), 30_000);
+      return () => clearInterval(timer);
+    }, [])
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -185,7 +169,7 @@ export default function ProfileScreen() {
     }
 
     if (targetIds.length > 0) {
-      const { data: usersData } = await supabase.from('users').select('*').in('id', targetIds);
+      const { data: usersData } = await supabase.from("users").select(USER_COLUMNS).in('id', targetIds);
       setSocialModal({ visible: true, type, data: usersData || [] });
     } else {
       setSocialModal({ visible: true, type, data: [] });
@@ -222,6 +206,23 @@ export default function ProfileScreen() {
   };
 
   if (!user) return null;
+
+  // The lock comes from the account's last claim time, so it holds after a reload and on other devices.
+  const nextBonusAt = (user.lastDailyClaim || 0) + DAY_MS;
+  const bonusLocked = now < nextBonusAt;
+
+  const handleClaimBonus = async () => {
+    if (claimingBonus || bonusLocked) return;
+    setClaimingBonus(true);
+    try {
+      const outcome = await claimDailyBonus();
+      setNow(Date.now());
+      if (outcome === "already_claimed") showError("Bonus already claimed", "You can claim it again 24 hours after your last claim.");
+      if (outcome === "failed") showError("Couldn't claim the bonus", "Something went wrong. Please try again in a moment.");
+    } finally {
+      setClaimingBonus(false);
+    }
+  };
 
   const completedWagers = wagers.filter(w => w.status === "won" || w.status === "lost");
   const wonWagers = completedWagers.filter(w => w.status === "won");
@@ -302,16 +303,21 @@ export default function ProfileScreen() {
         </View>
 
         <Pressable
-          onPress={() => claimDailyBonus && claimDailyBonus()}
-          disabled={isBonusLocked}
+          onPress={handleClaimBonus}
+          disabled={bonusLocked || claimingBonus}
+          accessibilityState={{ disabled: bonusLocked || claimingBonus }}
           style={({ pressed }) => ({
             flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 15, marginHorizontal: 16, marginTop: 20, marginBottom: 8,
-            borderRadius: 999, borderWidth: 1, backgroundColor: !isBonusLocked ? "#FFFFFF" : "#F4F4F5", borderColor: !isBonusLocked ? "#E5E5EA" : "#E5E5EA", opacity: isBonusLocked ? 0.6 : (pressed ? 0.7 : 1),
+            borderRadius: 999, borderWidth: 1, backgroundColor: bonusLocked ? "#F4F4F5" : "#FFFFFF", borderColor: "#E5E5EA", opacity: bonusLocked ? 0.6 : (pressed || claimingBonus ? 0.7 : 1),
           })}
         >
-          <Feather name="gift" size={16} color={!isBonusLocked ? colors.foreground : "#8E8E93"} />
-          <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 15, marginLeft: 8, color: !isBonusLocked ? colors.foreground : "#8E8E93" }}>
-            {!isBonusLocked ? "Claim Daily Bonus" : "Bonus Claimed"}
+          {claimingBonus ? (
+            <ActivityIndicator size="small" color={colors.foreground as string} />
+          ) : (
+            <Feather name="gift" size={16} color={bonusLocked ? "#8E8E93" : colors.foreground} />
+          )}
+          <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 15, marginLeft: 8, color: bonusLocked ? "#8E8E93" : colors.foreground }}>
+            {claimingBonus ? "Claiming…" : bonusLocked ? `Bonus claimed · back in ${formatCountdown(nextBonusAt - now)}` : `Claim Daily Bonus (+${DAILY_BONUS_POINTS})`}
           </Text>
         </Pressable>
 
@@ -405,19 +411,29 @@ export default function ProfileScreen() {
                   <Feather name="mail" size={18} color={colors.foreground} />
                   <Text style={[styles.settingsLabel, { color: colors.foreground }]}>{safeEmail}</Text>
                 </View>
-                <View style={styles.settingsRow}>
+                <View style={[styles.settingsRow, styles.settingsRowLast]}>
                   <Feather name="at-sign" size={18} color={colors.foreground} />
                   <Text style={[styles.settingsLabel, { color: colors.foreground }]}>@{safeUsername}</Text>
                 </View>
               </View>
             </View>
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>APP</Text>
+              <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>LEGAL & SUPPORT</Text>
               <View style={[styles.settingsGroup, { borderColor: colors.border }]}>
-                <Pressable onPress={() => setAgreementOpen(true)} style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
-                  <Feather name="file-text" size={18} color={colors.foreground} />
+                <Pressable onPress={() => router.push("/privacy" as any)} style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
+                  <Feather name="shield" size={18} color={colors.foreground} />
                   <Text style={[styles.settingsLabel, { color: colors.foreground }]}>Privacy Policy</Text>
                   <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </Pressable>
+                <Pressable onPress={() => router.push("/terms" as any)} style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
+                  <Feather name="file-text" size={18} color={colors.foreground} />
+                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>Terms of Use</Text>
+                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </Pressable>
+                <Pressable onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)} style={[styles.settingsRow, styles.settingsRowLast]}>
+                  <Feather name="mail" size={18} color={colors.foreground} />
+                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>Contact support</Text>
+                  <Feather name="external-link" size={16} color={colors.mutedForeground} />
                 </Pressable>
               </View>
             </View>
@@ -514,5 +530,5 @@ const styles = StyleSheet.create({
   modalSheet: { height: '80%', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   modalHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   modalTitle: { fontFamily: "Inter_700Bold", fontSize: 18 },
-  agreementScroll: { flexGrow: 0 },
+  settingsRowLast: { borderBottomWidth: 0 },
 });

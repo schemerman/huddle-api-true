@@ -6,6 +6,7 @@ import {
 } from "@workspace/api-client-react";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { USER_COLUMNS } from "../lib/users";
 
 export interface HuddleUser {
   id: string;
@@ -26,6 +27,27 @@ export interface HuddleUser {
   profileComplete: boolean;
 }
 
+export type DailyBonusOutcome = "claimed" | "already_claimed" | "failed";
+
+// Builds the app's user from a `users` row (snake_case columns). Email comes from the
+// signed-in session, because the app can no longer read emails from the users table.
+function toHuddleUser(row: any, email?: string | null): HuddleUser {
+  return {
+    ...row,
+    email: email ?? "",
+    displayName: row.display_name ?? row.username ?? "",
+    avatarColor: row.avatar_color ?? "#000000",
+    winRate: Number(row.win_rate ?? 0),
+    currentStreak: Number(row.current_streak ?? 0),
+    isBankrupt: !!row.is_bankrupt,
+    previousWagers: Number(row.total_picks ?? 0),
+    joinedGroups: [],
+    lastDailyClaim: row.last_daily_claim ? Date.parse(row.last_daily_claim) : 0,
+    profileComplete: !!row.profile_complete,
+    dob: "",
+  };
+}
+
 export interface WagerDetails {
   fixtureId: string;
   choice: string;
@@ -42,7 +64,7 @@ interface AuthContextType {
   register: (email: string, password: string) => Promise<{ error: string | null }>;
   completeProfile: (displayName: string, username: string, dob: string, avatarColor: string) => Promise<void>;
   placeWager: (details: WagerDetails) => Promise<void>;
-  claimDailyBonus: () => Promise<boolean>;
+  claimDailyBonus: () => Promise<DailyBonusOutcome>;
   claimBailout: () => Promise<boolean>;
   joinGroup: (groupId: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -74,10 +96,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const fetchUserProfile = async (userId: string) => {
-    const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
-    if (!error && data) {
-      setUser({ ...data, lastDailyClaim: data.lastDailyClaim ? new Date(data.lastDailyClaim).getTime() : 0 });
-    }
+    const [{ data, error }, { data: auth }] = await Promise.all([
+      supabase.from("users").select(USER_COLUMNS).eq("id", userId).single(),
+      supabase.auth.getSession(),
+    ]);
+    if (!error && data) setUser(toHuddleUser(data, auth.session?.user?.email));
     setIsLoading(false);
   };
 
@@ -85,8 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message, user: null };
     
-    const { data: profile } = await supabase.from("users").select("*").eq("id", data.user.id).single();
-    return { error: null, user: profile as HuddleUser };
+    const { data: profile } = await supabase.from("users").select(USER_COLUMNS).eq("id", data.user.id).single();
+    return { error: null, user: profile ? toHuddleUser(profile, data.user.email) : null };
   };
 
   const register = async (email: string, password: string) => {
@@ -120,11 +143,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await fetchUserProfile(user.id);
   };
 
-  const claimDailyBonus = async (): Promise<boolean> => {
-    if (!user) return false;
-    const result = await apiClaimDaily(user.id);
-    await fetchUserProfile(user.id);
-    return result.claimed;
+  // The server pays 100 points at most once per 24 hours per account (rolling, from the last claim).
+  const claimDailyBonus = async (): Promise<DailyBonusOutcome> => {
+    if (!user) return "failed";
+    try {
+      const result = await apiClaimDaily(user.id);
+      return result.claimed ? "claimed" : "already_claimed";
+    } catch (e) {
+      console.warn("Daily bonus claim failed:", e);
+      return "failed";
+    } finally {
+      // Reload the account so points and last_daily_claim (which drives the button lock) are current.
+      await fetchUserProfile(user.id);
+    }
   };
 
   const claimBailout = async (): Promise<boolean> => {

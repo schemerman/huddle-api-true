@@ -9,11 +9,12 @@ router.get("/fixtures", async (_req, res): Promise<void> => {
   // Grab the exact current time
   const now = new Date();
 
-  // Create a 7-day boundary so upcoming Quarter and Semi-finals show up early!
+  // 14 days ahead, so the next Champions League round (every 2-3 weeks) shows early.
+  // The app trims the Premier League section back to 7 days.
   const futureWindow = new Date();
-  futureWindow.setDate(futureWindow.getDate() + 7);
+  futureWindow.setDate(futureWindow.getDate() + 14);
 
-  // Fetch matches happening strictly between NOW and 7 days from now
+  // Fetch matches happening between now and 14 days from now
   const rows = await db
     .select()
     .from(fixturesTable)

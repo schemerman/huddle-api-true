@@ -24,6 +24,7 @@ import {
   showError,
 } from "@/lib/chat";
 import { pickImage, uploadImage, type PickedImage } from "@/lib/upload";
+import { USER_COLUMNS } from "@/lib/users";
 
 export default function LeagueScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -65,7 +66,7 @@ export default function LeagueScreen() {
   const loadUsers = async (ids: string[]) => {
     const missing = Array.from(new Set(ids)).filter((uid) => uid && !usersById.current[uid]);
     if (missing.length === 0) return;
-    const { data } = await supabase.from("users").select("*").in("id", missing);
+    const { data } = await supabase.from("users").select(USER_COLUMNS).in("id", missing);
     rememberUsers(data);
   };
 

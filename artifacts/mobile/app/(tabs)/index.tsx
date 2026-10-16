@@ -13,6 +13,7 @@ import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicP
 import { getCrestUrl, getFlag } from "@/utils/teams";
 import { pickImage as pickPhoto, uploadImage, type PickedImage } from "@/lib/upload";
 import { showError } from "@/lib/alerts";
+import { USER_COLUMNS } from "@/lib/users";
 
 const isWeb = Platform.OS === "web";
 
@@ -63,7 +64,7 @@ export default function HomeScreen() {
       const userIds = [...new Set(postsData.map(p => p.user_id).filter(Boolean))];
       const postIds = postsData.map(p => p.id);
 
-      const { data: usersData } = await supabase.from("users").select("*").in("id", userIds);
+      const { data: usersData } = await supabase.from("users").select(USER_COLUMNS).in("id", userIds);
       const { data: likesData } = await supabase.from("post_likes").select("*").in("post_id", postIds);
       const { data: commentsData } = await supabase.from("comments").select("id, post_id").in("post_id", postIds);
 
@@ -220,9 +221,9 @@ export default function HomeScreen() {
   const handleProfileClick = async (userId: string) => {
     if (!userId) return;
     try {
-      const { data } = await supabase.from("users").select("*").eq("id", userId).single();
+      const { data } = await supabase.from("users").select(USER_COLUMNS).eq("id", userId).single();
       if (data) {
-        let parsedWinRate = data.win_rate ?? data.winRate ?? 0;
+        let parsedWinRate = data.win_rate ?? 0;
         if (parsedWinRate > 0 && parsedWinRate <= 1) parsedWinRate = Math.round(parsedWinRate * 100);
 
         setProfileUser({

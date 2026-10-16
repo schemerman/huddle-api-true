@@ -22,6 +22,7 @@ import {
 } from "@/lib/chat";
 import { markRead } from "@/lib/conversations";
 import { pickImage, uploadImage, type PickedImage } from "@/lib/upload";
+import { USER_COLUMNS } from "@/lib/users";
 
 export default function DirectMessageScreen() {
   const { id: targetUserId } = useLocalSearchParams<{ id: string }>();
@@ -44,7 +45,7 @@ export default function DirectMessageScreen() {
   useEffect(() => {
     if (!targetUserId) return;
     const fetchTarget = async () => {
-      const { data } = await supabase.from('users').select('*').eq('id', targetUserId).single();
+      const { data } = await supabase.from("users").select(USER_COLUMNS).eq('id', targetUserId).single();
       if (data) setTargetUser(data);
     };
     fetchTarget();
