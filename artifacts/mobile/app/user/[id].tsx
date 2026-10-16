@@ -18,17 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { supabase } from "@/lib/supabase";
 
-export const getRank = (winRate: number, totalPicks: number = 0) => {
-  if (totalPicks < 5) return "Rookie";
-  if (winRate >= 95 && totalPicks >= 30) return "Oracle";
-  if (winRate >= 85 && totalPicks >= 25) return "GOAT";
-  if (winRate >= 70 && totalPicks >= 15) return "Champion";
-  if (winRate >= 60 && totalPicks >= 10) return "All Star";
-  if (winRate >= 50) return "Starter";
-  if (winRate >= 35) return "Coin Flipper";
-  if (winRate >= 20) return "Beginner's Luck";
-  return "Benchwarmer";
-};
+import { getRank, winRateOf } from "@/utils/ranks";
 
 const getFlag = (team: string) => {
   const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️", "Spain": "🇪🇸", "Belgium": "🇧🇪" };
@@ -167,9 +157,10 @@ export default function UserProfileScreen() {
   
   const completedWagers = wagers.filter(w => w.status === "won" || w.status === "lost");
   const wonWagers = completedWagers.filter(w => w.status === "won");
-  const fallbackWinRate = wagers.length > 0 ? Math.round((wonWagers.length / wagers.length) * 100) : 0;
+  // users.win_rate / total_picks are kept in step with settled picks by the database.
+  const fallbackWinRate = winRateOf(wonWagers.length, completedWagers.length);
   const safeWinRate = targetUser?.win_rate ?? targetUser?.winRate ?? fallbackWinRate;
-  const safeWagersCount = targetUser?.total_picks ?? targetUser?.totalPicks ?? wagers.length;
+  const safeWagersCount = targetUser?.total_picks ?? targetUser?.totalPicks ?? completedWagers.length;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

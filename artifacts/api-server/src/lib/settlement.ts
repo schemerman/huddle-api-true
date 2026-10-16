@@ -71,12 +71,12 @@ export async function settleFixture(fixture: Fixture, homeScore: number, awaySco
       `);
       if (updated.rows.length === 0) continue;
 
+      // Pick counters and win rate are kept in step by the database trigger on wagers
+      // (supabase/sql/2026-10-16-win-rate-counters.sql), so only points change here.
       // Right-hand sides use the old row values, so "points + payout" is the new balance.
       await tx.execute(sql`
         UPDATE users
         SET points = points + ${payout},
-            total_picks = COALESCE(total_picks, 0) + 1,
-            won_picks = COALESCE(won_picks, 0) + ${won ? 1 : 0},
             is_bankrupt = CASE
               WHEN points + ${payout} <= 0 THEN true
               WHEN points + ${payout} > ${SOLVENT_THRESHOLD} THEN false

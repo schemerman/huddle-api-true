@@ -5,7 +5,7 @@ import { FlatList, Platform, Pressable, StyleSheet, Text, View, TextInput, Keybo
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
-import { useData, userRowToLeaderboardEntry } from "@/context/DataContext";
+import { LEADERBOARD_COLUMNS, useData, userRowToLeaderboardEntry } from "@/context/DataContext";
 import { Avatar } from "@/components/Avatar";
 import { RankingRow } from "@/components/RankingRow";
 import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
@@ -77,7 +77,7 @@ export default function LeagueScreen() {
       return () => {};
     }
     let cancelled = false;
-    supabase.from("users").select("*").in("id", ids).then(({ data }) => {
+    supabase.from("users").select(LEADERBOARD_COLUMNS).in("id", ids).then(({ data }) => {
       if (cancelled || !data) return;
       rememberUsers(data);
       setMembers([...data].sort((a, b) => (b.points ?? 0) - (a.points ?? 0)));

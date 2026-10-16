@@ -22,17 +22,7 @@ function statusLabel(status: string): string {
   return "Pending";
 }
 
-export const getRank = (winRate: number, totalPicks: number = 0) => {
-  if (totalPicks < 5) return "Rookie";
-  if (winRate >= 95 && totalPicks >= 30) return "Oracle";
-  if (winRate >= 85 && totalPicks >= 25) return "GOAT";
-  if (winRate >= 70 && totalPicks >= 15) return "Champion";
-  if (winRate >= 60 && totalPicks >= 10) return "All Star";
-  if (winRate >= 50) return "Starter";
-  if (winRate >= 35) return "Coin Flipper";
-  if (winRate >= 20) return "Beginner's Luck";
-  return "Benchwarmer";
-};
+import { getRank, winRateOf } from "@/utils/ranks";
 
 const getFlag = (team: string) => {
   const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️" };
@@ -235,7 +225,8 @@ export default function ProfileScreen() {
 
   const completedWagers = wagers.filter(w => w.status === "won" || w.status === "lost");
   const wonWagers = completedWagers.filter(w => w.status === "won");
-  const safeWinRate = wagers.length > 0 ? Math.round((wonWagers.length / wagers.length) * 100) : 0;
+  // Same definition everywhere: won / settled. Pending picks don't count.
+  const safeWinRate = winRateOf(wonWagers.length, completedWagers.length);
 
   let safeStreak = 0;
   for (const w of wagers) {
@@ -281,7 +272,7 @@ export default function ProfileScreen() {
 
             <View style={styles.perfRow}>
               <View style={[styles.rankBadge, { backgroundColor: colors.secondary }]}>
-                <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(safeWinRate, safeWagersCount)}</Text>
+                <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(safeWinRate, completedWagers.length)}</Text>
               </View>
               {safeStreak >= 3 && <Text style={[styles.streakText, { color: colors.mutedForeground }]}>{safeStreak}-streak heater</Text>}
             </View>

@@ -38,7 +38,7 @@ export function RankingRow({
             @{entry.username}
           </Text>
           <View style={[styles.rankBadge, { backgroundColor: colors.secondary }]}>
-            <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(entry.winRate)}</Text>
+            <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(entry.winRate, entry.totalPicks)}</Text>
           </View>
         </View>
       </View>

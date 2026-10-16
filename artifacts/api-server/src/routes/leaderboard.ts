@@ -17,7 +17,8 @@ function toEntry(u: DbUser, rank: number) {
   const won = Number((u as any).wonPicks || (u as any).won_picks || 0);
   
   // Calculate percentage and strictly protect against dividing by zero
-  const calculatedWinRate = total > 0 ? Math.round((won / total) * 100) : 0;
+  // Same rounding as the database's users.win_rate and the app (multiply first to avoid float error).
+  const calculatedWinRate = total > 0 ? Math.round((won * 100) / total) : 0;
 
   // FIX 2: The UUID Bypass
   const isUUID = u.username && u.username.length > 20;

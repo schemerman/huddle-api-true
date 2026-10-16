@@ -20,3 +20,7 @@ export const getRankSuffix = (i: number) => {
   if (j === 3 && k !== 13) return i + "rd";
   return i + "th";
 };
+
+// Win rate = picks won / picks settled (won or lost), as a whole percent.
+// Same rounding as the database's users.win_rate. Pending picks don't count.
+export const winRateOf = (won: number, settled: number) => (settled > 0 ? Math.round((won * 100) / settled) : 0);

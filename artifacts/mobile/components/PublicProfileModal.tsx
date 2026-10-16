@@ -22,17 +22,7 @@ interface PublicProfileModalProps {
   onClose: () => void;
 }
 
-const getRank = (winRate: number, totalPicks: number = 0) => {
-  if (totalPicks < 5) return "Rookie";
-  if (winRate >= 95 && totalPicks >= 30) return "Oracle";
-  if (winRate >= 85 && totalPicks >= 25) return "GOAT";
-  if (winRate >= 70 && totalPicks >= 15) return "Champion";
-  if (winRate >= 60 && totalPicks >= 10) return "All Star";
-  if (winRate >= 50) return "Starter";
-  if (winRate >= 35) return "Coin Flipper";
-  if (winRate >= 20) return "Beginner's Luck";
-  return "Benchwarmer";
-};
+import { getRank, winRateOf } from "@/utils/ranks";
 
 const getFlag = (team: string) => {
   const flags: Record<string, string> = { "Argentina": "🇦🇷", "Brazil": "🇧🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷", "USA": "🇺🇸", "Draw": "⚖️", "Spain": "🇪🇸", "Belgium": "🇧🇪" };
@@ -76,6 +66,7 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
   const [picks, setPicks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [dynamicWinRate, setDynamicWinRate] = useState(0);
+  const [settledCount, setSettledCount] = useState(0);
   
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
@@ -86,7 +77,7 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
       fetchUserPicks(profileUser.userId);
       fetchSocialStats(profileUser.userId);
     } else {
-      setPicks([]); setDynamicWinRate(0); setIsFollowing(false);
+      setPicks([]); setDynamicWinRate(0); setSettledCount(0); setIsFollowing(false);
     }
   }, [profileUser]);
 
@@ -127,7 +118,7 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
     setLoading(true);
     try {
       const { data: wagersData } = await supabase.from('wagers').select('*').eq('user_id', userId).order('created_at', { ascending: false });
-      if (!wagersData || wagersData.length === 0) { setPicks([]); setDynamicWinRate(0); return; }
+      if (!wagersData || wagersData.length === 0) { setPicks([]); setDynamicWinRate(0); setSettledCount(0); return; }
 
       const fixtureIds = wagersData.map(w => w.fixture_id || w.fixtureId).filter(Boolean);
       let fixturesMap: Record<string, any> = {};
@@ -140,7 +131,8 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
       setPicks(fullyBuiltPicks);
 
       const resolvedPicks = fullyBuiltPicks.filter(p => p.status === 'won' || p.status === 'lost');
-      if (resolvedPicks.length > 0) setDynamicWinRate(Math.round((resolvedPicks.filter(p => p.status === 'won').length / resolvedPicks.length) * 100));
+      setSettledCount(resolvedPicks.length);
+      if (resolvedPicks.length > 0) setDynamicWinRate(winRateOf(resolvedPicks.filter(p => p.status === 'won').length, resolvedPicks.length));
       else setDynamicWinRate(0);
 
     } catch (error) {} finally { setLoading(false); }
@@ -208,7 +200,7 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
                   </View>
 
                   <View style={[styles.badge, { backgroundColor: colors.secondary }]}>
-                    <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(profileUser.winRate || dynamicWinRate, picks.length)}</Text>
+                    <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(profileUser.winRate || dynamicWinRate, settledCount)}</Text>
                   </View>
 
                   {/* ACTION BUTTONS */}

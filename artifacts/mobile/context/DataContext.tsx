@@ -1,10 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useCallback, useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { supabase } from "@/lib/supabase";
+import { winRateOf } from "@/utils/ranks";
 import {
   listPosts,
   createPost,
-  getLeaderboard,
   getMemberLeaderboard,
   type Post as ApiPost,
   type LeaderboardEntry as ApiLeaderboardEntry,
@@ -63,6 +64,8 @@ export interface LeaderboardEntry {
   points: number;
   winRate: number;
   rank: number;
+  // Settled picks, used for badges ("Rookie" under 5). Missing on entries from the API.
+  totalPicks?: number;
 }
 
 function generateId(): string {
@@ -128,23 +131,27 @@ function toLeaderboardEntry(api: ApiLeaderboardEntry): LeaderboardEntry {
   };
 }
 
-// Builds the same entry the API leaderboard returns, from a Supabase `users` row,
-// so huddle leaderboards match Global Rankings without another server call.
-// Win rate uses the server's formula: won picks / settled picks.
+// Columns every leaderboard reads from the `users` table.
+export const LEADERBOARD_COLUMNS = "id, username, display_name, avatar_color, points, total_picks, won_picks";
+
+// Builds a leaderboard entry from a Supabase `users` row. Global Rankings and huddle
+// leaderboards both use this, so they always agree with each other and with profiles.
+// The database keeps total_picks / won_picks in step with each user's settled picks.
 export function userRowToLeaderboardEntry(row: any, rank: number): LeaderboardEntry {
   const total = Number(row.total_picks ?? row.totalPicks ?? 0);
   const won = Number(row.won_picks ?? row.wonPicks ?? 0);
   const username = String(row.username ?? "");
   const displayName = String(row.display_name ?? row.displayName ?? username);
-  return toLeaderboardEntry({
+  const entry = toLeaderboardEntry({
     userId: row.id,
     username: username.length > 20 ? displayName || "Player" : username,
     displayName,
     avatarColor: row.avatar_color ?? row.avatarColor ?? "#8A8A8A",
     points: Number(row.points ?? 0),
-    winRate: total > 0 ? Math.round((won / total) * 100) : 0,
+    winRate: winRateOf(won, total),
     rank,
   } as ApiLeaderboardEntry);
+  return { ...entry, totalPicks: total };
 }
 
 interface DataContextType {
@@ -183,10 +190,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Read straight from the users table, like huddle leaderboards, so both always agree
+  // and Global Rankings loads even while the API server is waking up.
   const refreshLeaderboard = useCallback(async () => {
     try {
-      const rows = await getLeaderboard();
-      setLeaderboard(rows.map(toLeaderboardEntry));
+      const { data, error } = await supabase.from("users").select(LEADERBOARD_COLUMNS).order("points", { ascending: false });
+      if (error) throw error;
+      setLeaderboard((data ?? []).map((row, i) => userRowToLeaderboardEntry(row, i + 1)));
     } catch {
       setLeaderboard([]);
     }
