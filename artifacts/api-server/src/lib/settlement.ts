@@ -1,113 +1,142 @@
-import { db, fixturesTable, wagersTable, usersTable } from "@workspace/db";
-import { eq, and, lt, sql } from "drizzle-orm";
+import { db, fixturesTable, wagersTable, type Fixture, type Wager } from "@workspace/db";
+import { and, asc, eq, lt, sql } from "drizzle-orm";
 import { logger } from "./logger";
+import { SOLVENT_THRESHOLD } from "./economy";
+import { createResultFinder } from "./results";
 
-const BASE_URL = "https://api.the-odds-api.com/v4";
-const API_KEY = process.env.ODDS_API_KEY;
+// A match is treated as over two hours after kick-off.
+const SETTLE_AFTER_MS = 2 * 60 * 60 * 1000;
+// Requests from the app can arrive often; don't re-check results more than this.
+const MIN_INTERVAL_MS = 5 * 60 * 1000;
 
-export async function settleFinishedMatches(): Promise<{ settled: number }> {
-  if (!API_KEY) {
-    logger.warn("ODDS_API_KEY missing; cannot settle matches");
-    return { settled: 0 };
-  }
+export type SettlementResult = {
+  checked: number;
+  settled: number;
+  unmatched: string[];
+  skipped?: boolean;
+  failed?: boolean;
+};
 
-  // 1. Find matches that are in the past but still marked as 'pending'
-  const pendingMatches = await db
+type Pick = "A" | "D" | "B";
+
+function pickFor(wager: Wager, fixture: Fixture): Pick | null {
+  const choice = String(wager.choice ?? "").trim().toUpperCase();
+  if (choice === "A" || choice === "D" || choice === "B") return choice;
+  // Older picks may only carry the team name.
+  const prediction = String(wager.prediction ?? "").trim().toLowerCase();
+  if (prediction === "draw") return "D";
+  if (prediction && prediction === fixture.homeTeam.toLowerCase()) return "A";
+  if (prediction && prediction === fixture.awayTeam.toLowerCase()) return "B";
+  return null;
+}
+
+/**
+ * Record a final score and pay out every pending pick on that match, all in one
+ * transaction. A pick is only paid if it is still pending when it is updated,
+ * so overlapping runs can never pay the same pick twice.
+ */
+export async function settleFixture(fixture: Fixture, homeScore: number, awayScore: number): Promise<number> {
+  const outcome: Pick = homeScore > awayScore ? "A" : homeScore < awayScore ? "B" : "D";
+  const actualWinner = outcome === "A" ? fixture.homeTeam : outcome === "B" ? fixture.awayTeam : "Draw";
+
+  return db.transaction(async (tx) => {
+    await tx
+      .update(fixturesTable)
+      .set({ homeScore, awayScore, status: "finished", updatedAt: new Date() })
+      .where(eq(fixturesTable.id, fixture.id));
+
+    const pending = await tx
+      .select()
+      .from(wagersTable)
+      .where(and(eq(wagersTable.fixtureId, fixture.id), eq(wagersTable.status, "pending")));
+
+    let graded = 0;
+    for (const wager of pending) {
+      const pick = pickFor(wager, fixture);
+      if (!pick) {
+        logger.warn({ wagerId: wager.id, choice: wager.choice, prediction: wager.prediction }, "Could not read pick; left pending");
+        continue;
+      }
+      const won = pick === outcome;
+      const payout = won ? Math.floor(wager.amount * wager.odds) : 0;
+
+      const updated = await tx.execute(sql`
+        UPDATE wagers
+        SET status = ${won ? "won" : "lost"},
+            payout = ${payout},
+            actual_result = ${actualWinner},
+            settled_at = now()
+        WHERE id = ${wager.id} AND status = 'pending'
+        RETURNING id
+      `);
+      if (updated.rows.length === 0) continue;
+
+      // Right-hand sides use the old row values, so "points + payout" is the new balance.
+      await tx.execute(sql`
+        UPDATE users
+        SET points = points + ${payout},
+            total_picks = COALESCE(total_picks, 0) + 1,
+            won_picks = COALESCE(won_picks, 0) + ${won ? 1 : 0},
+            is_bankrupt = CASE
+              WHEN points + ${payout} <= 0 THEN true
+              WHEN points + ${payout} > ${SOLVENT_THRESHOLD} THEN false
+              ELSE is_bankrupt
+            END
+        WHERE id = ${wager.userId}
+      `);
+      graded++;
+      if (won) logger.info(`Paid ${payout} pts to user ${wager.userId} for picking correctly`);
+    }
+    return graded;
+  });
+}
+
+export async function settleFinishedMatches(): Promise<SettlementResult> {
+  const cutoff = new Date(Date.now() - SETTLE_AFTER_MS);
+  const candidates = await db
     .select()
     .from(fixturesTable)
-    .where(
-      and(
-        eq(fixturesTable.status, "pending"),
-        lt(fixturesTable.startTime, new Date())
-      )
-    );
+    .where(and(eq(fixturesTable.status, "pending"), lt(fixturesTable.startTime, cutoff)))
+    .orderBy(asc(fixturesTable.startTime));
 
-  if (pendingMatches.length === 0) {
-    return { settled: 0 };
-  }
+  const findResult = createResultFinder();
+  const unmatched: string[] = [];
+  let settled = 0;
 
-  // 2. Fetch recent scores from the API
-  const url = `${BASE_URL}/sports/soccer_fifa_world_cup/scores/?apiKey=${API_KEY}&daysFrom=1`;
-  const res = await fetch(url);
-  const data = await res.json();
-
-  if (!Array.isArray(data)) return { settled: 0 };
-
-  let settledCount = 0;
-
-  // 3. Process the results and pay out winners
-  for (const match of pendingMatches) {
-    const apiMatch = data.find((m: any) => m.id === match.id);
-
-    // If the API confirms the game is completely finished
-    if (apiMatch && apiMatch.completed && apiMatch.scores) {
-      const homeScoreObj = apiMatch.scores.find((s: any) => s.name === match.homeTeam);
-      const awayScoreObj = apiMatch.scores.find((s: any) => s.name === match.awayTeam);
-
-      if (homeScoreObj && awayScoreObj) {
-        const homeScore = parseInt(homeScoreObj.score);
-        const awayScore = parseInt(awayScoreObj.score);
-
-        // Determine the actual winning team for the receipt cards
-        let actualWinner = "Draw";
-        if (homeScore > awayScore) actualWinner = match.homeTeam;
-        if (homeScore < awayScore) actualWinner = match.awayTeam;
-
-        // Update the fixture to show the final score and close it
-        await db.update(fixturesTable)
-          .set({
-            homeScore,
-            awayScore,
-            status: "finished",
-            updatedAt: new Date(),
-          })
-          .where(eq(fixturesTable.id, match.id));
-
-        logger.info(`Match Finished: ${match.homeTeam} (${homeScore}) vs ${match.awayTeam} (${awayScore})`);
-
-        // Grab every wager placed on this specific match
-        const matchWagers = await db
-          .select()
-          .from(wagersTable)
-          .where(eq(wagersTable.fixtureId, match.id));
-
-        // Grade the papers and pay the winners
-        for (const wager of matchWagers) {
-          if (wager.status !== "pending") continue;
-
-          let won = false;
-          if (homeScore > awayScore && wager.choice === "A") won = true;
-          if (homeScore === awayScore && wager.choice === "D") won = true;
-          if (homeScore < awayScore && wager.choice === "B") won = true;
-
-          const payout = won ? Math.floor(wager.amount * wager.odds) : 0;
-
-          // Execute a raw SQL update to guarantee the new actual_result column saves perfectly
-          await db.execute(sql`
-            UPDATE wagers 
-            SET status = ${won ? "won" : "lost"}, 
-                payout = ${payout}, 
-                actual_result = ${actualWinner} 
-            WHERE id = ${wager.id}
-          `);
-
-          // Execute a raw SQL update to deposit points AND increment the win rate counters
-          await db.execute(sql`
-            UPDATE users 
-            SET points = points + ${payout},
-                total_picks = COALESCE(total_picks, 0) + 1,
-                won_picks = COALESCE(won_picks, 0) + ${won ? 1 : 0}
-            WHERE id = ${wager.userId}
-          `);
-
-          if (won) {
-            logger.info(`Paid ${payout} pts to user ${wager.userId} for picking correctly!`);
-          }
-        }
-        settledCount++;
-      }
+  for (const fixture of candidates) {
+    const result = await findResult(fixture);
+    if (result === "not_finished") continue;
+    if (!result) {
+      unmatched.push(`${fixture.homeTeam} vs ${fixture.awayTeam} (${fixture.startTime.toISOString().slice(0, 10)})`);
+      continue;
     }
+    const graded = await settleFixture(fixture, result.homeScore, result.awayScore);
+    settled++;
+    logger.info(`Match finished: ${fixture.homeTeam} ${result.homeScore}-${result.awayScore} ${fixture.awayTeam} (${graded} picks graded)`);
   }
 
-  return { settled: settledCount };
+  const summary = { checked: candidates.length, settled, unmatched };
+  logger.info(summary, "Settlement run complete");
+  return summary;
+}
+
+let inFlight: Promise<SettlementResult> | null = null;
+let lastFinishedAt = 0;
+
+/** Run settlement unless one is already running or one finished in the last few minutes. */
+export function runSettlement(options: { force?: boolean } = {}): Promise<SettlementResult> {
+  if (inFlight) return inFlight;
+  if (!options.force && Date.now() - lastFinishedAt < MIN_INTERVAL_MS) {
+    return Promise.resolve({ checked: 0, settled: 0, unmatched: [], skipped: true });
+  }
+  inFlight = settleFinishedMatches()
+    .catch((err): SettlementResult => {
+      logger.error({ err }, "Settlement run failed");
+      return { checked: 0, settled: 0, unmatched: [], failed: true };
+    })
+    .finally(() => {
+      lastFinishedAt = Date.now();
+      inFlight = null;
+    });
+  return inFlight;
 }

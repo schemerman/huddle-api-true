@@ -128,6 +128,25 @@ function toLeaderboardEntry(api: ApiLeaderboardEntry): LeaderboardEntry {
   };
 }
 
+// Builds the same entry the API leaderboard returns, from a Supabase `users` row,
+// so huddle leaderboards match Global Rankings without another server call.
+// Win rate uses the server's formula: won picks / settled picks.
+export function userRowToLeaderboardEntry(row: any, rank: number): LeaderboardEntry {
+  const total = Number(row.total_picks ?? row.totalPicks ?? 0);
+  const won = Number(row.won_picks ?? row.wonPicks ?? 0);
+  const username = String(row.username ?? "");
+  const displayName = String(row.display_name ?? row.displayName ?? username);
+  return toLeaderboardEntry({
+    userId: row.id,
+    username: username.length > 20 ? displayName || "Player" : username,
+    displayName,
+    avatarColor: row.avatar_color ?? row.avatarColor ?? "#8A8A8A",
+    points: Number(row.points ?? 0),
+    winRate: total > 0 ? Math.round((won / total) * 100) : 0,
+    rank,
+  } as ApiLeaderboardEntry);
+}
+
 interface DataContextType {
   posts: Post[];
   leagues: League[];

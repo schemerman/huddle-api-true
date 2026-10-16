@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, FlatList, Pressable, Platform, Alert, TextInput
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
@@ -12,6 +11,8 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import { getCrestUrl, getFlag } from "@/utils/teams";
+import { pickImage as pickPhoto, uploadImage, type PickedImage } from "@/lib/upload";
+import { showError } from "@/lib/alerts";
 
 const isWeb = Platform.OS === "web";
 
@@ -43,7 +44,7 @@ export default function HomeScreen() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [newPostText, setNewPostText] = useState("");
   const [attachedWagerId, setAttachedWagerId] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<PickedImage | null>(null);
 
   const [fireModalOpen, setFireModalOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any>(null);
@@ -110,47 +111,35 @@ export default function HomeScreen() {
   };
 
   const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.7,
-    });
-    if (!result.canceled) setSelectedImage(result.assets[0].uri);
+    try {
+      const image = await pickPhoto();
+      if (image) setSelectedImage(image);
+    } catch (e: any) {
+      showError("Couldn't open photos", e?.message || "Please try again.");
+    }
   };
 
   const submitPost = async () => {
-    if (!user) return Alert.alert("Auth Error", "Are you logged in?");
+    if (!user) return showError("Not signed in", "Please log in again to post.");
     const finalContent = newPostText.trim() || (attachedWagerId ? "Check out my prediction! 👀" : "");
     if (!finalContent && !selectedImage) return;
-    
+
     setUploading(true);
-    let finalImageUrl = null;
-
-    if (selectedImage) {
-      try {
-        const response = await fetch(selectedImage);
-        const blob = await response.blob();
-        const filePath = `${user.id}/${Date.now()}.jpg`;
-        
-        const { data, error } = await supabase.storage.from('posts').upload(filePath, blob, { contentType: 'image/jpeg' });
-        
-        if (error) throw error;
-        
-        if (data) {
-          const { data: publicUrlData } = supabase.storage.from('posts').getPublicUrl(filePath);
-          finalImageUrl = publicUrlData.publicUrl;
-        }
-      } catch (e: any) {
-        Alert.alert("Upload Failed", "Could not upload image.");
-        setUploading(false);
-        return;
-      }
-    }
-
     try {
-      await supabase.from("posts").insert({ user_id: user.id, content: finalContent, wager_id: attachedWagerId, image_url: finalImageUrl });
-      setNewPostText(""); setAttachedWagerId(null); setSelectedImage(null); setComposeOpen(false); fetchPosts(); 
-    } catch (error: any) { Alert.alert("Crash", error.message); } finally { setUploading(false); }
+      const imageUrl = selectedImage ? await uploadImage(selectedImage, user.id, "posts") : null;
+      const row: Record<string, any> = { user_id: user.id, content: finalContent, wager_id: attachedWagerId };
+      if (imageUrl) row.image_url = imageUrl;
+
+      const { error } = await supabase.from("posts").insert(row);
+      if (error) throw new Error(error.message);
+
+      // Only clear the composer once the post is saved, so nothing is lost on failure.
+      setNewPostText(""); setAttachedWagerId(null); setSelectedImage(null); setComposeOpen(false); fetchPosts();
+    } catch (e: any) {
+      showError("Post failed", e?.message || "Could not post. Please try again.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleLike = async (postId: string, hasLiked: boolean) => {
@@ -376,7 +365,12 @@ export default function HomeScreen() {
             isDesktop ? (
               <View style={[styles.composeContainer, { borderBottomColor: colors.border }]}>
                 <TextInput ref={inputRef} style={[styles.composeInput, { color: colors.foreground }]} placeholder="What's your latest prediction?" placeholderTextColor={colors.mutedForeground} multiline value={newPostText} onChangeText={setNewPostText} />
-                {selectedImage && <Image source={{ uri: selectedImage }} style={styles.previewImage} />}
+                {selectedImage && (
+                  <View style={styles.previewWrap}>
+                    <Image source={{ uri: selectedImage.uri }} style={styles.previewImage} />
+                    <Pressable onPress={() => setSelectedImage(null)} style={styles.previewRemove}><Feather name="x" size={14} color="#fff" /></Pressable>
+                  </View>
+                )}
                 {attachedWagerId && (
                   <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
                     <Feather name="paperclip" size={14} color="#3B7BE5" />
@@ -430,7 +424,12 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {selectedImage && <Image source={{ uri: selectedImage }} style={styles.previewImage} />}
+              {selectedImage && (
+                <View style={styles.previewWrap}>
+                  <Image source={{ uri: selectedImage.uri }} style={styles.previewImage} />
+                  <Pressable onPress={() => setSelectedImage(null)} style={styles.previewRemove}><Feather name="x" size={14} color="#fff" /></Pressable>
+                </View>
+              )}
               <TextInput style={[styles.composeInput, { color: colors.foreground }]} placeholder="What's your latest prediction?" placeholderTextColor={colors.mutedForeground} multiline autoFocus value={newPostText} onChangeText={setNewPostText} />
               
               <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
@@ -477,7 +476,9 @@ const styles = StyleSheet.create({
   postLit: { backgroundColor: "rgba(255, 107, 0, 0.04)" },
   postContent: { flex: 1 },
   postImage: { width: '100%', height: 200, borderRadius: 12, marginTop: 8, marginBottom: 8 },
-  previewImage: { width: 100, height: 100, borderRadius: 8, marginBottom: 12 },
+  previewImage: { width: 100, height: 100, borderRadius: 8 },
+  previewWrap: { width: 100, height: 100, marginBottom: 12 },
+  previewRemove: { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
   postHeader: { flexDirection: "column", alignItems: "flex-start", marginBottom: 6 },
   displayName: { fontFamily: "Inter_700Bold", fontSize: 16 },
   username: { fontFamily: "Inter_400Regular", fontSize: 14, marginTop: 2 },

@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View, Image } from "react-native";
+import { SharePicker } from "@/components/SharePicker";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
 import { Feather } from "@expo/vector-icons";
@@ -60,31 +61,34 @@ export function ReceiptModal({
   const predUrl = getCrestUrl(prediction);
   const predFlag = getFlag(prediction);
 
-  // ROUTING LOGIC: We set distinct keys so the destination screen knows to pick it up!
+  // Huddle and DM shares pick a destination inside the receipt card.
+  const [shareMode, setShareMode] = useState<"huddle" | "dm" | null>(null);
+  useEffect(() => {
+    if (!visible) setShareMode(null);
+  }, [visible]);
+
+  // Home picks the receipt up from storage and opens the post composer with it attached.
   const handleShareToHome = async () => {
     if (!wagerId) return;
     await AsyncStorage.setItem("pending_share_wager", wagerId);
     onClose();
-    router.navigate("/");
+    router.navigate("/(tabs)" as any);
   };
 
-  const handleShareToHuddle = async () => {
-    if (!wagerId) return;
-    await AsyncStorage.setItem("pending_share_wager_huddle", wagerId);
+  const handleShared = (chatPath: string) => {
+    setShareMode(null);
     onClose();
-    router.navigate("/huddles");
-  };
-
-  const handleShareToDM = async () => {
-    if (!wagerId) return;
-    await AsyncStorage.setItem("pending_share_wager_dm", wagerId);
-    onClose();
-    router.navigate("/messages" as any);
+    router.push(chatPath as any);
   };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.receiptOverlay}>
+        {shareMode && wagerId ? (
+          <View style={[styles.receiptCard, { backgroundColor: colors.background, borderColor: colors.foreground, alignItems: "stretch" }]}>
+            <SharePicker mode={shareMode} wagerId={wagerId} onBack={() => setShareMode(null)} onSent={handleShared} />
+          </View>
+        ) : (
         <View style={[styles.receiptCard, { backgroundColor: colors.background, borderColor: colors.foreground }]}>
           <Text style={[styles.receiptBrand, { color: colors.foreground }]}>HUDDLE</Text>
           <View style={[styles.receiptRule, { backgroundColor: colors.border }]} />
@@ -145,12 +149,12 @@ export function ReceiptModal({
                   <Text style={[styles.receiptShareText, { color: colors.background }]}>Share to Home</Text>
                 </Pressable>
 
-                <Pressable onPress={handleShareToHuddle} style={[styles.receiptShareBtn, { backgroundColor: colors.secondary }]}>
+                <Pressable onPress={() => setShareMode("huddle")} style={[styles.receiptShareBtn, { backgroundColor: colors.secondary }]}>
                   <Feather name="users" size={16} color={colors.foreground} />
                   <Text style={[styles.receiptShareText, { color: colors.foreground }]}>Share to Huddle</Text>
                 </Pressable>
 
-                <Pressable onPress={handleShareToDM} style={[styles.receiptShareBtn, { backgroundColor: colors.secondary }]}>
+                <Pressable onPress={() => setShareMode("dm")} style={[styles.receiptShareBtn, { backgroundColor: colors.secondary }]}>
                   <Feather name="message-circle" size={16} color={colors.foreground} />
                   <Text style={[styles.receiptShareText, { color: colors.foreground }]}>Send in DM</Text>
                 </Pressable>
@@ -169,6 +173,7 @@ export function ReceiptModal({
             </Pressable>
           </View>
         </View>
+        )}
       </View>
     </Modal>
   );

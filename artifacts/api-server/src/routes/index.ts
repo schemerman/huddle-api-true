@@ -5,6 +5,7 @@ import fixturesRouter from "./fixtures";
 import postsRouter from "./posts";
 import leaderboardRouter from "./leaderboard";
 import leaguesRouter from "./leagues";
+import settlementRouter from "./settlement";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(fixturesRouter);
 router.use(postsRouter);
 router.use(leaderboardRouter);
 router.use(leaguesRouter);
+router.use(settlementRouter);
 
 export default router;

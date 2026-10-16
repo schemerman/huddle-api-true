@@ -1,27 +1,29 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { FlatList, Platform, Pressable, StyleSheet, Text, View, TextInput, KeyboardAvoidingView, Image, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
-import { useData } from "@/context/DataContext";
+import { useData, userRowToLeaderboardEntry } from "@/context/DataContext";
 import { Avatar } from "@/components/Avatar";
+import { RankingRow } from "@/components/RankingRow";
+import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import { supabase } from "@/lib/supabase";
 import { AttachedWager } from "@/components/AttachedWager";
 import {
   type ChatMessage,
-  DEFAULT_PREDICTION_TEXT,
   appendUnique,
   confirmMessage,
   getAttachment,
   insertMessage,
   makeTempId,
   mergeWithLocal,
+  patchMessage,
   setStatus,
   showError,
 } from "@/lib/chat";
+import { pickImage, uploadImage, type PickedImage } from "@/lib/upload";
 
 export default function LeagueScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -36,8 +38,9 @@ export default function LeagueScreen() {
   const [members, setMembers] = useState<any[]>([]);
   const [tab, setTab] = useState<"chat" | "leaderboard">("chat");
   const [newMessage, setNewMessage] = useState("");
-  const [attachedWagerId, setAttachedWagerId] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<PickedImage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
   const sendingRef = useRef(false);
   const usersById = useRef<Record<string, any>>({});
   const triedLeagueRefresh = useRef(false);
@@ -45,6 +48,7 @@ export default function LeagueScreen() {
   const flatListRef = useRef<FlatList>(null);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const scrollToEnd = (delay = 300) => setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), delay);
+  const canSend = !!newMessage.trim() || !!selectedImage;
 
   // Opened directly (e.g. after a reload) before the Huddles list loaded: fetch it once.
   useEffect(() => {
@@ -66,11 +70,11 @@ export default function LeagueScreen() {
   };
 
   const memberKey = league ? Array.from(new Set(league.memberIds)).join(",") : "";
-  useEffect(() => {
+  const loadMembers = useCallback(() => {
     const ids = memberKey ? memberKey.split(",") : [];
     if (ids.length === 0) {
       setMembers([]);
-      return;
+      return () => {};
     }
     let cancelled = false;
     supabase.from("users").select("*").in("id", ids).then(({ data }) => {
@@ -80,6 +84,12 @@ export default function LeagueScreen() {
     });
     return () => { cancelled = true; };
   }, [memberKey]);
+
+  // Reload members whenever the screen is shown, so points and win rates are current.
+  useFocusEffect(loadMembers);
+
+  // Same rows, badges and win rates as Global Rankings.
+  const standings = useMemo(() => members.map((row, i) => userRowToLeaderboardEntry(row, i + 1)), [members]);
 
   // Realtime rows don't include the sender, so look them up before showing the message.
   useEffect(() => {
@@ -106,24 +116,37 @@ export default function LeagueScreen() {
     setMessages(prev => mergeWithLocal(hydrated, prev));
   };
 
-  const checkPendingShares = async () => {
-    const pendingShare = await AsyncStorage.getItem("pending_share_wager_huddle");
-    if (pendingShare) {
-      setAttachedWagerId(pendingShare);
-      setTab("chat");
-      await AsyncStorage.removeItem("pending_share_wager_huddle");
+  useFocusEffect(useCallback(() => { fetchMessages(); }, [id]));
+
+  const handlePickImage = async () => {
+    try {
+      const image = await pickImage();
+      if (image) setSelectedImage(image);
+    } catch (e: any) {
+      showError("Couldn't open photos", e?.message || "Please try again.");
     }
   };
 
-  useFocusEffect(useCallback(() => { fetchMessages(); checkPendingShares(); }, [id]));
-
+  // Uploads the photo first (if any), then saves the message. Safe to call again on retry.
   const deliver = async (draft: ChatMessage) => {
     if (!id) return;
+    let imageUrl = draft.image_url;
+    if (draft.pending_upload && !imageUrl) {
+      try {
+        imageUrl = await uploadImage(draft.pending_upload, draft.sender_id, "chat");
+        setMessages(prev => patchMessage(prev, draft.id, { image_url: imageUrl }));
+      } catch (e: any) {
+        setMessages(prev => setStatus(prev, draft.id, "failed"));
+        showError("Photo not sent", e?.message || "Could not upload the photo. Tap it to try again.");
+        return;
+      }
+    }
+
     const { data, error } = await insertMessage({
       huddle_id: id,
       sender_id: draft.sender_id,
-      content: draft.content,
-      image_url: draft.image_url,
+      content: draft.content ?? "",
+      image_url: imageUrl,
     });
     if (error || !data) {
       setMessages(prev => setStatus(prev, draft.id, "failed"));
@@ -134,7 +157,7 @@ export default function LeagueScreen() {
   };
 
   const handleSend = async () => {
-    if (sendingRef.current || (!newMessage.trim() && !attachedWagerId) || !user || !id) return;
+    if (sendingRef.current || !canSend || !user || !id) return;
     sendingRef.current = true;
     setIsSubmitting(true);
 
@@ -142,16 +165,18 @@ export default function LeagueScreen() {
       id: makeTempId(),
       sender_id: user.id,
       huddle_id: id,
-      content: newMessage.trim() || DEFAULT_PREDICTION_TEXT,
-      image_url: attachedWagerId,
+      content: newMessage.trim(),
+      image_url: null,
       created_at: new Date().toISOString(),
       users: usersById.current[user.id] ?? null,
       status: "sending",
+      local_image: selectedImage?.uri ?? null,
+      pending_upload: selectedImage,
     };
 
     setMessages(prev => [...prev, draft]);
     setNewMessage("");
-    setAttachedWagerId(null);
+    setSelectedImage(null);
     scrollToEnd(100);
 
     try {
@@ -200,7 +225,7 @@ export default function LeagueScreen() {
 
           {photoUrl || item.content ? (
             <View style={[styles.messageBubble, isMe ? [styles.bubbleMe, { backgroundColor: colors.foreground }] : [styles.bubbleThem, { backgroundColor: "rgba(0,0,0,0.05)" }]]}>
-              {photoUrl ? <Image source={{ uri: photoUrl }} style={styles.photo} /> : null}
+              {photoUrl ? <Image source={{ uri: photoUrl }} style={[styles.photo, !item.content && { marginBottom: 0 }]} /> : null}
               {item.content ? <Text style={[styles.messageText, { color: isMe ? colors.background : colors.foreground }]}>{item.content}</Text> : null}
             </View>
           ) : null}
@@ -241,16 +266,18 @@ export default function LeagueScreen() {
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
           />
           <View style={[styles.inputContainer, { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? insets.bottom || 16 : 16, flexDirection: 'column' }]}>
-            {attachedWagerId && (
-              <View style={[styles.attachmentBadge, { backgroundColor: "rgba(59, 123, 229, 0.1)" }]}>
-                <Feather name="paperclip" size={14} color="#3B7BE5" />
-                <Text style={styles.attachmentText}>Prediction Receipt Attached</Text>
-                <Pressable onPress={() => setAttachedWagerId(null)}><Feather name="x" size={16} color="#3B7BE5" /></Pressable>
+            {selectedImage && (
+              <View style={styles.previewWrap}>
+                <Image source={{ uri: selectedImage.uri }} style={styles.previewImage} />
+                <Pressable onPress={() => setSelectedImage(null)} style={styles.previewRemove}><Feather name="x" size={14} color="#fff" /></Pressable>
               </View>
             )}
             <View style={{ flexDirection: "row", alignItems: "flex-end", width: "100%" }}>
+              <Pressable onPress={handlePickImage} style={styles.imageBtn} accessibilityLabel="Add a photo">
+                <Feather name="image" size={22} color={colors.foreground} />
+              </Pressable>
               <TextInput style={[styles.textInput, { backgroundColor: "rgba(0,0,0,0.05)", color: colors.foreground }]} placeholder="Message group..." placeholderTextColor={colors.mutedForeground} value={newMessage} onChangeText={setNewMessage} multiline />
-              <Pressable onPress={handleSend} disabled={(!newMessage.trim() && !attachedWagerId) || isSubmitting} style={({pressed}) => [{ opacity: (!newMessage.trim() && !attachedWagerId) || pressed ? 0.5 : 1 }, styles.sendBtn]}>
+              <Pressable onPress={handleSend} disabled={!canSend || isSubmitting} style={({pressed}) => [{ opacity: !canSend || pressed ? 0.5 : 1 }, styles.sendBtn]}>
                 {isSubmitting ? <ActivityIndicator size="small" color={colors.foreground as string} /> : <Text style={[styles.sendText, { color: colors.foreground }]}>Send</Text>}
               </Pressable>
             </View>
@@ -258,28 +285,15 @@ export default function LeagueScreen() {
         </KeyboardAvoidingView>
       ) : (
         <FlatList
-          data={members} keyExtractor={(item) => String(item.id)}
+          data={standings} keyExtractor={(item) => item.userId}
           contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
-          renderItem={({ item, index }) => {
-            const isMe = item.id === user?.id;
-            return (
-              <View style={[styles.leaderboardRow, { borderBottomColor: colors.border }]}>
-                <Text style={[styles.rank, { color: colors.foreground }]}>{index + 1}</Text>
-                <Pressable onPress={() => openProfile(item)} style={styles.memberInfo}>
-                  <Avatar color={item.avatar_color || colors.primary} username={item.username || "user"} size={40} />
-                  <View style={{ marginLeft: 12 }}>
-                    <Text style={[styles.memberName, { color: colors.foreground }]}>{item.display_name || item.displayName || item.username || "Player"} {isMe ? "(you)" : ""}</Text>
-                    <Text style={[styles.memberHandle, { color: colors.mutedForeground }]}>@{item.username}</Text>
-                  </View>
-                </Pressable>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={[styles.memberPts, { color: colors.foreground }]}>{(item.points ?? 0).toLocaleString()} pts</Text>
-                </View>
-              </View>
-            );
-          }}
+          renderItem={({ item, index }) => (
+            <RankingRow entry={item} position={index + 1} isMe={item.userId === user?.id} onPress={() => setProfileUser(item)} />
+          )}
         />
       )}
+
+      <PublicProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
     </View>
   );
 }
@@ -302,20 +316,16 @@ const styles = StyleSheet.create({
   messageBubble: { maxWidth: "100%", paddingHorizontal: 14, paddingVertical: 10 },
   bubbleMe: { borderTopLeftRadius: 18, borderTopRightRadius: 18, borderBottomLeftRadius: 18, borderBottomRightRadius: 4 },
   bubbleThem: { borderTopLeftRadius: 18, borderTopRightRadius: 18, borderBottomRightRadius: 18, borderBottomLeftRadius: 4 },
-  photo: { width: 200, height: 200, borderRadius: 12, marginBottom: 8 },
+  photo: { width: 220, height: 220, borderRadius: 12, marginBottom: 8 },
   messageName: { fontFamily: "Inter_600SemiBold", fontSize: 12, marginBottom: 4 },
   messageText: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 20 },
   statusText: { fontFamily: "Inter_500Medium", fontSize: 12, marginTop: 4 },
   inputContainer: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1 },
+  imageBtn: { paddingRight: 12, paddingBottom: 9 },
   textInput: { flex: 1, minHeight: 40, maxHeight: 100, borderRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontFamily: "Inter_400Regular", fontSize: 15 },
   sendBtn: { marginLeft: 16, paddingBottom: 10 },
   sendText: { fontFamily: "Inter_700Bold", fontSize: 15 },
-  attachmentBadge: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, marginBottom: 12, gap: 8 },
-  attachmentText: { flex: 1, fontFamily: "Inter_500Medium", fontSize: 14, color: "#3B7BE5" },
-  leaderboardRow: { flexDirection: "row", alignItems: "center", paddingVertical: 16, paddingHorizontal: 20, borderBottomWidth: 1 },
-  rank: { fontFamily: "Inter_700Bold", fontSize: 16, width: 24 },
-  memberInfo: { flex: 1, flexDirection: "row", alignItems: "center" },
-  memberName: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
-  memberHandle: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 2 },
-  memberPts: { fontFamily: "Inter_700Bold", fontSize: 15 },
+  previewWrap: { width: 80, height: 80, marginBottom: 12 },
+  previewImage: { width: 80, height: 80, borderRadius: 10 },
+  previewRemove: { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
 });

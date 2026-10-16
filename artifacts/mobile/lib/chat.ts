@@ -1,5 +1,7 @@
-import { Alert, Platform } from "react-native";
 import { supabase } from "@/lib/supabase";
+import type { PickedImage } from "@/lib/upload";
+
+export { showError } from "@/lib/alerts";
 
 // A row of the Supabase `messages` table, plus client-only delivery state.
 // DMs set `recipient_id`; group chats set `huddle_id` (the league id).
@@ -14,6 +16,9 @@ export type ChatMessage = {
   created_at: string;
   users?: Record<string, any> | null;
   status?: "sending" | "failed";
+  // Client-only: preview of a photo that is still uploading, and the photo to upload.
+  local_image?: string | null;
+  pending_upload?: PickedImage | null;
 };
 
 type NewMessage = {
@@ -29,15 +34,6 @@ export const DEFAULT_PREDICTION_TEXT = "Check out my prediction! 👀";
 export async function insertMessage(row: NewMessage) {
   const { data, error } = await supabase.from("messages").insert(row).select().single();
   return { data: (data as ChatMessage | null) ?? null, error };
-}
-
-// Alert.alert does nothing on react-native-web, so fall back to the browser dialog there.
-export function showError(title: string, message: string) {
-  if (Platform.OS === "web") {
-    if (typeof window !== "undefined") window.alert(`${title}\n\n${message}`);
-    return;
-  }
-  Alert.alert(title, message);
 }
 
 export function makeTempId() {
@@ -59,6 +55,10 @@ export function setStatus(list: ChatMessage[], id: string, status: ChatMessage["
   return list.map((m) => (m.id === id ? { ...m, status } : m));
 }
 
+export function patchMessage(list: ChatMessage[], id: string, patch: Partial<ChatMessage>) {
+  return list.map((m) => (m.id === id ? { ...m, ...patch } : m));
+}
+
 // Keep unsent or failed local messages when the server list is reloaded.
 export function mergeWithLocal(server: ChatMessage[], local: ChatMessage[]) {
   const ids = new Set(server.map((m) => m.id));
@@ -66,7 +66,16 @@ export function mergeWithLocal(server: ChatMessage[], local: ChatMessage[]) {
 }
 
 export function getAttachment(msg: ChatMessage): { photoUrl: string | null; wagerId: string | null } {
+  if (msg.local_image) return { photoUrl: msg.local_image, wagerId: null };
   const value = msg.image_url;
   if (!value) return { photoUrl: null, wagerId: null };
   return value.startsWith("http") ? { photoUrl: value, wagerId: null } : { photoUrl: null, wagerId: value };
+}
+
+// Short text for inbox previews.
+export function previewText(msg: Pick<ChatMessage, "content" | "image_url">): string {
+  const { photoUrl, wagerId } = getAttachment(msg as ChatMessage);
+  if (wagerId) return "Shared a prediction";
+  if (photoUrl && !msg.content) return "📷 Photo";
+  return msg.content || "";
 }

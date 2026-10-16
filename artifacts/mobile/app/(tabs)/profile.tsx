@@ -12,6 +12,7 @@ import { Avatar } from "@/components/Avatar";
 import { ReceiptModal } from "@/components/ReceiptModal";
 import { AttachedWager } from "@/components/AttachedWager";
 import { supabase } from "@/lib/supabase";
+import { requestSettlement } from "@/lib/api";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -53,6 +54,15 @@ const getCrestUrl = (team: string): string | null => {
   return crests[team] || null; 
 };
 
+// Matches are treated as over two hours after kick-off (same rule as the server).
+const SETTLE_AFTER_MS = 2 * 60 * 60 * 1000;
+
+// Fixture times are stored in UTC without a zone suffix.
+const kickoffTime = (value?: string | null): number => {
+  if (!value) return NaN;
+  return Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`);
+};
+
 const getFinalResult = (wager: any): string => {
   if (!wager) return "Unknown";
   if (wager.status === "pending") return "Pending";
@@ -73,7 +83,7 @@ const getFinalResult = (wager: any): string => {
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, logout, claimDailyBonus } = useAuth();
+  const { user, logout, claimDailyBonus, refreshUser } = useAuth();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [tab, setTab] = useState<"stats" | "wagers" | "posts">("stats");
@@ -116,6 +126,7 @@ export default function ProfileScreen() {
     useCallback(() => {
       if (!user?.id) return;
       let isMounted = true;
+      let settleRequested = false;
 
       const fetchFreshData = async () => {
         try {
@@ -129,9 +140,22 @@ export default function ProfileScreen() {
             }
             const mergedWagers = wagersData.map((w: any) => {
               const f = fixturesMap[w.fixture_id || w.fixtureId];
-              return { ...w, homeScore: f?.homeScore ?? f?.home_score, awayScore: f?.awayScore ?? f?.away_score, homeTeam: f?.homeTeam ?? f?.home_team, awayTeam: f?.awayTeam ?? f?.away_team };
+              return { ...w, homeScore: f?.homeScore ?? f?.home_score, awayScore: f?.awayScore ?? f?.away_score, homeTeam: f?.homeTeam ?? f?.home_team, awayTeam: f?.awayTeam ?? f?.away_team, startTime: f?.start_time ?? f?.startTime };
             });
             if (isMounted) setWagers(mergedWagers);
+
+            // Picks on matches that should be over: ask the server to settle them,
+            // then reload so results, points and receipts appear.
+            const overdue = mergedWagers.some((w: any) => w.status === "pending" && kickoffTime(w.startTime) < Date.now() - SETTLE_AFTER_MS);
+            if (overdue && !settleRequested) {
+              settleRequested = true;
+              requestSettlement().then((result) => {
+                if (result && isMounted) {
+                  fetchFreshData();
+                  refreshUser();
+                }
+              });
+            }
           }
 
           // STRICT SOFT DELETE FILTERING

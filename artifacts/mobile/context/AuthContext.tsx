@@ -46,6 +46,8 @@ interface AuthContextType {
   claimBailout: () => Promise<boolean>;
   joinGroup: (groupId: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Reload the signed-in user's row, e.g. after picks settle and points change. */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -134,12 +136,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const joinGroup = async (groupId: string) => {};
 
+  const refreshUser = async () => {
+    if (user) await fetchUserProfile(user.id);
+  };
+
   const logout = async () => {
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, completeProfile, placeWager, claimDailyBonus, claimBailout, joinGroup, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, completeProfile, placeWager, claimDailyBonus, claimBailout, joinGroup, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

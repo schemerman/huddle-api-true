@@ -408,6 +408,7 @@ export default function PostScreen() {
                   </Pressable>
                   
                   <Text style={[styles.mainContent, { color: colors.foreground }]}>{post.content}</Text>
+                  {post.image_url ? <Image source={{ uri: post.image_url }} style={styles.postImage} /> : null}
                   <Text style={[styles.timeAgo, { color: colors.mutedForeground }]}>{formatTimeAgo(post.created_at)}</Text>
                   
                   {post.wager && (
@@ -563,6 +564,7 @@ const styles = StyleSheet.create({
   displayName: { fontFamily: "Inter_700Bold", fontSize: 16 },
   username: { fontFamily: "Inter_400Regular", fontSize: 14, marginTop: 2 },
   mainContent: { fontFamily: "Inter_400Regular", fontSize: 20, lineHeight: 28, marginBottom: 8 },
+  postImage: { width: "100%", height: 280, borderRadius: 12, marginBottom: 8 },
   timeAgo: { fontFamily: "Inter_400Regular", fontSize: 14, marginBottom: 16 },
   statsRow: { flexDirection: "row", paddingVertical: 16, borderTopWidth: 1, borderBottomWidth: 1, marginBottom: 16 },
   statText: { fontFamily: "Inter_400Regular", fontSize: 15 },

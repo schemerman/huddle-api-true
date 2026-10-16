@@ -17,6 +17,11 @@ export async function refreshFixtures(): Promise<{ count: number }> {
   const data = await res.json();
 
   if (!Array.isArray(data)) {
+    // Usually an invalid key or no credits left; say so instead of failing silently.
+    logger.warn(
+      { status: res.status, message: (data as any)?.message, remaining: res.headers.get("x-requests-remaining") },
+      "Odds API did not return fixtures",
+    );
     return { count: 0 };
   }
 

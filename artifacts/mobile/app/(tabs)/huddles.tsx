@@ -19,22 +19,10 @@ import { useColors } from "@/hooks/useColors";
 import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
 import { HuddleButton } from "@/components/HuddleButton";
-import { Avatar } from "@/components/Avatar";
 import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import type { League } from "@/context/DataContext";
 
-// FALLBACK ADDED: Defaults to 5 to avoid the "Rookie" trap if backend is slow
-export const getRank = (winRate: number, totalPicks: number = 5) => {
-  if (totalPicks < 5) return "Rookie";
-  if (winRate >= 95 && totalPicks >= 30) return "Oracle";
-  if (winRate >= 85 && totalPicks >= 25) return "GOAT";
-  if (winRate >= 70 && totalPicks >= 15) return "Champion";
-  if (winRate >= 60 && totalPicks >= 10) return "All Star";
-  if (winRate >= 50) return "Starter";
-  if (winRate >= 35) return "Coin Flipper";
-  if (winRate >= 20) return "Beginner's Luck";
-  return "Benchwarmer";
-};
+import { RankingRow } from "@/components/RankingRow";
 
 function HuddleCard({ 
   league, 
@@ -146,14 +134,6 @@ export default function HuddlesScreen() {
     setModal(null);
   };
 
-  const getRankSuffix = (i: number) => {
-    const j = i % 10, k = i % 100;
-    if (j == 1 && k != 11) return i + "st";
-    if (j == 2 && k != 12) return i + "nd";
-    if (j == 3 && k != 13) return i + "rd";
-    return i + "th";
-  };
-
   const sortedLeaderboard = [...leaderboard].sort((a, b) => b.points - a.points);
   const myHuddles = leagues.filter((league) => user && league.memberIds.includes(user.id));
 
@@ -207,49 +187,17 @@ export default function HuddlesScreen() {
           data={sortedLeaderboard}
           keyExtractor={(item) => item.userId}
           contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 80) }}
-          renderItem={({ item, index }) => {
-            const picksCounter = (item as any).total_picks ?? (item as any).picksCount ?? 5;
-
-            return (
-              <Pressable
-                onPress={() => {
-                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setProfileUser(item);
-                }}
-                style={({ pressed }) => [styles.memberRow, { borderBottomColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
-              >
-                <View style={styles.rankCol}>
-                  <Text style={[styles.rankText, { color: colors.foreground }]}>{getRankSuffix(index + 1)}</Text>
-                </View>
-                <Avatar color={item.avatarColor} username={item.username} size={40} />
-                <View style={styles.memberInfo}>
-                  <Text style={[styles.memberName, { color: colors.foreground }]} numberOfLines={1}>
-                    {item.displayName}
-                    {item.userId === user?.id ? " (you)" : ""}
-                  </Text>
-                  
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
-                    <Text style={[styles.memberHandle, { color: colors.mutedForeground, marginTop: 0 }]} numberOfLines={1}>
-                      @{item.username}
-                    </Text>
-                    <View style={[styles.rankBadge, { backgroundColor: colors.secondary }]}>
-                      <Text style={[styles.badgeText, { color: colors.foreground }]}>
-                        {getRank(item.winRate, picksCounter)}
-                      </Text>
-                    </View>
-                  </View>
-
-                </View>
-                <View style={styles.memberRight}>
-                  <View style={styles.pointsContainer}>
-                    <Text style={[styles.memberPoints, { color: colors.foreground }]}>{item.points.toLocaleString()}</Text>
-                    <Text style={[styles.memberPointsLabel, { color: colors.mutedForeground }]}>pts</Text>
-                  </View>
-                  <Text style={[styles.memberWinRate, { color: colors.mutedForeground }]}>{item.winRate}% win</Text>
-                </View>
-              </Pressable>
-            );
-          }}
+          renderItem={({ item, index }) => (
+            <RankingRow
+              entry={item}
+              position={index + 1}
+              isMe={item.userId === user?.id}
+              onPress={() => {
+                if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setProfileUser(item);
+              }}
+            />
+          )}
         />
       )}
 
@@ -373,26 +321,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
-  memberRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    gap: 12,
-  },
-  rankCol: { width: 32, alignItems: "center" },
-  rankText: { fontFamily: "Inter_700Bold", fontSize: 13 },
-  memberInfo: { flex: 1 },
-  memberName: { fontFamily: "Inter_600SemiBold", fontSize: 15, letterSpacing: -0.2 },
-  memberHandle: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 1 },
-  rankBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  badgeText: { fontFamily: "Inter_600SemiBold", fontSize: 10 },
-  memberRight: { alignItems: "flex-end", marginRight: 4, gap: 2 },
-  pointsContainer: { flexDirection: "row", alignItems: "baseline", gap: 3 },
-  memberPoints: { fontFamily: "Inter_700Bold", fontSize: 15, letterSpacing: -0.3 },
-  memberPointsLabel: { fontFamily: "Inter_400Regular", fontSize: 11 },
-  memberWinRate: { fontFamily: "Inter_500Medium", fontSize: 11 },
   empty: {
     alignItems: "center",
     justifyContent: "center",
