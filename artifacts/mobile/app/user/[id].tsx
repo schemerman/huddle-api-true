@@ -21,6 +21,7 @@ import { supabase } from "@/lib/supabase";
 import { getRank, winRateOf } from "@/utils/ranks";
 import { getCrestUrl, getFlag } from "@/utils/teams";
 import { USER_COLUMNS } from "@/lib/users";
+import { SafetyMenuButton } from "@/components/SafetySheet";
 
 function statusLabel(status: string): string {
   if (status === "won") return "Won";
@@ -137,7 +138,9 @@ export default function UserProfileScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.title, { color: colors.foreground }]}>{safeName}</Text>
-        <View style={styles.headerBtn} />
+        <View style={[styles.headerBtn, { alignItems: "flex-end" }]}>
+          {targetUserId ? <SafetyMenuButton size={20} target={{ type: "user", id: targetUserId, userId: targetUserId, name: targetUser?.username || "player" }} /> : null}
+        </View>
       </View>
 
       {loading ? (

@@ -61,8 +61,8 @@ interface AuthContextType {
   user: HuddleUser | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ error: string | null; user: HuddleUser | null }>;
-  register: (email: string, password: string) => Promise<{ error: string | null }>;
-  completeProfile: (displayName: string, username: string, dob: string, avatarColor: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<{ error: string | null; userId: string | null; hasSession: boolean }>;
+  completeProfile: (displayName: string, username: string, birthDate: string, avatarColor: string, userId?: string) => Promise<void>;
   placeWager: (details: WagerDetails) => Promise<void>;
   claimDailyBonus: () => Promise<DailyBonusOutcome>;
   claimBailout: () => Promise<boolean>;
@@ -112,29 +112,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null, user: profile ? toHuddleUser(profile, data.user.email) : null };
   };
 
+  // hasSession is false when Supabase is set to confirm emails first; there's no login until they confirm.
   const register = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) return { error: error.message };
-    return { error: null };
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) return { error: error.message, userId: null, hasSession: false };
+    return { error: null, userId: data.user?.id ?? null, hasSession: !!data.session };
   };
 
-  // UPDATED: Now requires displayName!
-  const completeProfile = async (displayName: string, username: string, dob: string, avatarColor: string) => {
-    if (!user) return;
-    
+  // birthDate is YYYY-MM-DD. Pass userId straight after sign-up, before the signed-in user has loaded.
+  const completeProfile = async (displayName: string, username: string, birthDate: string, avatarColor: string, userId?: string) => {
+    const id = userId ?? user?.id;
+    if (!id) throw new Error("You're not signed in. Please log in and try again.");
+
     const { error } = await supabase.from("users").update({
       display_name: displayName,
       username: username,
-      dob: dob,
+      dob: birthDate,
+      birth_date: birthDate,
       avatar_color: avatarColor,
       profile_complete: true
-    }).eq("id", user.id);
-    
+    }).eq("id", id);
+
     if (error) {
-      throw new Error(error.message); 
+      if (/duplicate|unique/i.test(error.message)) throw new Error("That username is taken. Please choose another.");
+      throw new Error(error.message);
     }
-    
-    await fetchUserProfile(user.id);
+
+    await fetchUserProfile(id);
   };
 
   const placeWager = async (details: WagerDetails) => {

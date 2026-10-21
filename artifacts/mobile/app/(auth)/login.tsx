@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { HuddleButton } from "@/components/HuddleButton";
+import { GoogleButton } from "@/components/GoogleButton";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -57,7 +58,7 @@ export default function LoginScreen() {
         return;
       }
 
-      if (result.user?.username) {
+      if (result.user?.profileComplete) {
         router.replace("/(tabs)"); 
       } else {
         router.replace("/complete-profile"); 
@@ -92,6 +93,7 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.form}>
+          <GoogleButton />
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Email</Text>
             <TextInput

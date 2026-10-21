@@ -13,6 +13,8 @@ import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicP
 import { getCrestUrl, getFlag } from "@/utils/teams";
 import { pickImage as pickPhoto, uploadImage, type PickedImage } from "@/lib/upload";
 import { showError } from "@/lib/alerts";
+import { SafetyMenuButton } from "@/components/SafetySheet";
+import { useBlockedIds } from "@/lib/safety";
 import { USER_COLUMNS } from "@/lib/users";
 
 const isWeb = Platform.OS === "web";
@@ -30,6 +32,7 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const blocked = useBlockedIds();
   const inputRef = useRef<TextInput>(null);
   const router = useRouter();
   
@@ -341,10 +344,14 @@ export default function HomeScreen() {
               <FontAwesome5 name="fire" size={18} color={isLit ? "#FF6B00" : colors.mutedForeground} solid={isLit} />
               {isLit && <Text style={[styles.actionText, { color: "#FF6B00" }]}>{item.fire_count}</Text>}
             </Pressable>
-            {isMyPost && (
+            {isMyPost ? (
               <Pressable style={[styles.actionButton, { marginLeft: 'auto' }]} onPress={() => handleDeletePost(item.id)}>
                 <Feather name="trash-2" size={16} color={colors.mutedForeground} />
               </Pressable>
+            ) : (
+              <View style={[styles.actionButton, { marginLeft: 'auto' }]}>
+                <SafetyMenuButton target={{ type: "post", id: item.id, userId: finalUserId, name: finalUsername }} />
+              </View>
             )}
           </View>
         </View>
@@ -360,7 +367,7 @@ export default function HomeScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <FlatList
-          data={posts}
+          data={posts.filter((p) => !blocked.has(p.user_id))}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={
             isDesktop ? (

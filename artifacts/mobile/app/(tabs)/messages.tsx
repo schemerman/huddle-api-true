@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { supabase } from "@/lib/supabase";
 import { previewText } from "@/lib/chat";
+import { useBlockedIds } from "@/lib/safety";
 import {
   loadConversations,
   loadDmContacts,
@@ -38,6 +39,7 @@ export default function MessagesScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const { user } = useAuth();
+  const blocked = useBlockedIds();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [following, setFollowing] = useState<ChatUser[]>([]);
@@ -83,7 +85,7 @@ export default function MessagesScreen() {
   const openChat = (partnerId: string) => router.push(`/dm/${partnerId}` as any);
 
   const sections = [
-    { title: "", data: conversations.map((c): Row => ({ kind: "chat", conversation: c })) },
+    { title: "", data: conversations.filter((c) => !blocked.has(c.partner.id)).map((c): Row => ({ kind: "chat", conversation: c })) },
     ...(following.length ? [{ title: "People you follow", data: following.map((u): Row => ({ kind: "person", user: u })) }] : []),
   ].filter((s) => s.data.length > 0);
 

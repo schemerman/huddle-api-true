@@ -14,6 +14,7 @@ import { supabase } from "@/lib/supabase";
 import { requestSettlement } from "@/lib/api";
 import { showError } from "@/lib/alerts";
 import { SUPPORT_EMAIL } from "@/constants/legal";
+import { BlockedUsersModal, DeleteAccountModal } from "@/components/AccountSafetyModals";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAILY_BONUS_POINTS = 100;
@@ -81,6 +82,8 @@ export default function ProfileScreen() {
 
   const [visualPoints, setVisualPoints] = useState(user?.points || 0);
   const [claimingBonus, setClaimingBonus] = useState(false);
+  const [blockedOpen, setBlockedOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -418,6 +421,21 @@ export default function ProfileScreen() {
               </View>
             </View>
             <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>PRIVACY & SAFETY</Text>
+              <View style={[styles.settingsGroup, { borderColor: colors.border }]}>
+                <Pressable onPress={() => setBlockedOpen(true)} style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
+                  <Feather name="slash" size={18} color={colors.foreground} />
+                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>Blocked users</Text>
+                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </Pressable>
+                <Pressable onPress={() => setDeleteOpen(true)} style={[styles.settingsRow, styles.settingsRowLast]}>
+                  <Feather name="trash-2" size={18} color="#FF3B30" />
+                  <Text style={[styles.settingsLabel, { color: "#FF3B30" }]}>Delete account</Text>
+                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </Pressable>
+              </View>
+            </View>
+            <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>LEGAL & SUPPORT</Text>
               <View style={[styles.settingsGroup, { borderColor: colors.border }]}>
                 <Pressable onPress={() => router.push("/privacy" as any)} style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
@@ -473,6 +491,8 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
+      <BlockedUsersModal visible={blockedOpen} onClose={() => setBlockedOpen(false)} />
+      <DeleteAccountModal visible={deleteOpen} onClose={() => setDeleteOpen(false)} />
       <ReceiptModal visible={!!receiptWager} onClose={() => setReceiptWager(null)} question={receiptWager?.question ?? ""} finalResult={getFinalResult(receiptWager)} prediction={receiptWager?.prediction || receiptWager?.choice || ""} points={receiptWager?.status === "won" ? receiptWager.payout : receiptWager?.amount ?? 0} won={receiptWager?.status === "won"} wagerId={receiptWager?.id} />
     </View>
   );

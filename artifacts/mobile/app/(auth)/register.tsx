@@ -6,6 +6,8 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { showError } from '@/lib/alerts';
 import { Feather } from '@expo/vector-icons';
+import { GoogleButton } from '@/components/GoogleButton';
+import { MIN_AGE, ageFrom, isRealDate, toIsoDate } from '@/utils/age';
 
 // Generates a random color for new users
 const getRandomColor = () => {
@@ -33,34 +35,39 @@ export default function RegisterScreen() {
       return showError("Missing Fields", "Please fill out all fields to create your account.");
     }
 
-    // Age Verification (Must be 18+)
-    const dobRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dobRegex.test(dob)) return showError("Invalid Format", "Please use YYYY-MM-DD format for your birthday.");
-    
-    const birthDate = new Date(dob);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const m = today.getMonth() - birthDate.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-    
-    if (age < 18) return showError("Age Restriction", "You must be at least 18 years old to join.");
+    // Age check: Huddle is for people aged 13 and over.
+    const match = dob.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return showError("Invalid Format", "Please use YYYY-MM-DD format for your birthday.");
+    const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+    if (!isRealDate(year, month, day) || ageFrom(year, month, day) > 100) {
+      return showError("Invalid Date", "Please enter a real date of birth.");
+    }
+    if (ageFrom(year, month, day) < MIN_AGE) {
+      return showError("Age Restriction", `You must be at least ${MIN_AGE} years old to join Huddle.`);
+    }
 
     if (!agreed) {
-      return showError("Please agree to continue", "Tick the box to confirm you're 18 or over and agree to the Terms of Use and Privacy Policy.");
+      return showError("Please agree to continue", `Tick the box to confirm you're ${MIN_AGE} or over and agree to the Terms of Use and Privacy Policy.`);
     }
 
     setLoading(true);
 
     try {
-      // 1. Create the Auth Account
-      const { error: regError } = await register(email.trim(), password);
+      // 1. Create the login.
+      const { error: regError, userId, hasSession } = await register(email.trim(), password);
       if (regError) throw new Error(regError);
 
-      // 2. Set the Name, Username, Birthday, and assign a random color
+      // 2. If Supabase wants the email confirmed first, there's no login yet: the profile is finished after they log in.
+      if (!userId || !hasSession) {
+        showError("Check your email", "We've sent you a link to confirm your account. Confirm it, then log in to finish setting up your profile.");
+        router.replace('/login');
+        return;
+      }
+
+      // 3. Save name, username, birthday and a random colour, using the new account's id.
       const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
-      await completeProfile(displayName.trim(), cleanUsername, dob, getRandomColor());
-      
-      // The auth listener will automatically push them to Home now!
+      await completeProfile(displayName.trim(), cleanUsername, toIsoDate(year, month, day), getRandomColor(), userId);
+      router.replace('/(tabs)');
     } catch (err: any) {
       showError("Registration Error", err.message);
     } finally {
@@ -74,6 +81,10 @@ export default function RegisterScreen() {
         
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.foreground }]}>Create your account</Text>
+        </View>
+
+        <View style={{ marginBottom: 24 }}>
+          <GoogleButton label="Sign up with Google" />
         </View>
 
         <View style={styles.form}>
@@ -98,14 +109,14 @@ export default function RegisterScreen() {
             onPress={() => setAgreed((v) => !v)}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: agreed }}
-            accessibilityLabel="I'm 18 or over and agree to the Terms of Use and Privacy Policy"
+            accessibilityLabel="I'm 13 or over and agree to the Terms of Use and Privacy Policy"
             hitSlop={8}
             style={[styles.checkbox, { borderColor: colors.foreground, backgroundColor: agreed ? colors.foreground : "transparent" }]}
           >
             {agreed ? <Feather name="check" size={14} color={colors.background} /> : null}
           </Pressable>
           <Text style={[styles.consentText, { color: colors.foreground }]} onPress={() => setAgreed((v) => !v)}>
-            I'm 18 or over and I agree to the{" "}
+            I'm 13 or over and I agree to the{" "}
             <Text style={styles.consentLink} onPress={() => router.push('/terms' as any)}>Terms of Use</Text>
             {" "}and{" "}
             <Text style={styles.consentLink} onPress={() => router.push('/privacy' as any)}>Privacy Policy</Text>.

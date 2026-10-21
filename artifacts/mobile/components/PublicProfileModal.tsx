@@ -23,6 +23,7 @@ interface PublicProfileModalProps {
 }
 
 import { getRank, winRateOf } from "@/utils/ranks";
+import { SafetyMenuButton } from "@/components/SafetySheet";
 import { getCrestUrl, getFlag } from "@/utils/teams";
 
 export function PublicProfileModal({ user: profileUser, onClose }: PublicProfileModalProps) {
@@ -181,6 +182,9 @@ export function PublicProfileModal({ user: profileUser, onClose }: PublicProfile
                       <Pressable onPress={handleMessage} style={[styles.actionBtn, { backgroundColor: colors.secondary, flex: 0, paddingHorizontal: 16 }]}>
                         <Feather name="message-circle" size={18} color={colors.foreground} />
                       </Pressable>
+                      <View style={{ justifyContent: "center", paddingHorizontal: 8 }}>
+                        <SafetyMenuButton size={20} target={{ type: "user", id: profileUser.userId, userId: profileUser.userId, name: profileUser.username }} />
+                      </View>
                     </View>
                   )}
                   

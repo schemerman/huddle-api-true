@@ -11,6 +11,8 @@ import { supabase } from "@/lib/supabase";
 import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal"; 
 import { getCrestUrl, getFlag } from "@/utils/teams";
 import { USER_COLUMNS } from "@/lib/users";
+import { SafetyMenuButton } from "@/components/SafetySheet";
+import { useBlockedIds } from "@/lib/safety";
 
 const formatTimeAgo = (dateString: string) => {
   if (!dateString) return "";
@@ -28,6 +30,7 @@ export default function PostScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const blocked = useBlockedIds();
 
   const [post, setPost] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
@@ -323,20 +326,25 @@ export default function PostScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <FlatList
-          data={comments}
+          data={comments.filter((c) => !blocked.has(c.user_id))}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <View>
               <View style={styles.mainPost}>
                 <Pressable onPress={() => handleMainPostPress()}>
-                  <Pressable style={styles.authorRow} onPress={() => handleProfileClick(finalUserId)}>
-                    <Avatar color={finalColor} username={finalUsername} size={48} />
-                    <View style={styles.authorText}>
-                      <Text style={[styles.displayName, { color: colors.foreground }]}>{finalDisplayName}</Text>
-                      <Text style={[styles.username, { color: colors.mutedForeground }]}>@{finalUsername}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                    <Pressable style={[styles.authorRow, { flex: 1 }]} onPress={() => handleProfileClick(finalUserId)}>
+                      <Avatar color={finalColor} username={finalUsername} size={48} />
+                      <View style={styles.authorText}>
+                        <Text style={[styles.displayName, { color: colors.foreground }]}>{finalDisplayName}</Text>
+                        <Text style={[styles.username, { color: colors.mutedForeground }]}>@{finalUsername}</Text>
+                      </View>
+                    </Pressable>
+                    <View style={{ paddingTop: 6 }}>
+                      <SafetyMenuButton target={{ type: "post", id: String(post.id), userId: finalUserId, name: finalUsername }} />
                     </View>
-                  </Pressable>
+                  </View>
                   
                   <Text style={[styles.mainContent, { color: colors.foreground }]}>{post.content}</Text>
                   {post.image_url ? <Image source={{ uri: post.image_url }} style={styles.postImage} /> : null}
@@ -436,10 +444,14 @@ export default function PostScreen() {
                       {commentLit && <Text style={[styles.commentActionText, { color: "#FF6B00" }]}>{item.fire_count}</Text>}
                     </Pressable>
 
-                    {isMyComment && (
+                    {isMyComment ? (
                       <Pressable style={[styles.commentActionGroup, { marginLeft: 'auto' }]} onPress={() => handleDeleteComment(item.id)}>
                         <Feather name="trash-2" size={14} color={colors.mutedForeground} />
                       </Pressable>
+                    ) : (
+                      <View style={[styles.commentActionGroup, { marginLeft: 'auto' }]}>
+                        <SafetyMenuButton size={14} target={{ type: "comment", id: String(item.id), userId: finalCommentUserId, name: finalCommentUsername }} />
+                      </View>
                     )}
                   </View>
                 </View>

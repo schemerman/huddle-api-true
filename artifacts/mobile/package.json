@@ -59,6 +59,9 @@
   "dependencies": {
     "@expo/metro-runtime": "^6.1.2",
     "@supabase/supabase-js": "^2.108.1",
-    "react-native-url-polyfill": "^3.0.0"
+    "expo-sharing": "~14.0.8",
+    "html-to-image": "^1.11.13",
+    "react-native-url-polyfill": "^3.0.0",
+    "react-native-view-shot": "4.0.3"
   }
 }

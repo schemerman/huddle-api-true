@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,36 +13,28 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { HuddleButton } from "@/components/HuddleButton";
+import { Feather } from "@expo/vector-icons";
+import { supabase } from "@/lib/supabase";
+import { MIN_AGE, ageFrom, isRealDate, toIsoDate } from "@/utils/age";
 
 const AVATAR_COLORS = [
   "#E8533A", "#3A7DE8", "#3AE86A", "#E8C83A",
   "#9B3AE8", "#E83A8C", "#3AE8D4",
 ];
 
-function validateDob(dob: string): string | null {
-  if (!dob.trim()) return "Date of birth is required.";
+// Returns an error message, or the birth date as YYYY-MM-DD.
+function validateDob(dob: string): { error: string } | { iso: string } {
+  if (!dob.trim()) return { error: "Date of birth is required." };
   const parts = dob.trim().split("/");
-  if (parts.length !== 3) return "Please enter a valid date (DD/MM/YYYY).";
-  const day = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10);
-  const year = parseInt(parts[2], 10);
-  if (isNaN(day) || isNaN(month) || isNaN(year)) return "Please enter a valid date (DD/MM/YYYY).";
-  if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900) return "Please enter a valid date (DD/MM/YYYY).";
-  const date = new Date(year, month - 1, day);
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
-  ) {
-    return "Please enter a valid date (DD/MM/YYYY).";
+  if (parts.length !== 3) return { error: "Please enter a valid date (DD/MM/YYYY)." };
+  const [day, month, year] = parts.map((x) => parseInt(x, 10));
+  if ([day, month, year].some(isNaN) || year < 1900 || !isRealDate(year, month, day)) {
+    return { error: "Please enter a valid date (DD/MM/YYYY)." };
   }
-  const today = new Date();
-  let age = today.getFullYear() - year;
-  const monthDiff = today.getMonth() - (month - 1);
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < day)) age--;
-  if (age < 18) return "You must be 18 or older to join Huddle.";
-  if (age > 100) return "Please enter a valid date of birth.";
-  return null;
+  const age = ageFrom(year, month, day);
+  if (age < MIN_AGE) return { error: `You must be ${MIN_AGE} or older to join Huddle.` };
+  if (age > 100) return { error: "Please enter a valid date of birth." };
+  return { iso: toIsoDate(year, month, day) };
 }
 
 export default function CompleteProfileScreen() {
@@ -56,6 +48,16 @@ export default function CompleteProfileScreen() {
   const [selectedColor, setSelectedColor] = useState(AVATAR_COLORS[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [agreed, setAgreed] = useState(false);
+
+  // People who sign up with Google arrive here first: start with the name from their Google account.
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      const meta: any = data.session?.user?.user_metadata ?? {};
+      const name = meta.full_name || meta.name;
+      if (name) setDisplayName((current) => current || String(name));
+    });
+  }, []);
 
   const handleComplete = async () => {
     if (!displayName.trim()) {
@@ -74,9 +76,13 @@ export default function CompleteProfileScreen() {
       setError("Username must be at least 3 characters.");
       return;
     }
-    const dobError = validateDob(dob);
-    if (dobError) {
-      setError(dobError);
+    const dobResult = validateDob(dob);
+    if ("error" in dobResult) {
+      setError(dobResult.error);
+      return;
+    }
+    if (!agreed) {
+      setError(`Please confirm you're ${MIN_AGE} or over and agree to the Terms of Use and Privacy Policy.`);
       return;
     }
     
@@ -84,8 +90,7 @@ export default function CompleteProfileScreen() {
     setError("");
     
     try {
-      // FIX: Now passing all 4 arguments exactly as TypeScript expects!
-      await completeProfile(displayName.trim(), username.trim().toLowerCase(), dob, selectedColor);
+      await completeProfile(displayName.trim(), username.trim().toLowerCase(), dobResult.iso, selectedColor);
       router.replace("/(tabs)");
     } catch (err: any) {
       setError(err.message || "Something went wrong saving your profile.");
@@ -190,7 +195,26 @@ export default function CompleteProfileScreen() {
               }}
               keyboardType="numeric"
             />
-            <Text style={styles.dobHint}>Must be 18 or older to join.</Text>
+            <Text style={styles.dobHint}>Must be {MIN_AGE} or older to join.</Text>
+          </View>
+
+          <View style={styles.consentRow}>
+            <Pressable
+              onPress={() => setAgreed((v) => !v)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: agreed }}
+              accessibilityLabel={`I'm ${MIN_AGE} or over and agree to the Terms of Use and Privacy Policy`}
+              hitSlop={8}
+              style={[styles.checkbox, agreed && styles.checkboxOn]}
+            >
+              {agreed ? <Feather name="check" size={14} color="#FFFFFF" /> : null}
+            </Pressable>
+            <Text style={styles.consentText} onPress={() => setAgreed((v) => !v)}>
+              I'm {MIN_AGE} or over and I agree to the{" "}
+              <Text style={styles.consentLink} onPress={() => router.push("/terms" as any)}>Terms of Use</Text>
+              {" "}and{" "}
+              <Text style={styles.consentLink} onPress={() => router.push("/privacy" as any)}>Privacy Policy</Text>.
+            </Text>
           </View>
           
           {!!error && <Text style={styles.error}>{error}</Text>}
@@ -202,6 +226,11 @@ export default function CompleteProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  consentRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: "#000000", alignItems: "center", justifyContent: "center", marginTop: 1 },
+  checkboxOn: { backgroundColor: "#000000" },
+  consentText: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 21, color: "#000000" },
+  consentLink: { fontFamily: "Inter_600SemiBold", textDecorationLine: "underline" },
   flex: { flex: 1, backgroundColor: "#FFFFFF" },
   container: {
     flexGrow: 1,

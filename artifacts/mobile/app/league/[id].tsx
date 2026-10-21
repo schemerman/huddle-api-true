@@ -24,6 +24,8 @@ import {
   showError,
 } from "@/lib/chat";
 import { pickImage, uploadImage, type PickedImage } from "@/lib/upload";
+import { SafetySheet, type SafetyTarget } from "@/components/SafetySheet";
+import { MESSAGING_REFUSED_TEXT, isMessagingRefused, useBlockedIds } from "@/lib/safety";
 import { USER_COLUMNS } from "@/lib/users";
 
 export default function LeagueScreen() {
@@ -43,6 +45,8 @@ export default function LeagueScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profileUser, setProfileUser] = useState<PublicProfileUser | null>(null);
   const sendingRef = useRef(false);
+  const blocked = useBlockedIds();
+  const [safetyTarget, setSafetyTarget] = useState<SafetyTarget | null>(null);
   const usersById = useRef<Record<string, any>>({});
   const triedLeagueRefresh = useRef(false);
 
@@ -151,7 +155,7 @@ export default function LeagueScreen() {
     });
     if (error || !data) {
       setMessages(prev => setStatus(prev, draft.id, "failed"));
-      showError("Message not sent", error?.message || "Could not send message. Tap it to try again.");
+      showError("Message not sent", isMessagingRefused(error?.message) ? MESSAGING_REFUSED_TEXT : error?.message || "Could not send message. Tap it to try again.");
       return;
     }
     setMessages(prev => confirmMessage(prev, draft.id, data));
@@ -216,8 +220,10 @@ export default function LeagueScreen() {
           </Pressable>
         )}
         <Pressable
-          disabled={!failed}
-          onPress={() => retrySend(item)}
+          onPress={failed ? () => retrySend(item) : undefined}
+          // Long-press someone else's message to report it or block them.
+          onLongPress={!isMe && !item.status ? () => setSafetyTarget({ type: "message", id: item.id, userId: item.sender_id, name: username }) : undefined}
+          delayLongPress={350}
           style={[styles.messageColumn, { alignItems: isMe ? "flex-end" : "flex-start", opacity: item.status === "sending" ? 0.6 : 1 }]}
         >
           {!isMe && <Text style={[styles.messageName, { color: colors.mutedForeground }]}>{displayName}</Text>}
@@ -261,7 +267,7 @@ export default function LeagueScreen() {
       {tab === "chat" ? (
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
           <FlatList
-            ref={flatListRef} data={messages} keyExtractor={(item) => item.id}
+            ref={flatListRef} data={messages.filter((m) => !blocked.has(m.sender_id))} keyExtractor={(item) => item.id}
             contentContainerStyle={{ padding: 16, paddingBottom: Platform.OS === 'web' ? 120 : insets.bottom + 40, flexGrow: 1 }}
             renderItem={renderMessage} showsVerticalScrollIndicator={false}
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
@@ -295,6 +301,7 @@ export default function LeagueScreen() {
       )}
 
       <PublicProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
+      <SafetySheet target={safetyTarget} onClose={() => setSafetyTarget(null)} />
     </View>
   );
 }

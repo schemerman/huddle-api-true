@@ -22,6 +22,8 @@ import {
 } from "@/lib/chat";
 import { markRead } from "@/lib/conversations";
 import { pickImage, uploadImage, type PickedImage } from "@/lib/upload";
+import { SafetyMenuButton, SafetySheet, type SafetyTarget } from "@/components/SafetySheet";
+import { MESSAGING_REFUSED_TEXT, isMessagingRefused, useBlockedIds } from "@/lib/safety";
 import { USER_COLUMNS } from "@/lib/users";
 
 export default function DirectMessageScreen() {
@@ -36,6 +38,8 @@ export default function DirectMessageScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<PickedImage | null>(null);
   const sendingRef = useRef(false);
+  const blocked = useBlockedIds();
+  const [safetyTarget, setSafetyTarget] = useState<SafetyTarget | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -117,7 +121,7 @@ export default function DirectMessageScreen() {
     });
     if (error || !data) {
       setMessages(prev => setStatus(prev, draft.id, "failed"));
-      showError("Message not sent", error?.message || "Could not send message. Tap it to try again.");
+      showError("Message not sent", isMessagingRefused(error?.message) ? MESSAGING_REFUSED_TEXT : error?.message || "Could not send message. Tap it to try again.");
       return;
     }
     setMessages(prev => confirmMessage(prev, draft.id, data));
@@ -168,8 +172,10 @@ export default function DirectMessageScreen() {
     return (
       <View style={[styles.messageRow, isMe ? styles.messageMe : styles.messageThem]}>
         <Pressable
-          disabled={!failed}
-          onPress={() => retrySend(item)}
+          onPress={failed ? () => retrySend(item) : undefined}
+          // Long-press someone else's message to report it or block them.
+          onLongPress={!isMe && !item.status ? () => setSafetyTarget({ type: "message", id: item.id, userId: item.sender_id, name: targetUser?.username || "player" }) : undefined}
+          delayLongPress={350}
           style={[styles.messageColumn, { alignItems: isMe ? "flex-end" : "flex-start", opacity: item.status === "sending" ? 0.6 : 1 }]}
         >
           {wagerId ? <AttachedWager wagerId={wagerId} style={styles.wagerCard} /> : null}
@@ -198,8 +204,16 @@ export default function DirectMessageScreen() {
           {targetUser && <Avatar color={safeColor} username={targetUser.username} size={30} />}
           <Text style={[styles.headerName, { color: colors.foreground }]} numberOfLines={1}>{safeName}</Text>
         </View>
-        <View style={styles.headerBtn} />
+        <View style={styles.headerBtn}>
+          {targetUserId ? <SafetyMenuButton size={20} target={{ type: "user", id: targetUserId, userId: targetUserId, name: targetUser?.username || "player" }} /> : null}
+        </View>
       </View>
+
+      {targetUserId && blocked.has(targetUserId) ? (
+        <Text style={{ textAlign: "center", fontFamily: "Inter_500Medium", fontSize: 13, color: colors.mutedForeground, paddingVertical: 8 }}>
+          You've blocked this person. Tap ··· to unblock.
+        </Text>
+      ) : null}
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <FlatList
@@ -232,6 +246,8 @@ export default function DirectMessageScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <SafetySheet target={safetyTarget} onClose={() => setSafetyTarget(null)} />
     </View>
   );
 }

@@ -1,7 +1,7 @@
 // Huddle's Privacy Policy and Terms of Use, shown at /privacy and /terms.
 // Keep these accurate when the app changes (new data, new providers, new features).
 
-export const LEGAL_EFFECTIVE_DATE = "16 October 2026";
+export const LEGAL_EFFECTIVE_DATE = "21 October 2026";
 export const SUPPORT_EMAIL = "huddleappsupport@gmail.com";
 
 export type LegalParagraph = string | { bullets: string[] };
@@ -16,7 +16,7 @@ export const PRIVACY_POLICY: LegalDoc = {
     {
       heading: "1. Who we are",
       body: [
-        "Huddle is a free-to-play football prediction app for university students. In this policy, \"Huddle\", \"we\" and \"us\" mean the team that runs the app.",
+        "Huddle is a free sports prediction app for sports fans aged 13 and over. In this policy, \"Huddle\", \"we\" and \"us\" mean the team that runs the app.",
         "We decide how your personal data is used, which makes us the data controller under UK data protection law (the UK GDPR and the Data Protection Act 2018).",
         `Questions about this policy or your data: ${SUPPORT_EMAIL}.`,
       ],
@@ -28,7 +28,7 @@ export const PRIVACY_POLICY: LegalDoc = {
         {
           bullets: [
             "Email address and password. Your password is handled by our sign-in provider and stored only in encrypted (hashed) form; we can't see it.",
-            "Date of birth, used to check you are 18 or over.",
+            "Date of birth, used to check you are 13 or over and to give users under 18 extra protection. It is never shown to anyone.",
             "Username, display name and avatar colour.",
           ],
         },
@@ -40,6 +40,7 @@ export const PRIVACY_POLICY: LegalDoc = {
             "The huddles (groups) you create or join.",
             "Direct messages and huddle chat messages.",
             "Photos you upload to posts or chats.",
+            "Reports you send and the people you block.",
           ],
         },
         "Technical data:",
@@ -58,7 +59,8 @@ export const PRIVACY_POLICY: LegalDoc = {
         {
           bullets: [
             "To create and run your account, record your predictions and points, and show your posts and messages. This is necessary to provide the service you asked for (contract).",
-            "To check you are 18 or over and to keep Huddle a free, lawful game (legal obligation and legitimate interests).",
+            "To check you are 13 or over and to give users under 18 extra protection (legal obligation and legitimate interests).",
+            "To review reports and act on them, for example by removing content or closing accounts (legitimate interests).",
             "To keep Huddle safe and fair: preventing cheating, abuse and spam, and enforcing our Terms of Use (legitimate interests).",
             "To fix problems and improve the app (legitimate interests).",
             "To reply when you contact us (legitimate interests).",
@@ -77,6 +79,8 @@ export const PRIVACY_POLICY: LegalDoc = {
             "Direct messages can be read only by you and the person you're messaging.",
             "Huddle chat messages can be read by the current members of that huddle.",
             "Photos can be opened by anyone who has the photo's link, so only share photos you're happy for others to see.",
+            "If you're under 18, only people you follow can send you direct messages.",
+            "People you block can't message you, and you won't see their posts or comments.",
             "Remember that anyone you message can screenshot or share what you send.",
           ],
         },
@@ -110,7 +114,8 @@ export const PRIVACY_POLICY: LegalDoc = {
         {
           bullets: [
             "We keep your data for as long as your account is open.",
-            "If you ask us to delete your account, we delete or anonymise your personal data, including your posts, comments, messages and photos, within 30 days. We may keep a minimum amount for longer if the law requires it or to resolve a dispute.",
+            "You can delete your account at any time in Profile → Settings → Delete account. This immediately deletes your profile, predictions, posts, comments, likes, follows, messages and photos. You can also ask us by email, and we'll do it within 30 days.",
+            "We may keep a minimum amount for longer if the law requires it or to resolve a dispute, for example a report about your account.",
             "Backups and hosting logs are kept only for a limited period and are then overwritten.",
           ],
         },
@@ -129,14 +134,24 @@ export const PRIVACY_POLICY: LegalDoc = {
             "send your data to you or another service in a portable format.",
           ],
         },
-        `To use any of these rights, email ${SUPPORT_EMAIL} from the address on your account. We'll reply within one month and may need to confirm it's you.`,
+        "You can delete your account yourself at any time in Profile → Settings → Delete account.",
+        `To use any of the other rights, email ${SUPPORT_EMAIL} from the address on your account. We'll reply within one month and may need to confirm it's you.`,
         "If you're unhappy with how we handle your data, you can complain to the Information Commissioner's Office (ico.org.uk, 0303 123 1113). We'd appreciate the chance to put things right first.",
       ],
     },
     {
-      heading: "9. Age",
+      heading: "9. Age, and users under 18",
       body: [
-        "Huddle is only for people aged 18 or over. We check your date of birth when you sign up. If we find out an account belongs to someone under 18, we will delete it.",
+        "Huddle is for people aged 13 and over. We check your date of birth when you sign up. If we find out an account belongs to someone under 13, we will delete it.",
+        "If you're under 18, we give you extra protection:",
+        {
+          bullets: [
+            "Only people you follow can send you direct messages.",
+            "Your date of birth and email address are never shown to anyone.",
+            "You can report or block anyone at any time, and they won't be told you blocked them.",
+          ],
+        },
+        "If anything on Huddle worries or upsets you, report it, block the person, and talk to an adult you trust. You can also get free, confidential help from Childline on 0800 1111 or at childline.org.uk.",
       ],
     },
     {
@@ -168,7 +183,7 @@ export const TERMS_OF_USE: LegalDoc = {
       body: [
         {
           bullets: [
-            "You must be 18 or over.",
+            "You must be 13 or over.",
             "Give accurate details when you sign up, and keep them up to date.",
             "One account per person. Your account is personal to you and can't be sold or transferred.",
             "Keep your password safe. You're responsible for what happens on your account, so tell us straight away if you think someone else has used it.",
@@ -177,15 +192,14 @@ export const TERMS_OF_USE: LegalDoc = {
       ],
     },
     {
-      heading: "2. Free to play, not gambling",
+      heading: "2. Free to play",
       body: [
         {
           bullets: [
-            "Huddle is a free-to-play prediction game for entertainment only. You never pay to take part.",
-            "Points have no money value. They can't be bought, sold, transferred for value, or exchanged for cash, prizes or anything else of value.",
-            "Point multipliers are shown only to work out how many points a prediction is worth. They are not betting offers, and Huddle is not a gambling service or connected to any bookmaker.",
-            "If we ever run a competition with prizes, it will be free to enter and will have its own rules.",
-            "If gambling is causing you or someone you know problems, free and confidential help is available from GamCare (0808 8020 133) and BeGambleAware.org.",
+            "Huddle is a free sports prediction game, just for fun. You never pay to take part.",
+            "Points are only for playing Huddle. They can't be bought, sold, transferred, or exchanged for money, prizes or anything else.",
+            "Point multipliers only set how many points a correct pick earns.",
+            "If we ever run a competition, it will be free to enter and will have its own rules.",
           ],
         },
       ],
@@ -219,7 +233,7 @@ export const TERMS_OF_USE: LegalDoc = {
             "is spam or advertising, or infringes someone else's rights (for example, copyright).",
           ],
         },
-        `We may remove content and suspend or close accounts that break these rules. To report something, email ${SUPPORT_EMAIL}.`,
+        `We may remove content and suspend or close accounts that break these rules. To report something, tap Report on the post, comment, message or profile, or email ${SUPPORT_EMAIL}. You can also block anyone: they won't be able to message you, and you won't see their posts.`,
       ],
     },
     {
@@ -231,7 +245,7 @@ export const TERMS_OF_USE: LegalDoc = {
     {
       heading: "6. Names, logos and sports data",
       body: [
-        "Huddle is not affiliated with, endorsed by or sponsored by the Premier League, UEFA, ESPN, The Odds API or any football club. Competition names, club names, logos and badges belong to their owners and are used only to identify matches.",
+        "Huddle is not affiliated with, endorsed by or sponsored by the Premier League, UEFA, ESPN, The Odds API or any sports club or league. Competition names, team names, logos and badges belong to their owners and are used only to identify matches.",
       ],
     },
     {
@@ -255,7 +269,7 @@ export const TERMS_OF_USE: LegalDoc = {
     {
       heading: "9. Ending your account",
       body: [
-        `You can stop using Huddle at any time, and ask us to delete your account by emailing ${SUPPORT_EMAIL}. We may suspend or close your account if you break these terms, if the law requires it, or to protect other people.`,
+        `You can stop using Huddle at any time, and delete your account in Profile → Settings → Delete account (or ask us by emailing ${SUPPORT_EMAIL}). We may suspend or close your account if you break these terms, if the law requires it, or to protect other people.`,
       ],
     },
     {
