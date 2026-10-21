@@ -125,6 +125,7 @@ function FixtureCard({ fixture, onOpenWager }: { fixture: Fixture; onOpenWager: 
       </View>
 
       <View style={styles.optionsCol}>
+        <Text style={[styles.multiplierHeader, { color: colors.mutedForeground }]}>Point Multiplier</Text>
         {options.map(({ choice, label, odds }) => {
           const isSelected = fixture.userVote === choice;
           const cUrl = getCrestUrl(label);
@@ -307,7 +308,7 @@ export default function PredictScreen() {
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Upcoming fixtures</Text>
         </View>
         <View style={[styles.balancePill, { backgroundColor: colors.secondary }]}>
-          <Text style={[styles.balanceLabel, { color: colors.mutedForeground }]}>{user?.isBankrupt ? "Bankrupt" : "Available"}</Text>
+          <Text style={[styles.balanceLabel, { color: colors.mutedForeground }]}>{user?.isBankrupt ? "Out of points" : "Your Points"}</Text>
           <Text style={[styles.balanceValue, { color: colors.foreground }]}>{(user?.points ?? 0).toLocaleString()} pts</Text>
         </View>
       </View>
@@ -343,7 +344,7 @@ export default function PredictScreen() {
             <View style={styles.stateWrap}>
               <Image source={{ uri: activeLeague.logo }} style={styles.emptyLogo} resizeMode="contain" />
               <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No {league} games {activeLeague.emptyWhen}</Text>
-              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>New matches appear here as soon as odds are available. Check back soon.</Text>
+              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>New matches appear here as soon as they're available. Check back soon.</Text>
             </View>
           }
         />
@@ -375,19 +376,19 @@ export default function PredictScreen() {
                   </>
                 )}
               </View>
-              <Text style={[styles.oddsTag, { color: colors.mutedForeground }]}>{chosenOdds}x multiplier</Text>
+              <Text style={[styles.oddsTag, { color: colors.mutedForeground }]}>{chosenOdds}x Point Multiplier</Text>
             </View>
             
-            <Text style={[styles.wagerLabel, { color: colors.foreground }]}>How many points for your pick?</Text>
+            <Text style={[styles.wagerLabel, { color: colors.foreground }]}>Points to allocate:</Text>
             <View style={styles.wagerInputRow}>
               <TextInput ref={inputRef} style={[styles.wagerInput, { backgroundColor: colors.secondary, color: colors.foreground, borderColor: colors.border }]} value={wagerAmount} onChangeText={(t) => setWagerAmount(t.replace(/[^0-9]/g, ""))} keyboardType="number-pad" returnKeyType="done" blurOnSubmit maxLength={6} />
               <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); setWagerAmount(String(user?.points ?? 0)); }} disabled={(user?.points ?? 0) <= 0} style={({ pressed }) => [styles.allInBtn, { borderColor: colors.border, backgroundColor: colors.background, opacity: pressed ? 0.7 : (user?.points ?? 0) <= 0 ? 0.4 : 1 }]}>
-                <Text style={[styles.allInText, { color: colors.foreground }]}>ALL IN</Text>
+                <Text style={[styles.allInText, { color: colors.foreground }]}>MAX</Text>
               </Pressable>
             </View>
             <View style={styles.metaRow}>
-              <Text style={[styles.balanceHint, { color: colors.mutedForeground }]}>Balance: {(user?.points ?? 0).toLocaleString()} pts</Text>
-              {potentialPayout !== null && <Text style={[styles.payoutText, { color: colors.foreground }]}>Potential Payout: <Text style={styles.payoutNum}>{potentialPayout.toLocaleString()} pts</Text></Text>}
+              <Text style={[styles.balanceHint, { color: colors.mutedForeground }]}>Your Points: {(user?.points ?? 0).toLocaleString()} pts</Text>
+              {potentialPayout !== null && <Text style={[styles.payoutText, { color: colors.foreground }]}>Points if Correct: <Text style={styles.payoutNum}>{potentialPayout.toLocaleString()} pts</Text></Text>}
             </View>
             <Pressable onPress={handleConfirmWager} disabled={!canConfirm || submitting} style={({ pressed }) => [styles.confirmBtn, { backgroundColor: canConfirm ? colors.primary : colors.secondary, opacity: pressed && !submitting ? 0.8 : 1 }]}>
               {submitting ? <ActivityIndicator size="small" color={colors.primaryForeground} /> : <Text style={[styles.confirmBtnText, { color: canConfirm ? colors.primaryForeground : colors.mutedForeground }]}>Confirm Pick</Text>}
@@ -416,6 +417,7 @@ const styles = StyleSheet.create({
   optionBtn: { borderRadius: 999, paddingVertical: 11, paddingHorizontal: 16, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   optionLabel: { fontFamily: "Inter_500Medium", fontSize: 14, flexShrink: 1 },
   optionOdds: { fontFamily: "Inter_700Bold", fontSize: 13, marginLeft: 8 },
+  multiplierHeader: { alignSelf: "flex-end", fontFamily: "Inter_500Medium", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: -2, marginRight: 4 },
   votesMeta: { fontFamily: "Inter_400Regular", fontSize: 12 },
   stateWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingVertical: 64, gap: 8 },
   emptyContent: { flexGrow: 1 },

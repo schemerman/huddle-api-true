@@ -88,7 +88,7 @@ export function AttachedWager({ wagerId, style }: { wagerId: string; style?: Sty
   const textColor = colors.foreground;
   const muteColor = colors.mutedForeground;
   const bgColor = won ? "rgba(52, 199, 89, 0.05)" : lost ? "rgba(255, 59, 48, 0.05)" : colors.background;
-  const pointsText = won ? `+${wager.payout ?? wager.amount} pts` : lost ? `-${wager.amount} pts` : `${wager.amount} pts at stake`;
+  const pointsText = won ? `+${wager.payout ?? wager.amount} pts` : lost ? `-${wager.amount} pts` : `${wager.amount} pts in play`;
 
   return (
     <View style={[styles.miniReceipt, { borderColor: colors.border, backgroundColor: bgColor }, style]}>

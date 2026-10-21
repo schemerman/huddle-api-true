@@ -183,7 +183,7 @@ export const TERMS_OF_USE: LegalDoc = {
           bullets: [
             "Huddle is a free-to-play prediction game for entertainment only. You never pay to take part.",
             "Points have no money value. They can't be bought, sold, transferred for value, or exchanged for cash, prizes or anything else of value.",
-            "Odds are shown only to work out how many points a prediction is worth. They are not betting offers, and Huddle is not a gambling service or connected to any bookmaker.",
+            "Point multipliers are shown only to work out how many points a prediction is worth. They are not betting offers, and Huddle is not a gambling service or connected to any bookmaker.",
             "If we ever run a competition with prizes, it will be free to enter and will have its own rules.",
             "If gambling is causing you or someone you know problems, free and confidential help is available from GamCare (0808 8020 133) and BeGambleAware.org.",
           ],

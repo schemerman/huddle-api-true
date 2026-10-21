@@ -282,7 +282,7 @@ export default function ProfileScreen() {
 
         {user.isBankrupt && (
           <View style={[styles.bankruptBanner, { borderColor: palette.light.crimson }]}>
-            <Text style={[styles.bankruptTag, { color: palette.light.crimson }]}>BANKRUPT</Text>
+            <Text style={[styles.bankruptTag, { color: palette.light.crimson }]}>OUT OF POINTS</Text>
             <Text style={[styles.bankruptSub, { color: colors.mutedForeground }]}>Rebuild past 500 pts to clear this status.</Text>
           </View>
         )}

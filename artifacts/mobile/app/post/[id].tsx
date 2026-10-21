@@ -363,7 +363,7 @@ export default function PostScreen() {
                         )}
                       </View>
 
-                      <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>{post.wager.status === "won" ? `+${post.wager.payout} pts` : post.wager.status === "lost" ? `-${post.wager.amount} pts` : `${post.wager.amount} pts at stake`}</Text>
+                      <Text style={[styles.miniReceiptPts, { color: colors.mutedForeground }]}>{post.wager.status === "won" ? `+${post.wager.payout} pts` : post.wager.status === "lost" ? `-${post.wager.amount} pts` : `${post.wager.amount} pts in play`}</Text>
                     </View>
                   )}
                 </Pressable>

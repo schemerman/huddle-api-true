@@ -54,7 +54,7 @@ export function LeaderboardRow({ entry, isCurrentUser, highlight, isBankrupt, on
             {isCurrentUser ? " (you)" : ""}
           </Text>
           {isBankrupt && (
-            <Text style={[styles.bankruptTag, { color: palette.light.crimson }]}>BANKRUPT</Text>
+            <Text style={[styles.bankruptTag, { color: palette.light.crimson }]}>OUT OF POINTS</Text>
           )}
         </View>
         <Text style={[styles.handle, { color: colors.mutedForeground }]}>{title}</Text>
