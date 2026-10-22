@@ -170,6 +170,7 @@ export default function CompleteProfileScreen() {
               onChangeText={setDisplayName}
               autoCorrect={false}
             />
+            <Text style={styles.hint}>This is what people see. It doesn't have to be unique.</Text>
           </View>
 
           <View style={styles.inputGroup}>
@@ -186,6 +187,7 @@ export default function CompleteProfileScreen() {
                 autoCorrect={false}
               />
             </View>
+            <Text style={styles.hint}>Your unique @handle. Nobody else can have it.</Text>
           </View>
 
           <View style={styles.inputGroup}>
@@ -289,6 +291,7 @@ const styles = StyleSheet.create({
   colorDotSelected: { borderWidth: 3, borderColor: "#000000" },
   form: { gap: 16 },
   inputGroup: { gap: 6 },
+  hint: { fontFamily: "Inter_400Regular", fontSize: 12, color: "#8A8A8A", marginLeft: 2 },
   label: {
     fontFamily: "Inter_500Medium",
     fontSize: 13,

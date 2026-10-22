@@ -106,9 +106,11 @@ export default function RegisterScreen() {
 
           <Text style={[styles.label, { color: colors.foreground }]}>Name</Text>
           <TextInput style={[styles.input, { borderColor: colors.border, color: colors.foreground }]} placeholder="James Smith" placeholderTextColor={colors.mutedForeground} value={displayName} onChangeText={setDisplayName} />
+          <Text style={[styles.hint, { color: colors.mutedForeground }]}>This is what people see. It doesn't have to be unique.</Text>
 
           <Text style={[styles.label, { color: colors.foreground }]}>Username</Text>
           <TextInput style={[styles.input, { borderColor: colors.border, color: colors.foreground }]} placeholder="mikey2x" placeholderTextColor={colors.mutedForeground} value={username} onChangeText={setUsername} autoCapitalize="none" />
+          <Text style={[styles.hint, { color: colors.mutedForeground }]}>Your unique @handle. Nobody else can have it.</Text>
 
           <Text style={[styles.label, { color: colors.foreground }]}>Password</Text>
           <TextInput style={[styles.input, { borderColor: colors.border, color: colors.foreground }]} placeholder="Secure password" placeholderTextColor={colors.mutedForeground} value={password} onChangeText={setPassword} secureTextEntry />
@@ -157,6 +159,7 @@ const styles = StyleSheet.create({
   form: { gap: 16, marginBottom: 32 },
   label: { fontFamily: 'Inter_600SemiBold', fontSize: 14, marginBottom: -8, marginLeft: 4 },
   input: { borderWidth: 1, borderRadius: 12, padding: 16, fontSize: 16, fontFamily: 'Inter_400Regular' },
+  hint: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: -10, marginLeft: 4 },
   submitBtn: { padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 24 },
   consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: -12, marginBottom: 24 },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginTop: 1 },

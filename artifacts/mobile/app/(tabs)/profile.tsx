@@ -275,9 +275,15 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.perfRow}>
-              <View style={[styles.rankBadge, { backgroundColor: colors.secondary }]}>
+              <Pressable
+                onPress={() => router.push("/ranks" as any)}
+                accessibilityRole="button"
+                accessibilityLabel={`Rank: ${getRank(safeWinRate, completedWagers.length)}. See how ranks work`}
+                style={({ pressed }) => [styles.rankBadge, styles.rankBadgeRow, { backgroundColor: colors.secondary, opacity: pressed ? 0.7 : 1 }]}
+              >
                 <Text style={[styles.badgeText, { color: colors.foreground }]}>{getRank(safeWinRate, completedWagers.length)}</Text>
-              </View>
+                <Feather name="info" size={12} color={colors.mutedForeground} />
+              </Pressable>
               {safeStreak >= 3 && <Text style={[styles.streakText, { color: colors.mutedForeground }]}>{safeStreak}-streak heater</Text>}
             </View>
           </View>
@@ -438,6 +444,11 @@ export default function ProfileScreen() {
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>LEGAL & SUPPORT</Text>
               <View style={[styles.settingsGroup, { borderColor: colors.border }]}>
+                <Pressable onPress={() => router.push("/ranks" as any)} style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
+                  <Feather name="award" size={18} color={colors.foreground} />
+                  <Text style={[styles.settingsLabel, { color: colors.foreground }]}>How ranks work</Text>
+                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </Pressable>
                 <Pressable onPress={() => router.push("/privacy" as any)} style={[styles.settingsRow, { borderBottomColor: colors.border }]}>
                   <Feather name="shield" size={18} color={colors.foreground} />
                   <Text style={[styles.settingsLabel, { color: colors.foreground }]}>Privacy Policy</Text>
@@ -512,6 +523,7 @@ const styles = StyleSheet.create({
   streakText: { fontFamily: "Inter_500Medium", fontSize: 13, marginTop: 4 },
   rankBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, marginTop: 6 },
   badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+  rankBadgeRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   bankruptBanner: { marginHorizontal: 16, marginBottom: 16, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderRadius: 12 },
   bankruptTag: { fontFamily: "Inter_700Bold", fontSize: 15, letterSpacing: 2 },
   bankruptSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 3 },

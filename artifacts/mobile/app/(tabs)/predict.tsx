@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,6 +17,7 @@ import {
   TextInput,
   View,
   Image,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type Fixture as ApiFixture } from "@workspace/api-client-react";
@@ -25,6 +26,7 @@ import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getCrestUrl, getFlag } from "@/utils/teams";
+import { getRank, winRateOf } from "@/utils/ranks";
 
 type Choice = "A" | "D" | "B";
 
@@ -168,12 +170,16 @@ function FixtureCard({ fixture, onOpenWager }: { fixture: Fixture; onOpenWager: 
 export default function PredictScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  // Narrow phones: the rank and points boxes go on their own row so "Beginner's Luck" fits.
+  const stackHeader = useWindowDimensions().width < 420;
   const { user, placeWager } = useAuth();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [league, setLeague] = useState<LeagueName>("Premier League");
   const [loading, setLoading] = useState(true);
+  // Finished picks (won / lost) for the "Your Rank" box. Same numbers as the Profile badge.
+  const [pickStats, setPickStats] = useState<{ won: number; settled: number } | null>(null);
   const [wagerTarget, setWagerTarget] = useState<WagerTarget | null>(null);
   const [wagerAmount, setWagerAmount] = useState("10");
   const [submitting, setSubmitting] = useState(false);
@@ -217,6 +223,11 @@ export default function PredictScreen() {
           const cloudOverlay: Record<string, FixtureOverlay> = {};
 
           const { data } = await supabase.from("wagers").select("*").eq("user_id", user.id);
+
+          if (data && isMounted) {
+            const settled = data.filter((w: any) => w.status === "won" || w.status === "lost");
+            setPickStats({ won: settled.filter((w: any) => w.status === "won").length, settled: settled.length });
+          }
 
           if (data) {
             data.forEach((w: any) => {
@@ -304,14 +315,30 @@ export default function PredictScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.topBar, { paddingTop: topPad, borderBottomWidth: 0 }]}>
+      <View style={[styles.topBar, stackHeader && styles.topBarStacked, { paddingTop: topPad, borderBottomWidth: 0 }]}>
         <View>
           <Text style={[styles.title, { color: colors.foreground }]}>Predict</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Upcoming fixtures</Text>
         </View>
-        <View style={[styles.balancePill, { backgroundColor: colors.secondary }]}>
-          <Text style={[styles.balanceLabel, { color: colors.mutedForeground }]}>{user?.isBankrupt ? "Out of points" : "Your Points"}</Text>
-          <Text style={[styles.balanceValue, { color: colors.foreground }]}>{(user?.points ?? 0).toLocaleString()} pts</Text>
+        <View style={[styles.pills, stackHeader && styles.pillsStacked]}>
+          <Pressable
+            onPress={() => router.push("/ranks" as any)}
+            accessibilityRole="button"
+            accessibilityLabel={`Your rank: ${pickStats ? getRank(winRateOf(pickStats.won, pickStats.settled), pickStats.settled) : "loading"}. See how ranks work`}
+            style={({ pressed }) => [styles.balancePill, styles.rankPill, stackHeader && styles.pillStacked, { backgroundColor: colors.secondary, opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={[styles.balanceLabel, { color: colors.mutedForeground }]}>Your Rank</Text>
+            <View style={styles.rankValueRow}>
+              <Text style={[styles.balanceValue, styles.rankValue, { color: colors.foreground }]} numberOfLines={1}>
+                {pickStats ? getRank(winRateOf(pickStats.won, pickStats.settled), pickStats.settled) : "…"}
+              </Text>
+              <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+            </View>
+          </Pressable>
+          <View style={[styles.balancePill, stackHeader && styles.pillStacked, { backgroundColor: colors.secondary }]}>
+            <Text style={[styles.balanceLabel, { color: colors.mutedForeground }]}>{user?.isBankrupt ? "Out of points" : "Your Points"}</Text>
+            <Text style={[styles.balanceValue, { color: colors.foreground }]}>{(user?.points ?? 0).toLocaleString()} pts</Text>
+          </View>
         </View>
       </View>
 
@@ -410,6 +437,13 @@ const styles = StyleSheet.create({
   balancePill: { alignItems: "flex-end", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   balanceLabel: { fontFamily: "Inter_400Regular", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 1 },
   balanceValue: { fontFamily: "Inter_700Bold", fontSize: 15, letterSpacing: -0.3 },
+  pills: { flexDirection: "row", gap: 8, flexShrink: 1, marginLeft: 12 },
+  rankPill: { flexShrink: 1 },
+  topBarStacked: { flexDirection: "column", alignItems: "stretch", gap: 12 },
+  pillsStacked: { marginLeft: 0 },
+  pillStacked: { flex: 1, alignItems: "flex-start" },
+  rankValueRow: { flexDirection: "row", alignItems: "center", gap: 2, maxWidth: "100%" },
+  rankValue: { flexShrink: 1 },
   card: { paddingHorizontal: 16, paddingVertical: 18, borderBottomWidth: 1, gap: 10 },
   cardMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   competition: { fontFamily: "Inter_500Medium", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8 },
