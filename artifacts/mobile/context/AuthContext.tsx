@@ -5,7 +5,7 @@ import {
   claimBailout as apiClaimBailout,
 } from "@workspace/api-client-react";
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { hasSavedLogin, supabase } from "../lib/supabase";
 import { USER_COLUMNS } from "../lib/users";
 
 export interface HuddleUser {
@@ -60,6 +60,8 @@ export interface WagerDetails {
 interface AuthContextType {
   user: HuddleUser | null;
   isLoading: boolean;
+  /** Is anyone signed in on this device? null = still checking. false = signed out (or the login expired for good). */
+  hasSession: boolean | null;
   login: (email: string, password: string) => Promise<{ error: string | null; user: HuddleUser | null }>;
   register: (email: string, password: string) => Promise<{ error: string | null; userId: string | null; hasSession: boolean }>;
   completeProfile: (displayName: string, username: string, birthDate: string, avatarColor: string, userId?: string) => Promise<void>;
@@ -77,22 +79,36 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<HuddleUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
 
   useEffect(() => {
+    // Instant answer from this device's storage, before Supabase has renewed anything over the network.
+    hasSavedLogin().then((saved) => setHasSession((current) => current ?? saved));
+    // Never keep screens waiting forever if Supabase can't be reached.
+    const giveUp = setTimeout(() => setIsLoading(false), 10_000);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) fetchUserProfile(session.user.id);
       else setIsLoading(false);
-    });
+    }).catch(() => setIsLoading(false));
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) fetchUserProfile(session.user.id);
-      else {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        setHasSession(true);
+        fetchUserProfile(session.user.id);
+      } else {
+        // Only a real sign-out (or a login that expired for good) counts as signed out.
+        // A failed renewal on a bad connection keeps the saved login, so it isn't treated as one.
+        if (event === "SIGNED_OUT") setHasSession(false);
         setUser(null);
         setIsLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(giveUp);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchUserProfile = async (userId: string) => {
@@ -180,7 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, completeProfile, placeWager, claimDailyBonus, claimBailout, joinGroup, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, isLoading, hasSession, login, register, completeProfile, placeWager, claimDailyBonus, claimBailout, joinGroup, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

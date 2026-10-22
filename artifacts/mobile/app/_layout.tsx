@@ -142,6 +142,8 @@ export default function RootLayout() {
   useEffect(() => {
     if (fontsLoaded || fontError) {
       SplashScreen.hideAsync();
+      // Website: remove the HUDDLE loading screen from public/index.html now the app is drawing itself.
+      if (typeof document !== "undefined") document.getElementById("boot-splash")?.remove();
     }
   }, [fontsLoaded, fontError]);
 

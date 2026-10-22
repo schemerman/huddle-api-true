@@ -151,7 +151,11 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, hasSession } = useAuth();
+  // Signed out, or the saved login expired for good: back to sign-in instead of empty screens.
+  if (hasSession === false) {
+    return <Redirect href="/(auth)/login" />;
+  }
   // New accounts (e.g. Google sign-ups) must add their birthday, username and agree to the terms first.
   if (!isLoading && user && !user.profileComplete) {
     return <Redirect href="/(auth)/complete-profile" />;
