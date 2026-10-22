@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getCrestUrl, getFlag } from "@/utils/teams";
+import { ReceiptCard } from "@/components/ReceiptCard";
 import { ShareableReceipt, SHARE_URL } from "@/components/ShareableReceipt";
 import { prepareReceiptImage, shareReceiptImage, type PreparedImage } from "@/lib/shareReceipt";
 import { showError } from "@/lib/alerts";
@@ -35,35 +35,6 @@ export function ReceiptModal({
   const colors = useColors();
   const { user } = useAuth();
 
-  let matchHeader: React.ReactNode = <Text style={[styles.receiptQuestion, { color: colors.foreground }]}>{question}</Text>;
-
-  if (question.includes(" or ")) {
-    const teamsStr = question.replace("Who will win: ", "").replace("?", "");
-    const [teamA, teamB] = teamsStr.split(" or ");
-    
-    const urlA = getCrestUrl(teamA);
-    const flagA = getFlag(teamA);
-    const urlB = getCrestUrl(teamB);
-    const flagB = getFlag(teamB);
-
-    matchHeader = (
-      <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", justifyContent: "center", marginBottom: 22 }}>
-        <Text style={[styles.receiptQuestion, { color: colors.foreground, marginBottom: 0 }]}>Who will win: </Text>
-        {urlA ? <Image source={{ uri: urlA }} style={{ width: 20, height: 20, marginRight: 6 }} /> : <Text style={{ fontSize: 18, marginRight: 4 }}>{flagA || "⚽"}</Text>}
-        <Text style={[styles.receiptQuestion, { color: colors.foreground, marginBottom: 0 }]}>{teamA} or </Text>
-        {urlB ? <Image source={{ uri: urlB }} style={{ width: 20, height: 20, marginRight: 6, marginLeft: 2 }} /> : <Text style={{ fontSize: 18, marginRight: 4, marginLeft: 2 }}>{flagB || "⚽"}</Text>}
-        <Text style={[styles.receiptQuestion, { color: colors.foreground, marginBottom: 0 }]}>{teamB}?</Text>
-      </View>
-    );
-  }
-
-  const isPendingResult = finalResult === "Pending" || finalResult === "Incorrect Pick" || finalResult.includes("-");
-  const resultUrl = getCrestUrl(finalResult);
-  const resultFlag = getFlag(finalResult);
-
-  const predUrl = getCrestUrl(prediction);
-  const predFlag = getFlag(prediction);
-
   // Huddle and DM shares pick a destination inside the receipt card.
   const [shareMode, setShareMode] = useState<"huddle" | "dm" | null>(null);
   useEffect(() => {
@@ -84,19 +55,32 @@ export function ReceiptModal({
   const storyRef = useRef<View>(null);
   const preparedRef = useRef<PreparedImage | null>(null);
   const [sharingOut, setSharingOut] = useState(false);
+  const [storyReady, setStoryReady] = useState(false);
   const username = user?.username || "you";
 
   useEffect(() => {
     preparedRef.current = null;
+    setStoryReady(false);
+  }, [visible, shareMode, question, prediction, points, won]);
+
+  // Fallback: if a badge never finishes loading, still prepare the image after a few seconds.
+  useEffect(() => {
     if (!visible || shareMode) return;
+    const timer = setTimeout(() => setStoryReady(true), 4000);
+    return () => clearTimeout(timer);
+  }, [visible, shareMode]);
+
+  useEffect(() => {
+    if (!visible || shareMode || !storyReady || preparedRef.current) return;
+    // Give the browser a frame to paint the loaded badges before capturing.
     const timer = setTimeout(() => {
       if (!storyRef.current) return;
       prepareReceiptImage(storyRef.current)
         .then((img) => { preparedRef.current = img; })
         .catch(() => { /* made again on tap */ });
-    }, 700);
+    }, 150);
     return () => clearTimeout(timer);
-  }, [visible, shareMode, question, prediction, points, won]);
+  }, [visible, shareMode, storyReady]);
 
   const shareText = won
     ? `I called ${prediction === "Draw" ? "the draw" : prediction} on Huddle and won ${points.toLocaleString()} points ✅ Think you can beat me?`
@@ -139,7 +123,7 @@ export function ReceiptModal({
         {/* Off-screen story card, turned into the image that gets shared to other apps. */}
         {wagerId && !shareMode ? (
           <View style={styles.offscreen} pointerEvents="none">
-            <ShareableReceipt ref={storyRef} question={question} finalResult={finalResult} prediction={prediction} points={points} won={won} username={username} />
+            <ShareableReceipt ref={storyRef} question={question} finalResult={finalResult} prediction={prediction} points={points} won={won} username={username} onReady={() => setStoryReady(true)} />
           </View>
         ) : null}
         <ScrollView style={styles.overlayScroll} contentContainerStyle={styles.overlayContent} showsVerticalScrollIndicator={false}>
@@ -148,58 +132,7 @@ export function ReceiptModal({
             <SharePicker mode={shareMode} wagerId={wagerId} onBack={() => setShareMode(null)} onSent={handleShared} />
           </View>
         ) : (
-        <View style={[styles.receiptCard, { backgroundColor: colors.background, borderColor: colors.foreground }]}>
-          <Text style={[styles.receiptBrand, { color: colors.foreground }]}>HUDDLE</Text>
-          <View style={[styles.receiptRule, { backgroundColor: colors.border }]} />
-          <Text style={[styles.receiptKicker, { color: colors.mutedForeground }]}>PREDICTION RECEIPT</Text>
-          
-          {matchHeader}
-
-          <View style={styles.receiptBlock}>
-            <Text style={[styles.receiptBlockLabel, { color: colors.mutedForeground }]}>FINAL RESULT</Text>
-            {isPendingResult ? (
-              <Text style={[styles.receiptBlockValue, { color: colors.foreground }]}>{finalResult}</Text>
-            ) : (
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                {resultUrl ? <Image source={{ uri: resultUrl }} style={{ width: 18, height: 18, marginRight: 6 }} /> : <Text style={{ fontSize: 16, marginRight: 6 }}>{resultFlag || "⚽"}</Text>}
-                <Text style={[styles.receiptBlockValue, { color: colors.foreground }]}>{finalResult}</Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.receiptBlock}>
-            <Text style={[styles.receiptBlockLabel, { color: colors.mutedForeground }]}>
-              @{user?.username || "you"} predicted
-            </Text>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              {prediction === "Draw" ? (
-                <Text style={[styles.receiptBlockValue, { color: colors.foreground }]}>⚖️ Draw</Text>
-              ) : (
-                <>
-                  {predUrl ? <Image source={{ uri: predUrl }} style={{ width: 18, height: 18, marginRight: 6 }} /> : <Text style={{ fontSize: 16, marginRight: 6 }}>{predFlag || "⚽"}</Text>}
-                  <Text style={[styles.receiptBlockValue, { color: colors.foreground }]}>{prediction}</Text>
-                </>
-              )}
-            </View>
-          </View>
-
-          <Text style={[styles.receiptPoints, { color: colors.foreground }]}>
-            {won ? "+" : "-"} {points} PTS
-          </Text>
-
-          <View
-            style={[
-              styles.receiptStamp,
-              won
-                ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                : { backgroundColor: colors.background, borderColor: colors.foreground },
-            ]}
-          >
-            <Text style={[styles.receiptStampText, { color: won ? colors.primaryForeground : colors.foreground }]}>
-              {won ? "WON" : "FAILED"}
-            </Text>
-          </View>
-
+        <ReceiptCard question={question} finalResult={finalResult} prediction={prediction} points={points} won={won} username={username}>
           <View style={styles.defaultActionContainer}>
             {wagerId && (
               <>
@@ -236,7 +169,7 @@ export function ReceiptModal({
               <Text style={[styles.receiptCloseText, { color: colors.foreground }]}>Close</Text>
             </Pressable>
           </View>
-        </View>
+        </ReceiptCard>
         )}
         </ScrollView>
       </View>
@@ -250,16 +183,6 @@ const styles = StyleSheet.create({
   overlayContent: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   offscreen: { position: "absolute", left: -10000, top: 0, width: 360, height: 640 },
   receiptCard: { width: "100%", maxWidth: 360, borderWidth: 2, borderRadius: 20, padding: 28, alignItems: "center" },
-  receiptBrand: { fontFamily: "Inter_700Bold", fontSize: 26, letterSpacing: -0.5 },
-  receiptRule: { width: 40, height: 2, marginTop: 14, marginBottom: 18 },
-  receiptKicker: { fontFamily: "Inter_500Medium", fontSize: 11, letterSpacing: 1.5, marginBottom: 14 },
-  receiptQuestion: { fontFamily: "Inter_600SemiBold", fontSize: 18, lineHeight: 25, textAlign: "center" },
-  receiptBlock: { alignItems: "center", marginBottom: 16 },
-  receiptBlockLabel: { fontFamily: "Inter_500Medium", fontSize: 11, letterSpacing: 0.8, marginBottom: 4 },
-  receiptBlockValue: { fontFamily: "Inter_700Bold", fontSize: 16, textAlign: "center" },
-  receiptPoints: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: 1, marginTop: 2, marginBottom: 12 },
-  receiptStamp: { borderWidth: 2, borderRadius: 999, paddingHorizontal: 28, paddingVertical: 10, marginTop: 6, marginBottom: 18 },
-  receiptStampText: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: 3 },
   defaultActionContainer: { width: "100%", gap: 8, marginTop: 10 },
   receiptShareBtn: { flexDirection: "row", borderRadius: 999, paddingVertical: 12, alignItems: "center", justifyContent: "center", gap: 8 },
   receiptShareText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },

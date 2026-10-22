@@ -19,7 +19,8 @@ import {
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { listFixtures, type Fixture as ApiFixture } from "@workspace/api-client-react";
+import { type Fixture as ApiFixture } from "@workspace/api-client-react";
+import { loadUpcomingFixtures } from "@/lib/fixtures";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -212,7 +213,7 @@ export default function PredictScreen() {
 
       const loadLiveFixtures = async () => {
         try {
-          const apiFixtures = await listFixtures();
+          const apiFixtures = await loadUpcomingFixtures();
           const cloudOverlay: Record<string, FixtureOverlay> = {};
 
           const { data } = await supabase.from("wagers").select("*").eq("user_id", user.id);
@@ -237,7 +238,8 @@ export default function PredictScreen() {
       };
 
       loadLiveFixtures();
-      const interval = setInterval(loadLiveFixtures, 3000);
+      // Refresh every 30 seconds while the tab is open (odds and new fixtures change slowly).
+      const interval = setInterval(loadLiveFixtures, 30_000);
 
       return () => {
         isMounted = false;

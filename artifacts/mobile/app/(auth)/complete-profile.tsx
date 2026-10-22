@@ -16,6 +16,7 @@ import { HuddleButton } from "@/components/HuddleButton";
 import { Feather } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { MIN_AGE, ageFrom, isRealDate, toIsoDate } from "@/utils/age";
+import { isUsernameAvailable, normalizeUsername, usernameProblem } from "@/lib/users";
 
 const AVATAR_COLORS = [
   "#E8533A", "#3A7DE8", "#3AE86A", "#E8C83A",
@@ -86,11 +87,22 @@ export default function CompleteProfileScreen() {
       return;
     }
     
+    const cleanUsername = normalizeUsername(username);
+    const nameProblem = usernameProblem(cleanUsername);
+    if (nameProblem) {
+      setError(nameProblem);
+      return;
+    }
+
     setLoading(true);
     setError("");
     
     try {
-      await completeProfile(displayName.trim(), username.trim().toLowerCase(), dobResult.iso, selectedColor);
+      if (!(await isUsernameAvailable(cleanUsername))) {
+        setError(`@${cleanUsername} is already taken. Try another.`);
+        return;
+      }
+      await completeProfile(displayName.trim(), cleanUsername, dobResult.iso, selectedColor);
       router.replace("/(tabs)");
     } catch (err: any) {
       setError(err.message || "Something went wrong saving your profile.");

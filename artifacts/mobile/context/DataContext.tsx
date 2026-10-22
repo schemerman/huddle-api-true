@@ -3,6 +3,7 @@ import React, { createContext, useContext, useCallback, useEffect, useState } fr
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/lib/supabase";
 import { winRateOf } from "@/utils/ranks";
+import { API_BASE_URL } from "@/lib/api";
 import {
   listPosts,
   createPost,
@@ -202,15 +203,31 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Read your huddles straight from the database, so the list loads instantly even while the
+  // API server is asleep. Creating, joining and leaving still go through the API.
   const refreshLeagues = useCallback(async () => {
     if (!user) return;
     try {
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/leagues/${user.id}`);
-      if (res.ok) setLeagues(await res.json());
+      const { data, error } = await supabase
+        .from("leagues")
+        .select("id, name, code, owner_id, member_ids, created_at")
+        .contains("member_ids", [user.id])
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      setLeagues(
+        (data ?? []).map((l: any) => ({
+          id: l.id,
+          name: l.name,
+          code: l.code,
+          ownerId: l.owner_id,
+          memberIds: l.member_ids ?? [],
+          createdAt: l.created_at,
+        }))
+      );
     } catch (e) {
       console.error("Fetch leagues error:", e);
     }
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     refreshPosts();
@@ -281,7 +298,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const createLeague = async (name: string): Promise<League | null> => {
     if (!user) return null;
     try {
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/leagues`, {
+      const res = await fetch(`${API_BASE_URL}/api/leagues`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, userId: user.id }),
@@ -300,7 +317,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const joinLeague = async (code: string): Promise<boolean> => {
     if (!user) return false;
     try {
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/leagues/join`, {
+      const res = await fetch(`${API_BASE_URL}/api/leagues/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, userId: user.id }),
@@ -317,7 +334,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const leaveLeague = async (leagueId: string) => {
     if (!user) return;
     try {
-      await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/leagues/leave`, {
+      await fetch(`${API_BASE_URL}/api/leagues/leave`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ leagueId, userId: user.id }),

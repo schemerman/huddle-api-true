@@ -23,6 +23,10 @@ import { DataProvider } from "@/context/DataContext";
 
 setBaseUrl(API_BASE_URL);
 
+// The API server sleeps when idle and takes up to a minute to wake. Nudge it as soon as the app
+// opens, so it is awake by the time someone places a pick or joins a huddle.
+fetch(`${API_BASE_URL}/api/healthz`).catch(() => {});
+
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();

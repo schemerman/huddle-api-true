@@ -8,6 +8,7 @@ import { showError } from '@/lib/alerts';
 import { Feather } from '@expo/vector-icons';
 import { GoogleButton } from '@/components/GoogleButton';
 import { MIN_AGE, ageFrom, isRealDate, toIsoDate } from '@/utils/age';
+import { isUsernameAvailable, normalizeUsername, usernameProblem } from '@/lib/users';
 
 // Generates a random color for new users
 const getRandomColor = () => {
@@ -50,9 +51,19 @@ export default function RegisterScreen() {
       return showError("Please agree to continue", `Tick the box to confirm you're ${MIN_AGE} or over and agree to the Terms of Use and Privacy Policy.`);
     }
 
+    const cleanUsername = normalizeUsername(username);
+    const nameProblem = usernameProblem(cleanUsername);
+    if (nameProblem) return showError("Choose another username", nameProblem);
+
     setLoading(true);
 
     try {
+      // 0. Check the username before creating the account, so nobody ends up half signed up.
+      if (!(await isUsernameAvailable(cleanUsername))) {
+        showError("Username taken", `@${cleanUsername} is already taken. Try another.`);
+        return;
+      }
+
       // 1. Create the login.
       const { error: regError, userId, hasSession } = await register(email.trim(), password);
       if (regError) throw new Error(regError);
@@ -65,7 +76,6 @@ export default function RegisterScreen() {
       }
 
       // 3. Save name, username, birthday and a random colour, using the new account's id.
-      const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
       await completeProfile(displayName.trim(), cleanUsername, toIsoDate(year, month, day), getRandomColor(), userId);
       router.replace('/(tabs)');
     } catch (err: any) {
