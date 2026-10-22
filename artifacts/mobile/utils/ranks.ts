@@ -11,17 +11,17 @@ export type RankInfo = {
 };
 
 /** Finished picks needed before you leave Rookie. */
-export const ROOKIE_PICKS = 5;
+export const ROOKIE_PICKS = 10;
 
 /** Every rank, best first. Rookie is last: it applies until you have ROOKIE_PICKS finished picks. */
 export const RANKS: RankInfo[] = [
-  { name: "Oracle", minWinRate: 95, minPicks: 30, description: "Sees the future. Almost never wrong." },
-  { name: "GOAT", minWinRate: 85, minPicks: 25, description: "The greatest of all time." },
-  { name: "Champion", minWinRate: 70, minPicks: 15, description: "Wins far more than they lose." },
-  { name: "All Star", minWinRate: 60, minPicks: 10, description: "Consistently ahead of the pack." },
-  { name: "Starter", minWinRate: 50, minPicks: ROOKIE_PICKS, description: "Right at least half the time." },
-  { name: "Coin Flipper", minWinRate: 35, minPicks: ROOKIE_PICKS, description: "Hit and miss. Could go either way." },
-  { name: "Beginner's Luck", minWinRate: 20, minPicks: ROOKIE_PICKS, description: "A few good calls. Keep at it." },
+  { name: "Oracle", minWinRate: 95, minPicks: 100, description: "Sees the future. Almost never wrong." },
+  { name: "GOAT", minWinRate: 85, minPicks: 60, description: "The greatest of all time." },
+  { name: "Champion", minWinRate: 70, minPicks: 40, description: "Wins far more than they lose." },
+  { name: "All Star", minWinRate: 60, minPicks: 25, description: "Consistently ahead of the pack." },
+  { name: "Starter", minWinRate: 50, minPicks: 15, description: "Right at least half the time." },
+  { name: "Coin Flipper", minWinRate: 40, minPicks: ROOKIE_PICKS, description: "Hit and miss. Could go either way." },
+  { name: "Beginner's Luck", minWinRate: 30, minPicks: ROOKIE_PICKS, description: "A few good calls. Keep at it." },
   { name: "Benchwarmer", minWinRate: 0, minPicks: ROOKIE_PICKS, description: "Rough run. Every pick is a fresh chance." },
   { name: "Rookie", minWinRate: 0, minPicks: 0, description: `New here. Finish ${ROOKIE_PICKS} picks to get your first real rank.` },
 ];
@@ -31,7 +31,11 @@ const ROOKIE = RANKS[RANKS.length - 1];
 /** What a rank needs, in words, e.g. "60%+ win rate · 10+ picks". */
 export function rankRequirement(rank: RankInfo): string {
   if (rank.name === ROOKIE.name) return `Fewer than ${ROOKIE_PICKS} finished picks`;
-  if (rank.minWinRate === 0) return `Under 20% win rate · ${rank.minPicks}+ picks`;
+  if (rank.minWinRate === 0) {
+    // Benchwarmer: anything below the rank above it.
+    const above = RANKS[RANKS.indexOf(rank) - 1];
+    return `Under ${above.minWinRate}% win rate · ${rank.minPicks}+ picks`;
+  }
   return `${rank.minWinRate}%+ win rate · ${rank.minPicks}+ picks`;
 }
 
