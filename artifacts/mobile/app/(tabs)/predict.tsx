@@ -431,7 +431,8 @@ export default function PredictScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
+  // Title at the top, so it sits at the same height as on every other tab.
+  topBar: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
   title: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: -0.5 },
   subtitle: { fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 1 },
   balancePill: { alignItems: "flex-end", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },

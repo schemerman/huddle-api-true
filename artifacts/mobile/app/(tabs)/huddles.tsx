@@ -263,7 +263,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   topBar: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    // Title at the top, so it sits at the same height as on every other tab.
+    alignItems: "flex-start",
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 12,

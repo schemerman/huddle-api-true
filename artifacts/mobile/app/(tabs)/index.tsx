@@ -38,7 +38,8 @@ export default function HomeScreen() {
   
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768; 
-  const topPad = isWeb ? 20 : insets.top;
+  // Same header spacing as Predict, Huddles, Messages and Profile.
+  const topPad = isWeb ? 67 : insets.top;
 
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -361,7 +362,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.topBar, { paddingTop: topPad }]}>
+      <View style={[styles.topBar, { paddingTop: topPad, borderBottomColor: colors.border }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Home</Text>
       </View>
 
@@ -474,8 +475,8 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, width: "100%", height: "100%" },
-  topBar: { paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.05)", flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  title: { fontFamily: "Inter_700Bold", fontSize: 20 },
+  topBar: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
+  title: { fontFamily: "Inter_700Bold", fontSize: 22, letterSpacing: -0.5 },
   composeContainer: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   composeFooter: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center" },
   emptyText: { textAlign: "center", marginTop: 60, fontFamily: "Inter_400Regular", fontSize: 16 },
