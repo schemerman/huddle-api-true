@@ -8,11 +8,14 @@ import { useColors } from "@/hooks/useColors";
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal"; 
+import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import { getCrestUrl, getFlag } from "@/utils/teams";
 import { USER_COLUMNS } from "@/lib/users";
 import { SafetyMenuButton } from "@/components/SafetySheet";
 import { useBlockedIds } from "@/lib/safety";
+import { TappablePhoto } from "@/components/TappablePhoto";
+import { pickImage, uploadImage, type PickedImage } from "@/lib/upload";
+import { showError } from "@/lib/alerts";
 
 const formatTimeAgo = (dateString: string) => {
   if (!dateString) return "";
@@ -36,8 +39,9 @@ export default function PostScreen() {
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
+  const [commentImage, setCommentImage] = useState<PickedImage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const [fireModalOpen, setFireModalOpen] = useState(false);
   const [fireAmount, setFireAmount] = useState<string>("50");
   const [fireTarget, setFireTarget] = useState<{ id: string, type: 'post' | 'comment', authorId: string } | null>(null);
@@ -53,7 +57,7 @@ export default function PostScreen() {
 
       const { data: authorData } = await supabase.from("users").select(USER_COLUMNS).eq("id", postData.user_id).single();
       const { data: likesData } = await supabase.from("post_likes").select("*").eq("post_id", id);
-      
+
       let wagersMap: Record<string, any> = {};
       if (postData.wager_id) {
          const { data: wagerData } = await supabase.from("wagers").select("*").eq("id", postData.wager_id).single();
@@ -74,7 +78,7 @@ export default function PostScreen() {
 
         const { data: commentUsers } = await supabase.from("users").select(USER_COLUMNS).in("id", userIds);
         const { data: commentLikesData } = await supabase.from("comment_likes").select("*").in("comment_id", commentIds);
-        
+
         const builtComments = commentsData.map(c => ({
           ...c,
           users: commentUsers?.find(u => u.id === c.user_id) || null,
@@ -93,14 +97,27 @@ export default function PostScreen() {
 
   useFocusEffect(useCallback(() => { fetchData(); }, [id]));
 
+  const canSendComment = !!newComment.trim() || !!commentImage;
+
+  const handlePickCommentImage = async () => {
+    try {
+      const image = await pickImage();
+      if (image) setCommentImage(image);
+    } catch (e: any) {
+      showError("Couldn't open photos", e?.message || "Please try again.");
+    }
+  };
+
+  // A reply can be text, a photo, or both. The photo is uploaded first; the reply is only cleared once saved.
   const handleSend = async () => {
-    if (!newComment.trim() || !user || !id) return;
+    if (!canSendComment || !user || !id) return;
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("comments").insert({ post_id: id, user_id: user.id, content: newComment.trim() });
+      const imageUrl = commentImage ? await uploadImage(commentImage, user.id, "posts") : null;
+      const { error } = await supabase.from("comments").insert({ post_id: id, user_id: user.id, content: newComment.trim(), image_url: imageUrl });
       if (error) throw error;
-      setNewComment(""); fetchData(); 
-    } catch (error: any) { Alert.alert("Error", error.message || "Failed to post comment"); } 
+      setNewComment(""); setCommentImage(null); fetchData();
+    } catch (error: any) { showError("Couldn't post your reply", error?.message || "Please try again."); }
     finally { setIsSubmitting(false); }
   };
 
@@ -284,7 +301,7 @@ export default function PostScreen() {
   if (post.wager) {
       const homeTeam = post.wager.homeTeam || post.wager.home_team;
       const awayTeam = post.wager.awayTeam || post.wager.away_team;
-      
+
       if (homeTeam && awayTeam) {
           const homeScore = post.wager.homeScore ?? post.wager.home_score;
           const awayScore = post.wager.awayScore ?? post.wager.away_score;
@@ -296,7 +313,7 @@ export default function PostScreen() {
           const hFlag = getFlag(homeTeam);
           const aUrl = getCrestUrl(awayTeam);
           const aFlag = getFlag(awayTeam);
-          
+
           mainMatchHeader = (
             <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
               {hUrl ? <Image source={{ uri: hUrl as string }} style={{ width: 14, height: 14, marginRight: 4 }} /> : <Text style={{ fontSize: 13, color: colors.foreground }}>{hFlag || "⚽"} </Text>}
@@ -321,7 +338,7 @@ export default function PostScreen() {
           <Feather name="arrow-left" size={24} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Post</Text>
-        <View style={{ width: 40 }} /> 
+        <View style={{ width: 40 }} />
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
@@ -345,11 +362,11 @@ export default function PostScreen() {
                       <SafetyMenuButton target={{ type: "post", id: String(post.id), userId: finalUserId, name: finalUsername }} />
                     </View>
                   </View>
-                  
+
                   <Text style={[styles.mainContent, { color: colors.foreground }]}>{post.content}</Text>
-                  {post.image_url ? <Image source={{ uri: post.image_url }} style={styles.postImage} /> : null}
+                  {post.image_url ? <TappablePhoto uri={post.image_url} style={styles.postImage} /> : null}
                   <Text style={[styles.timeAgo, { color: colors.mutedForeground }]}>{formatTimeAgo(post.created_at)}</Text>
-                  
+
                   {post.wager && (
                     <View style={[styles.miniReceipt, { borderColor: colors.border, backgroundColor: post.wager.status === "won" ? "rgba(52, 199, 89, 0.05)" : post.wager.status === "lost" ? "rgba(255, 59, 48, 0.05)" : colors.background }]}>
                       <View style={styles.miniReceiptTop}>
@@ -359,7 +376,7 @@ export default function PostScreen() {
                         </View>
                       </View>
                       {mainMatchHeader}
-                      
+
                       <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
                         {isDraw ? (
                           <Text style={[styles.miniReceiptPred, { color: colors.foreground, marginBottom: 0 }]}>⚖️ Draw</Text>
@@ -411,7 +428,7 @@ export default function PostScreen() {
             const finalCommentUsername = commentAuthor.username || "player";
             const finalCommentName = commentAuthor.display_name || commentAuthor.displayName || finalCommentUsername;
             const finalCommentColor = commentAuthor.avatar_color || colors.primary;
-            
+
             const safeCommentLikes = item.likes || [];
             const commentLikesCount = safeCommentLikes.length;
             const hasLikedComment = safeCommentLikes.some((l: any) => l.user_id === user?.id);
@@ -423,22 +440,23 @@ export default function PostScreen() {
                 <Pressable onPress={() => handleProfileClick(finalCommentUserId)}>
                   <Avatar color={finalCommentColor} username={finalCommentUsername} size={36} />
                 </Pressable>
-                
+
                 <View style={styles.commentContent}>
                   <Pressable onPress={() => handleCommentPress(item.id, hasLikedComment)}>
                     <View style={styles.commentHeader}>
                       <Text style={[styles.commentDisplayName, { color: colors.foreground }]}>{finalCommentName}</Text>
                       <Text style={[styles.commentUsername, { color: colors.mutedForeground }]}>@{finalCommentUsername} · {formatTimeAgo(item.created_at)}</Text>
                     </View>
-                    <Text style={[styles.commentText, { color: colors.foreground }]}>{item.content}</Text>
+                    {item.content ? <Text style={[styles.commentText, { color: colors.foreground }]}>{item.content}</Text> : null}
                   </Pressable>
-                  
+                  {item.image_url ? <TappablePhoto uri={item.image_url} style={styles.commentPhoto} /> : null}
+
                   <View style={styles.commentActions}>
                     <Pressable style={styles.commentActionGroup} onPress={() => handleCommentLike(item.id, hasLikedComment)}>
                       <FontAwesome5 name="heart" size={14} color={hasLikedComment ? "#FF3B30" : colors.mutedForeground} solid={hasLikedComment} />
                       <Text style={[styles.commentActionText, { color: hasLikedComment ? "#FF3B30" : colors.mutedForeground }]}>{commentLikesCount}</Text>
                     </Pressable>
-                    
+
                     <Pressable style={styles.commentActionGroup} onPress={() => openCommentFireModal(item.id, item.user_id)}>
                       <FontAwesome5 name="fire" size={14} color={commentLit ? "#FF6B00" : colors.mutedForeground} solid={commentLit} />
                       {commentLit && <Text style={[styles.commentActionText, { color: "#FF6B00" }]}>{item.fire_count}</Text>}
@@ -461,11 +479,22 @@ export default function PostScreen() {
           ListEmptyComponent={<Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Be the first to comment.</Text>}
         />
 
-        <View style={[styles.inputContainer, { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? insets.bottom || 16 : 16 }]}>
-          <TextInput style={[styles.textInput, { backgroundColor: "rgba(0,0,0,0.05)", color: colors.foreground }]} placeholder="Add a comment..." placeholderTextColor={colors.mutedForeground} value={newComment} onChangeText={setNewComment} multiline />
-          <Pressable onPress={handleSend} disabled={!newComment.trim() || isSubmitting} style={({pressed}) => [{ opacity: !newComment.trim() || pressed ? 0.5 : 1 }, styles.sendBtn]}>
-            <Text style={[styles.sendText, { color: colors.foreground }]}>Send</Text>
-          </Pressable>
+        <View style={[styles.inputContainer, { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? insets.bottom || 16 : 16, flexDirection: "column", alignItems: "stretch" }]}>
+          {commentImage && (
+            <View style={styles.previewWrap}>
+              <Image source={{ uri: commentImage.uri }} style={styles.previewImage} />
+              <Pressable onPress={() => setCommentImage(null)} style={styles.previewRemove} accessibilityLabel="Remove photo"><Feather name="x" size={14} color="#fff" /></Pressable>
+            </View>
+          )}
+          <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
+            <Pressable onPress={handlePickCommentImage} style={styles.imageBtn} accessibilityLabel="Add a photo">
+              <Feather name="image" size={22} color={colors.foreground} />
+            </Pressable>
+            <TextInput style={[styles.textInput, { backgroundColor: "rgba(0,0,0,0.05)", color: colors.foreground }]} placeholder="Add a comment..." placeholderTextColor={colors.mutedForeground} value={newComment} onChangeText={setNewComment} multiline />
+            <Pressable onPress={handleSend} disabled={!canSendComment || isSubmitting} style={({pressed}) => [{ opacity: !canSendComment || pressed ? 0.5 : 1 }, styles.sendBtn]}>
+              {isSubmitting ? <ActivityIndicator size="small" color={colors.foreground as string} /> : <Text style={[styles.sendText, { color: colors.foreground }]}>Send</Text>}
+            </Pressable>
+          </View>
         </View>
       </KeyboardAvoidingView>
 
@@ -529,6 +558,11 @@ const styles = StyleSheet.create({
   textInput: { flex: 1, minHeight: 40, maxHeight: 100, borderRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontFamily: "Inter_400Regular", fontSize: 15 },
   sendBtn: { marginLeft: 16, paddingBottom: 10 },
   sendText: { fontFamily: "Inter_700Bold", fontSize: 15 },
+  imageBtn: { paddingRight: 12, paddingBottom: 9 },
+  previewWrap: { width: 80, height: 80, marginBottom: 12 },
+  previewImage: { width: 80, height: 80, borderRadius: 10 },
+  previewRemove: { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
+  commentPhoto: { width: 220, height: 220, borderRadius: 12, marginBottom: 10 },
   modalOverlayCenter: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 20 },
   fireModalCard: { width: "100%", maxWidth: 340, borderRadius: 16, padding: 24, borderWidth: 1 },
   fireModalTitle: { fontFamily: "Inter_700Bold", fontSize: 20, textAlign: "center", marginBottom: 8 },

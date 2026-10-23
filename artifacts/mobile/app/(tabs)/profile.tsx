@@ -15,6 +15,7 @@ import { requestSettlement } from "@/lib/api";
 import { showError } from "@/lib/alerts";
 import { SUPPORT_EMAIL } from "@/constants/legal";
 import { BlockedUsersModal, DeleteAccountModal } from "@/components/AccountSafetyModals";
+import { TappablePhoto } from "@/components/TappablePhoto";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAILY_BONUS_POINTS = 100;
@@ -356,7 +357,7 @@ export default function ProfileScreen() {
                     </Pressable>
                   </View>
                   <Text style={[styles.postContent, { color: colors.foreground }]}>{p.content}</Text>
-                  {p.image_url && <Image source={{ uri: p.image_url }} style={styles.postImage} />}
+                  {p.image_url && <TappablePhoto uri={p.image_url} style={styles.postImage} />}
                   
                   {/* Added this component to display the receipt */}
                   {p.wager_id && <AttachedWager wagerId={p.wager_id} />}

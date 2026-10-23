@@ -1,7 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   placeWager as apiPlaceWager,
-  claimDaily as apiClaimDaily,
   claimBailout as apiClaimBailout,
 } from "@workspace/api-client-react";
 import React, { createContext, useContext, useEffect, useState } from "react";
@@ -167,14 +166,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const claimDailyBonus = async (): Promise<DailyBonusOutcome> => {
     if (!user) return "failed";
     try {
-      const result = await apiClaimDaily(user.id);
-      return result.claimed ? "claimed" : "already_claimed";
+      // Claimed straight in the database (supabase/sql/2026-10-23-instant-daily-bonus.sql), not through the
+      // API server, which can take 30-60 s to wake. Same rules: 100 points, once every 24 hours.
+      const { data, error } = await supabase.rpc("claim_daily_bonus");
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row) throw new Error("No answer from claim_daily_bonus");
+      // Show the new points and lock the button straight away.
+      setUser((prev) => (prev ? { ...prev, points: Number(row.points), lastDailyClaim: Date.parse(row.last_daily_claim) } : prev));
+      return row.claimed ? "claimed" : "already_claimed";
     } catch (e) {
       console.warn("Daily bonus claim failed:", e);
       return "failed";
     } finally {
-      // Reload the account so points and last_daily_claim (which drives the button lock) are current.
-      await fetchUserProfile(user.id);
+      // Quiet refresh in the background (e.g. the "out of points" flag); the screen doesn't wait for it.
+      fetchUserProfile(user.id);
     }
   };
 

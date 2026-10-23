@@ -478,8 +478,9 @@ const styles = StyleSheet.create({
   oddsTag: { fontFamily: "Inter_400Regular", fontSize: 13 },
   wagerLabel: { fontFamily: "Inter_500Medium", fontSize: 15, marginBottom: 10 },
   wagerInputRow: { flexDirection: "row", alignItems: "stretch", gap: 10, marginBottom: 10 },
-  wagerInput: { flex: 1, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16, fontFamily: "Inter_700Bold", fontSize: 28, letterSpacing: -0.5, borderWidth: 1 },
-  allInBtn: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 18, alignItems: "center", justifyContent: "center" },
+  // minWidth 0 lets the box shrink on narrow phones, so the MAX button beside it always stays on screen.
+  wagerInput: { flex: 1, minWidth: 0, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16, fontFamily: "Inter_700Bold", fontSize: 28, letterSpacing: -0.5, borderWidth: 1 },
+  allInBtn: { flexShrink: 0, borderRadius: 12, borderWidth: 1, paddingHorizontal: 18, alignItems: "center", justifyContent: "center" },
   allInText: { fontFamily: "Inter_700Bold", fontSize: 14, letterSpacing: 0.5 },
   metaRow: { gap: 4, marginBottom: 20 },
   balanceHint: { fontFamily: "Inter_400Regular", fontSize: 12 },

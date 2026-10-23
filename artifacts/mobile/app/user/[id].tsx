@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
+import { TappablePhoto } from "@/components/TappablePhoto";
 import {
   Platform,
   Pressable,
@@ -218,7 +219,7 @@ export default function UserProfileScreen() {
                       {/* DELIBERATELY OMITTED TRASH CAN SO USERS CANNOT DELETE OTHERS' POSTS */}
                     </View>
                     <Text style={[styles.postContent, { color: colors.foreground }]}>{p.content}</Text>
-                    {p.image_url && <Image source={{ uri: p.image_url }} style={styles.postImage} />}
+                    {p.image_url && <TappablePhoto uri={p.image_url} style={styles.postImage} />}
                     <View style={styles.postActionRow}>
                       <Feather name="heart" size={16} color={colors.mutedForeground} />
                       <Feather name="message-circle" size={16} color={colors.mutedForeground} />

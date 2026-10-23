@@ -16,6 +16,7 @@ import { showError } from "@/lib/alerts";
 import { SafetyMenuButton } from "@/components/SafetySheet";
 import { useBlockedIds } from "@/lib/safety";
 import { USER_COLUMNS } from "@/lib/users";
+import { TappablePhoto } from "@/components/TappablePhoto";
 
 const isWeb = Platform.OS === "web";
 
@@ -328,7 +329,7 @@ export default function HomeScreen() {
             </View>
             
             <Text style={[styles.postText, { color: colors.foreground }]}>{item.content}</Text>
-            {item.image_url && <Image source={{ uri: item.image_url }} style={styles.postImage} />}
+            {item.image_url && <TappablePhoto uri={item.image_url} style={styles.postImage} />}
             {miniReceipt}
           </Pressable>
           
@@ -413,9 +414,10 @@ export default function HomeScreen() {
       <PublicProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
 
       {!isDesktop && (
-        <Modal visible={composeOpen} animationType="slide" transparent>
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlayBottom}>
-            <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+        // Full-screen post box with the text box at the top, so the phone keyboard never covers it.
+        <Modal visible={composeOpen} animationType="slide" onRequestClose={() => { setComposeOpen(false); setAttachedWagerId(null); setSelectedImage(null); }}>
+          <View style={[styles.composeScreen, { backgroundColor: colors.background, paddingTop: (isWeb ? 16 : insets.top) + 8 }]}>
+            <View style={styles.composeBody}>
               <View style={styles.modalHeader}>
                 <Pressable onPress={() => { setComposeOpen(false); setAttachedWagerId(null); setSelectedImage(null); }}>
                   <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancel</Text>
@@ -445,7 +447,7 @@ export default function HomeScreen() {
                 <Pressable onPress={pickImage} style={{ padding: 8 }}><Feather name="image" size={22} color={colors.primary} /></Pressable>
               </View>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </Modal>
       )}
 
@@ -498,6 +500,8 @@ const styles = StyleSheet.create({
   modalOverlayBottom: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { height: "85%", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  composeScreen: { flex: 1 },
+  composeBody: { paddingHorizontal: 20, width: "100%", maxWidth: 640, alignSelf: "center" },
   cancelText: { fontFamily: "Inter_500Medium", fontSize: 16 },
   postBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 999 },
   postBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },

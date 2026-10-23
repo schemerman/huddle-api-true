@@ -11,6 +11,7 @@ import { RankingRow } from "@/components/RankingRow";
 import { PublicProfileModal, type PublicProfileUser } from "@/components/PublicProfileModal";
 import { supabase } from "@/lib/supabase";
 import { AttachedWager } from "@/components/AttachedWager";
+import { TappablePhoto } from "@/components/TappablePhoto";
 import {
   type ChatMessage,
   appendUnique,
@@ -232,7 +233,7 @@ export default function LeagueScreen() {
 
           {photoUrl || item.content ? (
             <View style={[styles.messageBubble, isMe ? [styles.bubbleMe, { backgroundColor: colors.foreground }] : [styles.bubbleThem, { backgroundColor: "rgba(0,0,0,0.05)" }]]}>
-              {photoUrl ? <Image source={{ uri: photoUrl }} style={[styles.photo, !item.content && { marginBottom: 0 }]} /> : null}
+              {photoUrl ? <TappablePhoto uri={photoUrl} style={[styles.photo, !item.content && { marginBottom: 0 }]} /> : null}
               {item.content ? <Text style={[styles.messageText, { color: isMe ? colors.background : colors.foreground }]}>{item.content}</Text> : null}
             </View>
           ) : null}
