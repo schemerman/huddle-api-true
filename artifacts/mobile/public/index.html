@@ -44,6 +44,7 @@
       #boot-splash.is-stuck .spinner { display: none; }
       #boot-splash.is-stuck .stuck { display: flex; }
       #boot-splash .stuck p { margin: 0; font-size: 15px; line-height: 21px; color: #8A8A8A; }
+      #boot-splash .stuck small { font-size: 11px; line-height: 15px; color: #ABABAB; max-width: 320px; word-break: break-word; }
       #boot-splash button {
         font: inherit; font-size: 16px; font-weight: 600; color: #FFFFFF; background: #000000;
         border: 0; border-radius: 999px; padding: 14px 28px; cursor: pointer;
@@ -60,19 +61,45 @@
       <div class="brand">HUDDLE</div>
       <div class="spinner" aria-label="Loading"></div>
       <div class="stuck">
-        <p>Huddle is taking longer than usual to open.</p>
+        <p id="boot-message">Huddle is taking longer than usual to open.</p>
         <button type="button" id="boot-reload">Tap to reload</button>
+        <small id="boot-error"></small>
       </div>
     </div>
 
     <script>
-      // If the app hasn't started after 15 seconds (very slow connection, or an outdated saved copy),
-      // offer a reload that throws away the saved copy and fetches the latest version.
+      // Never leave anyone on a blank screen:
+      // - not started after 15 s (very slow connection, outdated saved copy) -> offer a reload;
+      // - started, but the screen stays empty for 6 s (a crash) -> show what went wrong and offer a reload.
+      // The app hides #boot-splash and sets window.__huddleStarted once it is drawing (app/_layout.tsx).
       (function () {
         var splash = document.getElementById("boot-splash");
+        var lastError = "";
+        function remember(message) { if (message) lastError = String(message).slice(0, 300); }
+        window.addEventListener("error", function (e) { remember(e && (e.message || (e.error && e.error.message))); });
+        window.addEventListener("unhandledrejection", function (e) { remember(e && e.reason && (e.reason.message || e.reason)); });
+
+        function showStuck(message) {
+          document.getElementById("boot-message").textContent = message;
+          document.getElementById("boot-error").textContent = lastError;
+          splash.style.display = "";
+          splash.className = "is-stuck";
+        }
+
         setTimeout(function () {
-          if (document.getElementById("boot-splash")) splash.className = "is-stuck";
+          if (!window.__huddleStarted) showStuck("Huddle is taking longer than usual to open.");
         }, 15000);
+
+        // After start: watch for an empty screen for the first 30 seconds.
+        var emptyFor = 0, checks = 0;
+        var watch = setInterval(function () {
+          if (!window.__huddleStarted) return;
+          var root = document.getElementById("root");
+          var empty = !root || (!root.innerText.trim() && !root.querySelector("img, svg, canvas, input, textarea"));
+          emptyFor = empty ? emptyFor + 1 : 0;
+          if (emptyFor >= 6) { clearInterval(watch); showStuck("Something went wrong opening Huddle."); }
+          if (++checks > 30) clearInterval(watch);
+        }, 1000);
         document.getElementById("boot-reload").addEventListener("click", function () {
           var jobs = [];
           try {

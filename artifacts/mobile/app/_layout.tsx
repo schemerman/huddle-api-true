@@ -6,8 +6,9 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { setBaseUrl } from "@workspace/api-client-react";
+import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
 import { API_BASE_URL } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
@@ -22,6 +23,8 @@ import { AuthProvider } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
 
 setBaseUrl(API_BASE_URL);
+// Every API request carries the signed-in user's token; the server checks it matches the account being changed.
+setAuthTokenGetter(async () => (await supabase.auth.getSession()).data.session?.access_token ?? null);
 
 // The API server sleeps when idle and takes up to a minute to wake. Nudge it as soon as the app
 // opens, so it is awake by the time someone places a pick or joins a huddle.
@@ -142,8 +145,14 @@ export default function RootLayout() {
   useEffect(() => {
     if (fontsLoaded || fontError) {
       SplashScreen.hideAsync();
-      // Website: remove the HUDDLE loading screen from public/index.html now the app is drawing itself.
-      if (typeof document !== "undefined") document.getElementById("boot-splash")?.remove();
+      // Website: hide the HUDDLE loading screen from public/index.html now the app is drawing itself.
+      // It's hidden, not removed, so public/index.html can bring it back with a reload button if the screen
+      // then stays empty (a crash) instead of leaving a blank white page.
+      if (typeof document !== "undefined") {
+        const splash = document.getElementById("boot-splash");
+        if (splash) splash.style.display = "none";
+        (window as any).__huddleStarted = Date.now();
+      }
     }
   }, [fontsLoaded, fontError]);
 

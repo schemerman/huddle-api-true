@@ -14,7 +14,7 @@ export type ShareableReceiptProps = {
   onReady?: () => void;
 };
 
-export const SHARE_URL = "https://huddle-app.vercel.app";
+export const SHARE_URL = "https://huddle-mobile.vercel.app";
 
 // Web: turn an online badge into an embedded image so it's always in the captured picture.
 async function toDataUrl(url: string): Promise<string | null> {

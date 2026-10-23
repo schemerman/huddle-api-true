@@ -27,7 +27,7 @@
       [
         "expo-router",
         {
-          "origin": "https://huddle-app.vercel.app"
+          "origin": "https://huddle-mobile.vercel.app"
         }
       ],
       "expo-font",

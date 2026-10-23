@@ -3,7 +3,7 @@ import React, { createContext, useContext, useCallback, useEffect, useState } fr
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/lib/supabase";
 import { winRateOf } from "@/utils/ranks";
-import { API_BASE_URL } from "@/lib/api";
+import { API_BASE_URL, authHeaders } from "@/lib/api";
 import {
   listPosts,
   createPost,
@@ -230,7 +230,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id]);
 
   useEffect(() => {
-    refreshPosts();
     refreshLeaderboard();
     refreshLeagues();
     AsyncStorage.getItem("huddle_messages").then((raw) => {
@@ -300,7 +299,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch(`${API_BASE_URL}/api/leagues`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ name, userId: user.id }),
       });
       if (!res.ok) return null;
@@ -319,7 +318,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch(`${API_BASE_URL}/api/leagues/join`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ code, userId: user.id }),
       });
       if (!res.ok) return false;
@@ -336,7 +335,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       await fetch(`${API_BASE_URL}/api/leagues/leave`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ leagueId, userId: user.id }),
       });
       setLeagues((prev) => prev.filter((l) => l.id !== leagueId));
