@@ -6,7 +6,7 @@ export const postsTable = pgTable("posts", {
   userId: text("user_id")
     .notNull()
     .references(() => usersTable.id),
-  text: text("text").notNull(),
+  text: text("content").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

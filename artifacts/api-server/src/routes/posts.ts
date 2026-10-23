@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
+import { requireUser, asSelf } from "../middlewares/auth";
 import { desc, eq } from "drizzle-orm";
 import { db, postsTable, usersTable } from "@workspace/db";
 import { ListPostsResponse, CreatePostBody, CreatePostResponse } from "@workspace/api-zod";
@@ -34,7 +35,7 @@ router.get("/posts", async (_req, res): Promise<void> => {
   res.json(ListPostsResponse.parse(payload));
 });
 
-router.post("/posts", async (req, res): Promise<void> => {
+router.post("/posts", requireUser, asSelf((req) => req.body?.userId), async (req, res): Promise<void> => {
   const parsed = CreatePostBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

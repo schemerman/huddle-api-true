@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
+import { requireUser, asSelf } from "../middlewares/auth";
 import { eq } from "drizzle-orm";
 import { db, leaguesTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
 // 1. Create a Huddle
-router.post("/leagues", async (req, res) => {
+router.post("/leagues", requireUser, asSelf((req) => req.body?.userId), async (req, res) => {
   const { name, userId } = req.body;
   if (!name || !userId) return res.status(400).json({ error: "Missing data" });
 
@@ -23,11 +24,11 @@ router.post("/leagues", async (req, res) => {
     })
     .returning();
 
-  res.json(newLeague);
+  return res.json(newLeague);
 });
 
 // 2. Join a Huddle
-router.post("/leagues/join", async (req, res) => {
+router.post("/leagues/join", requireUser, asSelf((req) => req.body?.userId), async (req, res) => {
   const { code, userId } = req.body;
 
   const [league] = await db.select().from(leaguesTable).where(eq(leaguesTable.code, code));
@@ -39,11 +40,11 @@ router.post("/leagues/join", async (req, res) => {
     league.memberIds = updatedMembers;
   }
 
-  res.json({ success: true, league });
+  return res.json({ success: true, league });
 });
 
 // 3. Leave a Huddle
-router.post("/leagues/leave", async (req, res) => {
+router.post("/leagues/leave", requireUser, asSelf((req) => req.body?.userId), async (req, res) => {
   const { leagueId, userId } = req.body;
 
   const [league] = await db.select().from(leaguesTable).where(eq(leaguesTable.id, leagueId));
@@ -52,7 +53,7 @@ router.post("/leagues/leave", async (req, res) => {
   const updatedMembers = league.memberIds.filter((id: string) => id !== userId);
   await db.update(leaguesTable).set({ memberIds: updatedMembers }).where(eq(leaguesTable.id, leagueId));
 
-  res.json({ success: true });
+  return res.json({ success: true });
 });
 
 // 4. Fetch My Huddles

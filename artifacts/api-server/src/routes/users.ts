@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
+import { requireUser, asSelf } from "../middlewares/auth";
 import { eq, desc } from "drizzle-orm";
 // 👇 Added fixturesTable to the imports 👇
 import { db, usersTable, wagersTable, fixturesTable, type User as DbUser } from "@workspace/db";
@@ -58,7 +59,7 @@ function serializeUser(u: DbUser) {
   };
 }
 
-router.post("/users/sync", async (req, res): Promise<void> => {
+router.post("/users/sync", requireUser, asSelf((req) => req.body?.id), async (req, res): Promise<void> => {
   const parsed = SyncUserBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -183,7 +184,7 @@ router.get("/users/:id/wagers", async (req, res): Promise<void> => {
 });
 // 👆 ---------------------------------------------------- 👆
 
-router.post("/users/:id/wagers", async (req, res): Promise<void> => {
+router.post("/users/:id/wagers", requireUser, asSelf((req) => req.params.id), async (req, res): Promise<void> => {
   const params = PlaceWagerParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -261,6 +262,8 @@ router.post("/users/:id/wagers", async (req, res): Promise<void> => {
 
 router.post(
   "/users/:id/wagers/:wagerId/settle",
+  // Switched off: it let anyone mark their own pick as won. Picks are settled from real results only.
+  (_req, res) => { res.status(410).json({ error: "Picks are settled automatically from match results." }); },
   async (req, res): Promise<void> => {
     const params = SettleWagerParams.safeParse(req.params);
     if (!params.success) {
@@ -345,7 +348,7 @@ router.post(
   },
 );
 
-router.post("/users/:id/daily", async (req, res): Promise<void> => {
+router.post("/users/:id/daily", requireUser, asSelf((req) => req.params.id), async (req, res): Promise<void> => {
   const params = ClaimDailyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -394,7 +397,7 @@ router.post("/users/:id/daily", async (req, res): Promise<void> => {
   );
 });
 
-router.post("/users/:id/bailout", async (req, res): Promise<void> => {
+router.post("/users/:id/bailout", requireUser, asSelf((req) => req.params.id), async (req, res): Promise<void> => {
   const params = ClaimBailoutParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
