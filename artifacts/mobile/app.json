@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "HUDDLE",
-    "slug": "huddle",
+    "slug": "huddle-sports",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -57,6 +57,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9f78329d-59e6-45a6-83fb-204c27e49c8e"
+      }
+    },
+    "owner": "ejlbilly"
   }
 }
