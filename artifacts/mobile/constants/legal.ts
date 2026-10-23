@@ -290,3 +290,47 @@ export const TERMS_OF_USE: LegalDoc = {
     },
   ],
 };
+
+// Public page for Google Play's account-deletion rule: huddle-mobile.vercel.app/delete-account
+export const DELETE_ACCOUNT_INFO: LegalDoc = {
+  title: "Delete your Huddle account",
+  intro:
+    "You can delete your Huddle account and its data at any time, from inside the app or by asking us. Deleting is permanent and can't be undone.",
+  sections: [
+    {
+      heading: "Delete it in the app",
+      body: [
+        { bullets: ["Open Huddle and sign in.", "Go to Profile, then the Settings tab.", "Tap Delete account and confirm."] },
+        "Your account is deleted straight away.",
+      ],
+    },
+    {
+      heading: "Or ask us to delete it",
+      body: [
+        `If you can't sign in, email ${SUPPORT_EMAIL} from the email address on your account and ask us to delete it. We'll confirm and delete it within 30 days.`,
+      ],
+    },
+    {
+      heading: "What gets deleted",
+      body: [
+        {
+          bullets: [
+            "Your account, sign-in details and profile (name, username, date of birth, colour).",
+            "Your points, picks and stats.",
+            "Your posts, replies, likes and fire awards.",
+            "Your direct messages and huddle chat messages.",
+            "Who you follow and who follows you, your blocks and the reports you made.",
+            "You're removed from every huddle; huddles left with no members are deleted.",
+          ],
+        },
+        `Photos you uploaded are stored separately. To have those removed as well, email ${SUPPORT_EMAIL} and we'll delete them within 30 days.`,
+      ],
+    },
+    {
+      heading: "What we may keep",
+      body: [
+        "Reports other people made about your posts or messages are kept so we can keep Huddle safe. Apart from those reports and any uploaded photos you haven't asked us to remove, nothing is kept once your account is deleted.",
+      ],
+    },
+  ],
+};
